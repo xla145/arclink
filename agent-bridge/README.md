@@ -1,6 +1,6 @@
 # Agent Bridge
 
-轻量桌面 Agent 宿主，采用 Tauri 2、Rust、React 和 TypeScript。桌面端负责 Agent 发现、设备授权、进程生命周期和字节中继；手机侧会话、任务和审批业务不在此项目中实现。
+轻量 Agent 宿主。桌面端采用 Tauri 2、Rust、React 和 TypeScript，负责 Agent 发现、设备授权、进程生命周期和字节中继。`ios/` 是 SwiftUI 客户端壳，目前只在手机本机记录会话和审批，尚未连接 daemon。
 
 ## 工程
 
@@ -11,6 +11,7 @@
 | `crates/agentd` | 内嵌 daemon、SQLite、配对、进程与 iroh 网络 |
 | `crates/abp-test-harness` | 独立测试端和传输集成测试 |
 | `desktop` | React 面板及 Tauri 原生壳 |
+| `ios` | SwiftUI 客户端壳，说明见 `ios/README.md` |
 | `fixtures` | 脱敏后的兼容性验证证据 |
 
 ## 本地开发
