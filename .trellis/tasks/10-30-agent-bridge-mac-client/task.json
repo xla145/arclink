@@ -25,6 +25,6 @@
     "doc/agent-bridge-tray.html",
     "doc/agent-bridge-plan.md"
   ],
-  "notes": "2026-10-31: User approved task planning and explicitly chose a greenfield implementation after source absence was verified. Supersedes historical Swift and server-side business-state assumptions. PRD/design/implementation plan rewritten; historical versions preserved under research/. Await latest final planning summary review before task.py start.",
+  "notes": "2026-10-31: User approved greenfield plan; implementation started on feature/agent-bridge-desktop. Rust daemon/network and Tauri/React implemented; initial independent checks passed. Latest explicit user direction requires prototype rounded corners and in-place pairing QR in the main panel, superseding separate pairing windows. Updating UI and rerunning gates before final package/native validation. No commit approval requested yet.",
   "meta": {}
 }

@@ -4,7 +4,7 @@ use agentd::{
     Result,
 };
 use serde::Serialize;
-use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
+use tauri::{AppHandle, Manager, WebviewWindow};
 use tauri_plugin_autostart::ManagerExt;
 
 #[tauri::command]
@@ -18,61 +18,47 @@ pub async fn refresh_agents(app: AppHandle) -> Result<()> {
 }
 
 #[tauri::command]
-pub async fn open_pairing(app: AppHandle) -> Result<()> {
-    service(&app).await?;
-    if let Some(window) = app.get_webview_window("pairing") {
-        window
-            .show()
-            .map_err(|_| native_error("无法显示配对窗口。"))?;
-        window
-            .set_focus()
-            .map_err(|_| native_error("无法聚焦配对窗口。"))?;
-    } else {
-        WebviewWindowBuilder::new(
-            &app,
-            "pairing",
-            WebviewUrl::App("index.html?pairing".into()),
-        )
-        .title("配对新设备 · Agent Bridge")
-        .inner_size(360.0, 520.0)
-        .resizable(false)
-        .decorations(false)
-        .always_on_top(true)
-        .skip_taskbar(true)
-        .center()
-        .on_navigation(|url| {
-            url.scheme() == "tauri"
-                || url.host_str().is_some_and(|host| {
-                    matches!(host, "localhost" | "tauri.localhost" | "127.0.0.1")
-                })
-        })
-        .build()
-        .map_err(|_| native_error("无法打开配对窗口。"))?;
-    }
-    if let Some(main) = app.get_webview_window("main") {
-        let _ = main.hide();
-    }
-    Ok(())
-}
-
-#[tauri::command]
 pub async fn start_pairing(app: AppHandle, window: WebviewWindow) -> Result<PairSession> {
-    if window.label() != "pairing" {
-        return Err(native_error("请在配对窗口生成邀请。"));
+    if window.label() != "main" {
+        return Err(native_error("请在主面板中生成配对邀请。"));
     }
     let state = app.state::<AppState>();
     let mut invitation = state.invitation.lock().await;
-    // Repeated IPC requests share one window-owned invitation, including React StrictMode.
+    let daemon = service(&app).await?;
+    // Retry/StrictMode calls share an active invitation without creating a second session.
+    let pairing = daemon.pairing_state().await;
     if let Some(session) = invitation.as_ref() {
-        return Ok(session.clone());
+        if pairing.session_id.as_deref() == Some(session.session_id.as_str())
+            && matches!(pairing.state.as_str(), "waiting" | "pending")
+        {
+            return Ok(session.clone());
+        }
     }
-    let session = service(&app).await?.start_pairing().await?;
+    *invitation = None;
+    let session = daemon.start_pairing().await?;
     *invitation = Some(session.clone());
     Ok(session)
 }
 #[tauri::command]
-pub async fn cancel_pairing(app: AppHandle, session_id: String) -> Result<()> {
-    service(&app).await?.cancel_pairing(&session_id).await
+pub async fn cancel_pairing(app: AppHandle, session_id: Option<String>) -> Result<()> {
+    let state = app.state::<AppState>();
+    let mut invitation = state.invitation.lock().await;
+    let target = session_id.or_else(|| {
+        invitation
+            .as_ref()
+            .map(|session| session.session_id.clone())
+    });
+    if let Some(target) = target {
+        // Keep the transient cache intact on failure so explicit cancellation can be retried.
+        service(&app).await?.cancel_pairing(&target).await?;
+        if invitation
+            .as_ref()
+            .is_some_and(|session| session.session_id == target)
+        {
+            *invitation = None;
+        }
+    }
+    Ok(())
 }
 #[tauri::command]
 pub async fn approve_pairing(
@@ -89,30 +75,6 @@ pub async fn approve_pairing(
 #[tauri::command]
 pub async fn reject_pairing(app: AppHandle, request_id: String) -> Result<()> {
     service(&app).await?.reject_pairing(&request_id).await
-}
-#[tauri::command]
-pub async fn close_pairing(app: AppHandle) -> Result<()> {
-    let state = app.state::<AppState>();
-    let mut invitation = state.invitation.lock().await;
-    if let Some(session) = invitation.as_ref() {
-        if let Some(daemon) = state.daemon.read().await.as_ref() {
-            if let Err(error) = daemon.cancel_pairing(&session.session_id).await {
-                // A replaced invitation is already invalid; do not cancel its successor.
-                // Other failures keep the current window/cache intact for an explicit retry.
-                if error.code != "conflict" {
-                    return Err(error);
-                }
-            }
-        }
-    }
-    *invitation = None;
-    drop(invitation);
-    if let Some(window) = app.get_webview_window("pairing") {
-        window
-            .destroy()
-            .map_err(|_| native_error("无法关闭配对窗口。"))?;
-    }
-    Ok(())
 }
 #[tauri::command]
 pub async fn revoke_device(app: AppHandle, device_id: String) -> Result<()> {

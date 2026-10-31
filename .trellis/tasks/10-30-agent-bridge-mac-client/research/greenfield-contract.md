@@ -9,7 +9,8 @@ Current requirements are in this task PRD, design and implementation plan.
 ## Authoritative documents
 - doc/agent-bridge-desktop-client.md: Tauri 2, React/TypeScript/Vite, embedded
   agentd library, SQLite host metadata, iroh and prost; default 320px panel,
-  480px maximum height, separate pairing window, 120-second invitation.
+  480px maximum height, 120-second invitation. Latest user instruction overrides
+  the separate window: pairing QR stays inside the current rounded main panel.
 - doc/agent-bridge-tray.html: visual hierarchy and states. It has sample data,
   external fonts and decorative QR generation: none become runtime behavior.
 - doc/agent-bridge-plan.md: ABP framing/identity/trust/relay rules, one verified

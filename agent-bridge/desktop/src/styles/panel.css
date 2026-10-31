@@ -5,7 +5,7 @@
   line-height: 1.5;
   color-scheme: light dark;
   color: var(--fg);
-  background: var(--bg);
+  background: transparent;
   --bg: #fafafa;
   --card: #fff;
   --elevated: #f0f0f0;
@@ -22,6 +22,9 @@
   --error: #dc2626;
   --error-soft: #fee2e2;
   --offline: #9ca3af;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -57,6 +60,7 @@ body,
   height: 100%;
   width: 100%;
   overflow: hidden;
+  background: transparent;
 }
 button,
 input {
@@ -98,6 +102,9 @@ a {
   background: var(--border);
   gap: 1px;
   position: relative;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  clip-path: inset(0 round var(--radius-lg));
 }
 .panel {
   background: var(--card);

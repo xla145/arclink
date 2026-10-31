@@ -39,11 +39,15 @@ Keep service startup asynchronous so Keychain/network failures can be shown.
 Rust owns all child handles and cancellation tasks. A shutdown state blocks
 new starts; graceful stop has a bounded wait followed by owned process-group
 cleanup. Repeated quit/close requests join the same shutdown operation.
-Window close/blur/Esc only hides main. Pairing-window close cancels its own
-session, not the daemon. Events never implicitly terminate other windows.
+Window close/blur/Esc only hides main. Pairing is an in-place view in the main
+panel, per the latest user instruction. Its explicit cancel/back action cancels
+the invitation before returning to devices; hiding main preserves the daemon.
+There is no separate pairing WebView or native window.
 Use monitor work area and scale factor for tray placement; clamp height on
 small displays. Follow the technical document's 320px default width/480px
-maximum panel height, preserving the HTML sections/colors/typography.
+maximum panel height, preserving the HTML sections/colors/typography. Use the
+prototype's 14px outer radius and rounded cards/buttons/segmented navigation;
+native/WebView backgrounds must not fill the rounded corners with opaque white.
 Use local/system fonts rather than the prototype's external font request.
 
 ## UI command/event contract
@@ -67,7 +71,7 @@ refreshes authority or uses the original deduplication key, never a fresh
 automatic replay. Production without Tauri shows unavailable, not fixtures.
 
 Pair QR data is the deliberate exception to transient secret exposure: only
-the pairing window receives the short-lived invitation; it is never placed
+the active pairing view receives the short-lived invitation; it is never placed
 in global events, persistence, logs or localStorage and is cleared on close.
 Private keys never enter WebView. This resolves the document's broad
 'no token in frontend state' wording with its explicit QR requirement.

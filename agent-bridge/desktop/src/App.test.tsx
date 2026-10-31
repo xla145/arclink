@@ -11,7 +11,7 @@ import userEvent from "@testing-library/user-event";
 import { App } from "./App";
 import { previewBridge } from "./preview";
 import type { Bridge } from "./bridge";
-import type { Snapshot } from "./types";
+import type { PairSession, Snapshot } from "./types";
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -138,17 +138,131 @@ test("StrictMode creates one pairing invitation and cancel addresses its session
   };
   api.startPairing = vi.fn().mockResolvedValue(invitation);
   api.cancelPairing = vi.fn().mockResolvedValue(undefined);
-  api.closePairing = vi.fn().mockResolvedValue(undefined);
+  const popup = vi.spyOn(window, "open");
   render(
     <StrictMode>
-      <App api={api} pairing />
+      <App api={api} />
     </StrictMode>,
   );
+  const panel = screen.getByRole("main");
+  await userEvent.click(
+    await screen.findByRole("button", { name: "配对新设备" }),
+  );
   await screen.findByAltText("设备配对二维码");
+  expect(screen.getByRole("main")).toBe(panel);
+  expect(popup).not.toHaveBeenCalled();
   expect(api.startPairing).toHaveBeenCalledOnce();
   await userEvent.click(screen.getByRole("button", { name: "取消配对" }));
   expect(api.cancelPairing).toHaveBeenCalledWith("s1");
-  expect(api.closePairing).toHaveBeenCalledOnce();
+  expect(await screen.findByText("尚未配对任何设备")).toBeVisible();
+  expect(screen.getByRole("main")).toBe(panel);
+});
+
+test("inline back waits for backend cancellation and keeps the invitation on failure", async () => {
+  const api = previewBridge("empty");
+  const cancelled = deferred<void>();
+  api.cancelPairing = vi
+    .fn()
+    .mockReturnValueOnce(cancelled.promise)
+    .mockRejectedValueOnce({ code: "conflict", message: "暂时无法取消配对" })
+    .mockResolvedValue(undefined);
+  render(<App api={api} />);
+  await userEvent.click(
+    await screen.findByRole("button", { name: "配对新设备" }),
+  );
+  await screen.findByAltText("设备配对二维码");
+  await userEvent.click(screen.getByRole("button", { name: "返回设备列表" }));
+  expect(screen.getByAltText("设备配对二维码")).toBeVisible();
+  expect(screen.queryByText("尚未配对任何设备")).not.toBeInTheDocument();
+  await act(async () => cancelled.resolve());
+  await userEvent.click(
+    await screen.findByRole("button", { name: "配对新设备" }),
+  );
+  await screen.findByAltText("设备配对二维码");
+  await userEvent.click(screen.getByRole("button", { name: "取消配对" }));
+  expect(await screen.findByText("暂时无法取消配对")).toBeVisible();
+  expect(screen.getByAltText("设备配对二维码")).toBeVisible();
+  await userEvent.click(screen.getByRole("button", { name: "返回设备列表" }));
+  expect(await screen.findByText("尚未配对任何设备")).toBeVisible();
+});
+
+test("successful pairing clears its QR and returns to devices in the same panel", async () => {
+  const api = previewBridge("empty");
+  const snapshot = await api.snapshot();
+  let emit!: (snapshot: Snapshot) => void;
+  api.subscribe = async (callback) => {
+    emit = callback;
+    return () => {};
+  };
+  api.startPairing = vi.fn().mockResolvedValue({
+    session_id: "success",
+    endpoint_id: "endpoint",
+    token: "secret",
+    expires_at: new Date(Date.now() + 120000).toISOString(),
+    qr_payload: "test-success-qr",
+  });
+  render(<App api={api} />);
+  await userEvent.click(
+    await screen.findByRole("button", { name: "配对新设备" }),
+  );
+  await screen.findByAltText("设备配对二维码");
+  vi.useFakeTimers();
+  try {
+    act(() =>
+      emit({
+        ...snapshot,
+        revision: "2",
+        pairing: {
+          session_id: "success",
+          expires_at: null,
+          request: null,
+          state: "approved",
+        },
+        devices: [
+          {
+            device_id: "new-phone",
+            name: "新配对手机",
+            paired_at: new Date().toISOString(),
+            last_seen: null,
+            connection: "offline",
+            permissions: ["view"],
+          },
+        ],
+      }),
+    );
+    expect(screen.getByText("配对成功")).toBeVisible();
+    expect(screen.queryByAltText("设备配对二维码")).not.toBeInTheDocument();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1200);
+    });
+    expect(screen.getByText("新配对手机")).toBeVisible();
+    expect(screen.queryByText("配对成功")).not.toBeInTheDocument();
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+test("hiding and focusing the panel retains the active invitation", async () => {
+  const api = previewBridge("empty");
+  const start = api.startPairing;
+  api.startPairing = vi.fn(start);
+  api.cancelPairing = vi.fn().mockResolvedValue(undefined);
+  render(<App api={api} />);
+  await userEvent.click(
+    await screen.findByRole("button", { name: "配对新设备" }),
+  );
+  const qr = await screen.findByAltText("设备配对二维码");
+  const source = qr.getAttribute("src");
+  fireEvent.blur(window);
+  fireEvent.focus(window);
+  await waitFor(() =>
+    expect(screen.getByAltText("设备配对二维码")).toHaveAttribute(
+      "src",
+      source,
+    ),
+  );
+  expect(api.startPairing).toHaveBeenCalledOnce();
+  expect(api.cancelPairing).not.toHaveBeenCalled();
 });
 
 test("opaque I/O permission toggles stay coupled and consent sends displayed permissions", async () => {
@@ -178,16 +292,17 @@ test("opaque I/O permission toggles stay coupled and consent sends displayed per
     qr_payload: "test-qr",
   });
   api.approvePairing = vi.fn().mockResolvedValue(undefined);
-  render(<App api={api} pairing />);
+  render(<App api={api} initialPairing />);
   await userEvent.click(await screen.findByLabelText("发送 Agent 输入"));
   expect(screen.getByLabelText("传递审批决定")).not.toBeChecked();
   await userEvent.click(screen.getByRole("button", { name: "确认配对" }));
   expect(api.approvePairing).toHaveBeenCalledWith("r1", ["view", "session"]);
 });
 
-test("expired invitation clears the QR and closes once without generating another token", async () => {
+test("expired invitation clears the QR and returns inline without generating another token", async () => {
   vi.useFakeTimers();
   const api = previewBridge("empty");
+  api.cancelPairing = vi.fn().mockResolvedValue(undefined);
   api.startPairing = vi.fn().mockResolvedValue({
     session_id: "expiry",
     endpoint_id: "endpoint",
@@ -195,18 +310,44 @@ test("expired invitation clears the QR and closes once without generating anothe
     expires_at: new Date(Date.now() + 120000).toISOString(),
     qr_payload: "test-expiry-qr",
   });
-  api.closePairing = vi.fn().mockResolvedValue(undefined);
   try {
-    render(<App api={api} pairing />);
+    render(<App api={api} initialPairing />);
     await act(async () => {
       await vi.advanceTimersByTimeAsync(100);
     });
     await act(async () => {
       await vi.advanceTimersByTimeAsync(121000);
     });
-    expect(api.closePairing).toHaveBeenCalledOnce();
+    expect(api.cancelPairing).toHaveBeenCalledExactlyOnceWith("expiry");
+    expect(screen.getByText("尚未配对任何设备")).toBeVisible();
     expect(api.startPairing).toHaveBeenCalledOnce();
     expect(screen.queryByAltText("设备配对二维码")).not.toBeInTheDocument();
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+test("a delayed invitation starts its display at the actual 120-second validity", async () => {
+  vi.useFakeTimers();
+  const api = previewBridge("empty");
+  const pending = deferred<PairSession>();
+  api.startPairing = vi.fn(() => pending.promise);
+  try {
+    render(<App api={api} initialPairing />);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(750);
+    });
+    await act(async () =>
+      pending.resolve({
+        session_id: "delayed",
+        endpoint_id: "endpoint",
+        token: "secret",
+        expires_at: new Date(Date.now() + 120000).toISOString(),
+        qr_payload: "test-delayed-qr",
+      }),
+    );
+    expect(screen.getByText("2:00")).toBeVisible();
+    expect(screen.queryByText("2:01")).not.toBeInTheDocument();
   } finally {
     vi.useRealTimers();
   }

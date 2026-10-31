@@ -66,15 +66,13 @@ async function call<T>(
 export const bridge = {
   snapshot: () => call<Snapshot>("get_snapshot"),
   refreshAgents: () => call<void>("refresh_agents"),
-  openPairing: () => call<void>("open_pairing"),
   startPairing: () => call<PairSession>("start_pairing"),
-  cancelPairing: (sessionId: string) =>
+  cancelPairing: (sessionId: string | null) =>
     call<void>("cancel_pairing", { sessionId }),
   approvePairing: (requestId: string, permissions: string[]) =>
     call<void>("approve_pairing", { requestId, permissions }),
   rejectPairing: (requestId: string) =>
     call<void>("reject_pairing", { requestId }),
-  closePairing: () => call<void>("close_pairing"),
   revokeDevice: (deviceId: string) => call<void>("revoke_device", { deviceId }),
   updateSettings: (settings: AppSettings) =>
     call<void>("update_settings", { settings }),

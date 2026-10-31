@@ -26,12 +26,10 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             commands::get_snapshot,
             commands::refresh_agents,
-            commands::open_pairing,
             commands::start_pairing,
             commands::cancel_pairing,
             commands::approve_pairing,
             commands::reject_pairing,
-            commands::close_pairing,
             commands::revoke_device,
             commands::update_settings,
             commands::get_autostart,
@@ -56,16 +54,7 @@ pub fn run() {
         .on_window_event(|window, event| match event {
             tauri::WindowEvent::CloseRequested { api, .. } => {
                 api.prevent_close();
-                if window.label() == "pairing" {
-                    let app = window.app_handle().clone();
-                    tauri::async_runtime::spawn(async move {
-                        if let Err(error) = commands::close_pairing(app).await {
-                            log::warn!("Could not close pairing ({})", error.code);
-                        }
-                    });
-                } else {
-                    let _ = window.hide();
-                }
+                let _ = window.hide();
             }
             tauri::WindowEvent::Focused(false) if window.label() == "main" => {
                 let _ = window.hide();

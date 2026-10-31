@@ -16,9 +16,19 @@ test("browser runtime fails explicitly rather than returning preview state", asy
   await expect(bridge.snapshot()).rejects.toMatchObject({
     code: "desktop_required",
   });
-  await expect(bridge.openPairing()).rejects.toMatchObject({
+  await expect(bridge.startPairing()).rejects.toMatchObject({
     code: "desktop_required",
   });
+});
+
+test("pairing only invokes the session API and never requests a native window", async () => {
+  native.enabled = true;
+  native.invoke.mockResolvedValue({ session_id: "inline-session" });
+  await bridge.startPairing();
+  expect(native.invoke).toHaveBeenCalledExactlyOnceWith(
+    "start_pairing",
+    undefined,
+  );
 });
 
 test("bridge preserves structured error codes without exposing unknown objects", () => {

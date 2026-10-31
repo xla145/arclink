@@ -17,17 +17,22 @@ the Tauri 2 / React / TypeScript application.
 - macOS on this machine is the first native delivery target. Keep portable
   boundaries; report Windows/Linux validation separately when available.
 - The HTML devices, versions, statuses and decorative QR are sample data.
+- Latest explicit user direction: match prototype rounding and display the
+  pairing QR inside the current panel, without creating another window. This
+  supersedes the source technical document's separate-pairing-window strategy.
 - No phone application is part of this task. A test peer verifies the host
   network contract; phone scanning/interoperability remains a later check.
 
 ## Requirements
 R1. Compact UI: implement the prototype header/status, device/Agent/process
     tabs, footer, settings, initial empty state, network errors, pairing and
-    revoke confirmation. Follow system theme, bound list height, truncate
+    revoke confirmation. Match the prototype's rounded outer shell and cards.
+    Follow system theme, bound list height, truncate
     long labels and expose keyboard/accessibility labels.
 R2. Native lifecycle: tray click opens a screen-clamped panel; blur/Esc hides
     it without stopping the daemon. Use an accessory app/template icon on
-    macOS and a single instance. Pairing has its own window. Exit with active
+    macOS and a single instance. Pairing replaces content in the current panel;
+    successful pairing or cancellation returns to devices. Exit with active
     processes requires disclosure/confirmation and cleans owned processes.
 R3. Discovery: detect Claude Code, Codex and Herdr using bounded version
     probes, known paths and PATH. Distinguish missing, installed, verified,
@@ -63,6 +68,9 @@ R9. Reproducible delivery: lock Rust and frontend dependencies, document
 - AC1 (R1,R2): the built app renders the prototype hierarchy in light/dark,
   with empty/error/loading states; tray positioning, hide, reopen, second
   launch and exit are checked natively, not inferred from a browser.
+- AC1a (R1,R2,R4): outer corners and cards are rounded; starting pairing shows
+  the QR in the same panel and creates no additional native window. Cancel,
+  timeout and completion clear invitation state and return appropriately.
 - AC2 (R3): actual installed/missing/timeout/version-mismatch results are
   visible; an adapter is never labeled verified from help/version alone.
 - AC3 (R4,R5,R7): a real iroh test peer pairs only after local confirmation;
@@ -89,6 +97,5 @@ Windows/Linux native packages and phone-camera scanning are not claimed
 validated by a macOS build or test peer.
 
 ## Planning status
-Greenfield source decision resolved. No blocking product questions remain.
-Design and implementation plan accompany this PRD. The latest final planning
-summary still requires review under the project planning workflow.
+Greenfield plan approved and implementation underway. Latest rounded-panel /
+inline-pairing change was explicitly requested by the user and is authorized.

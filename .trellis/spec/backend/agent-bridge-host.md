@@ -41,6 +41,10 @@ Reserve process operations transactionally before OS effects. Matching retries
 return the prior result; altered payloads conflict. Reserved/ambiguous operations
 become unknown on restart and are never automatically replayed. Historical
 processes become lost; stored PIDs are not authority to signal a process.
+Snapshots include live processes and bounded recent terminal history, not all
+durable rows. Historical idempotent lookup uses the process key directly.
+Check completed start/stop operation fingerprints and results before requiring
+an in-memory process, while always enforcing the current peer grant and owner.
 
 Each owned process has an opaque process ID and generation, a single input
 lease, serialized bounded stdin, independent stdout/stderr drains and a total

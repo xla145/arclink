@@ -33,12 +33,16 @@ snapshot state, logs, localStorage or serialized fixtures with live credentials.
 
 Native setup establishes singleton ownership before starting the host. Startup
 and shutdown use a lifecycle gate so delayed Keychain/network work cannot publish
-a new host after exit begins. Main blur/Esc/close hides the panel; closing the
-pairing window cancels only that invitation. Native quit asks for confirmation,
+a new host after exit begins. Main blur/Esc/close hides the panel. Pairing is a
+view within main; its explicit cancel/back action cancels only the invitation
+before returning to devices. Never create a second pairing window.
+Native quit asks for confirmation,
 then blocks new mutations and cleans the owned daemon/network before exit.
 
 Use macOS accessory policy, template tray icon and work-area/scale-aware
-positioning. Main panel is 320 by at most 480; pairing is a separate window.
+positioning. Main panel is 320 by at most 480, including its inline pairing view.
+Use a 14px rounded outer shell and transparent corner areas in the native window,
+so the operating-system window does not fill CSS corners with an opaque square.
 Follow the supplied HTML's compact sections and segmented navigation, local
 fonts, light/dark colors, bounded scrolling and readable long-label behavior.
 
@@ -62,7 +66,7 @@ Logs rotate and exclude identity, invitation payloads and raw Agent output.
 
 ## 5. Good / Base / Bad Cases
 
-Good: subscribe, fetch snapshot, apply newer revision, open a pairing window,
+Good: subscribe, fetch snapshot, apply newer revision, show the inline pairing view,
 confirm actual requested grants, and render resulting authoritative devices.
 Base: the browser can verify layout but cannot prove native tray behavior.
 Bad: label an authorized offline device online, or append a fabricated version

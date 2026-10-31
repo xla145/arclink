@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { bridge, normalizeError, type Bridge } from "./bridge";
 import { useSnapshot } from "./hooks/useSnapshot";
 import { useUptime } from "./hooks/useUptime";
@@ -11,20 +11,23 @@ import {
   ErrorBanner,
   relativeTime,
 } from "./components/Common";
-import { PairingPanel } from "./components/PairingPanel";
+import { PairingPanel, type PairingHandle } from "./components/PairingPanel";
 import { SettingsPanel } from "./components/SettingsPanel";
 
 export function App({
   api = bridge,
-  pairing = new URLSearchParams(window.location.search).has("pairing"),
+  initialPairing = false,
   preview = false,
 }: {
   api?: Bridge;
-  pairing?: boolean;
+  initialPairing?: boolean;
   preview?: boolean;
 }) {
   const [tab, setTab] = useState<"devices" | "agents" | "processes">("devices");
   const [settings, setSettings] = useState(false);
+  const [pairing, setPairing] = useState(initialPairing);
+  const [pairingBusy, setPairingBusy] = useState(false);
+  const pairingRef = useRef<PairingHandle>(null);
   const [error, setError] = useState<BridgeError | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [revoke, setRevoke] = useState<PairedDevice | null>(null);
@@ -37,6 +40,17 @@ export function App({
     loading,
     refresh,
   } = useSnapshot(api, openSettings, confirmExit);
+  const finishPairing = useCallback(() => {
+    setPairing(false);
+    setPairingBusy(false);
+    setSettings(false);
+    setTab("devices");
+    void refresh();
+  }, [refresh]);
+  const beginPairing = () => {
+    setError(null);
+    setPairing(true);
+  };
   const cancelRevoke = useCallback(() => setRevoke(null), []);
   const cancelExit = useCallback(() => setExit(false), []);
   async function action(key: string, operation: () => Promise<unknown>) {
@@ -56,11 +70,9 @@ export function App({
   useEffect(() => {
     const keydown = (event: KeyboardEvent) => {
       if (event.key !== "Escape" || revoke || exit) return;
-      if (settings) setSettings(false);
-      else
-        void (pairing ? api.closePairing() : api.hide()).catch((cause) =>
-          setError(normalizeError(cause)),
-        );
+      if (pairing) void pairingRef.current?.cancel();
+      else if (settings) setSettings(false);
+      else void api.hide().catch((cause) => setError(normalizeError(cause)));
     };
     window.addEventListener("keydown", keydown);
     return () => window.removeEventListener("keydown", keydown);
@@ -92,11 +104,16 @@ export function App({
       <header className="panel header-panel">
         <div className="header">
           <div className="header-left">
-            {settings ? (
+            {settings || pairing ? (
               <button
                 className="icon-button"
-                aria-label="返回面板"
-                onClick={() => setSettings(false)}
+                aria-label={pairing ? "返回设备列表" : "返回面板"}
+                disabled={pairingBusy}
+                onClick={() =>
+                  pairing
+                    ? void pairingRef.current?.cancel()
+                    : setSettings(false)
+                }
               >
                 <Icon name="arrow" />
               </button>
@@ -109,24 +126,14 @@ export function App({
               {pairing ? "配对新设备" : settings ? "设置" : "Agent Bridge"}
             </h1>
           </div>
-          {pairing ? (
+          {!pairing && !settings && (
             <button
               className="icon-button"
-              aria-label="关闭配对窗口"
-              onClick={() => void action("close", api.closePairing)}
+              aria-label="设置"
+              onClick={() => setSettings(true)}
             >
-              <Icon name="close" />
+              <Icon name="settings" />
             </button>
-          ) : (
-            !settings && (
-              <button
-                className="icon-button"
-                aria-label="设置"
-                onClick={() => setSettings(true)}
-              >
-                <Icon name="settings" />
-              </button>
-            )
           )}
         </div>
         {!pairing && !settings && (
@@ -193,7 +200,13 @@ export function App({
         )}
         {pairing ? (
           <section className="panel">
-            <PairingPanel api={api} snapshot={snapshot} />
+            <PairingPanel
+              ref={pairingRef}
+              api={api}
+              snapshot={snapshot}
+              onFinished={finishPairing}
+              onBusyChange={setPairingBusy}
+            />
           </section>
         ) : settings ? (
           snapshot ? (
@@ -235,7 +248,7 @@ export function App({
                         <button
                           className="text-button"
                           disabled={!!busy || network?.state !== "ready"}
-                          onClick={() => void action("pair", api.openPairing)}
+                          onClick={beginPairing}
                         >
                           + 配对
                         </button>
@@ -279,9 +292,9 @@ export function App({
                       <button
                         className="button primary full"
                         disabled={!!busy || network?.state !== "ready"}
-                        onClick={() => void action("pair", api.openPairing)}
+                        onClick={beginPairing}
                       >
-                        {busy === "pair" ? "正在打开…" : "配对新设备"}
+                        配对新设备
                       </button>
                     </EmptyState>
                   )}

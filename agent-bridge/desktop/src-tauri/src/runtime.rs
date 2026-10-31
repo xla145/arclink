@@ -110,6 +110,19 @@ async fn initialize_inner(app: &AppHandle) -> Result<()> {
                 events.recv().await
             {
                 if let Ok(snapshot) = event_daemon.snapshot().await {
+                    if matches!(
+                        snapshot.pairing.state.as_str(),
+                        "approved" | "rejected" | "expired" | "cancelled"
+                    ) {
+                        let state = event_app.state::<AppState>();
+                        let mut invitation = state.invitation.lock().await;
+                        if invitation.as_ref().is_some_and(|session| {
+                            snapshot.pairing.session_id.as_deref()
+                                == Some(session.session_id.as_str())
+                        }) {
+                            *invitation = None;
+                        }
+                    }
                     let _ = event_app.emit("bridge-snapshot", snapshot);
                 }
             }

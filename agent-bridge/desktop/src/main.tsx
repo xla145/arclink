@@ -11,7 +11,11 @@ async function mount() {
     : undefined;
   ReactDOM.createRoot(document.getElementById("root")!).render(
     <React.StrictMode>
-      <App api={api} preview={preview} />
+      <App
+        api={api}
+        preview={preview}
+        initialPairing={preview && state === "pairing"}
+      />
     </React.StrictMode>,
   );
 }

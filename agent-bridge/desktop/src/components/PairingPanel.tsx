@@ -1,4 +1,11 @@
-import { useEffect, useRef, useState } from "react";
+import {
+  forwardRef,
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useRef,
+  useState,
+} from "react";
 import QRCode from "qrcode";
 import { normalizeError, type Bridge } from "../bridge";
 import type { BridgeError, PairSession, Snapshot } from "../types";
@@ -11,13 +18,19 @@ const permissionLabels: Record<string, string> = {
   task: "发送 Agent 输入",
   approval: "传递审批决定",
 };
-export function PairingPanel({
-  api,
-  snapshot,
-}: {
-  api: Bridge;
-  snapshot: Snapshot | null;
-}) {
+export interface PairingHandle {
+  cancel: () => Promise<void>;
+}
+
+export const PairingPanel = forwardRef<
+  PairingHandle,
+  {
+    api: Bridge;
+    snapshot: Snapshot | null;
+    onFinished: () => void;
+    onBusyChange: (busy: boolean) => void;
+  }
+>(function PairingPanel({ api, snapshot, onFinished, onBusyChange }, ref) {
   const [session, setSession] = useState<PairSession | null>(null);
   const [qr, setQr] = useState<string | null>(null);
   const [now, setNow] = useState(Date.now());
@@ -31,12 +44,17 @@ export function PairingPanel({
   ]);
   const invitation = useRef<Promise<PairSession> | null>(null);
   const closing = useRef(false);
+  const operation = useRef(false);
+  useEffect(() => {
+    onBusyChange(busy);
+  }, [busy, onBusyChange]);
   useEffect(() => {
     let live = true;
     invitation.current ??= api.startPairing();
     void invitation.current
       .then(async (value) => {
         if (!live) return;
+        setNow(Date.now());
         setSession(value);
         const data = await QRCode.toDataURL(value.qr_payload, {
           width: 240,
@@ -63,43 +81,46 @@ export function PairingPanel({
       ? snapshot?.pairing
       : null;
   const request = state?.request?.state === "pending" ? state.request : null;
-  useEffect(() => {
-    if (!session || closing.current) return;
-    if (state?.state === "approved") {
-      const timer = window.setTimeout(() => {
-        closing.current = true;
-        void api
-          .closePairing()
-          .catch((cause) => setError(normalizeError(cause)));
-      }, 1200);
-      return () => window.clearTimeout(timer);
-    }
-    if (
-      seconds === 0 ||
-      ["expired", "cancelled", "rejected"].includes(state?.state ?? "")
-    ) {
-      closing.current = true;
-      setQr(null);
-      setSession(null);
-      void api.closePairing().catch((cause) => {
-        closing.current = false;
-        setError(normalizeError(cause));
-      });
-    }
-  }, [api, seconds, session, state?.state]);
-  async function cancel() {
+  const finish = useCallback(() => {
+    closing.current = true;
+    setQr(null);
+    setSession(null);
+    onFinished();
+  }, [onFinished]);
+  const cancel = useCallback(async () => {
+    if (operation.current || closing.current) return;
+    operation.current = true;
     setBusy(true);
     setError(null);
     try {
-      if (session) await api.cancelPairing(session.session_id);
-      await api.closePairing();
+      // Null cancels the native-owned pending invitation if its response was lost.
+      await api.cancelPairing(session?.session_id ?? null);
+      finish();
     } catch (cause) {
       setError(normalizeError(cause));
+    } finally {
+      operation.current = false;
       setBusy(false);
     }
-  }
+  }, [api, finish, session]);
+  useImperativeHandle(ref, () => ({ cancel }), [cancel]);
+  useEffect(() => {
+    if (!session || closing.current) return;
+    if (state?.state === "approved") {
+      setQr(null);
+      const timer = window.setTimeout(finish, 1200);
+      return () => window.clearTimeout(timer);
+    }
+    if (["expired", "cancelled", "rejected"].includes(state?.state ?? "")) {
+      finish();
+    } else if (seconds === 0) {
+      setQr(null); // Never leave an expired QR visible, even if cancellation fails.
+      void cancel();
+    }
+  }, [cancel, finish, seconds, session, state?.state]);
   async function decide(approve: boolean) {
-    if (!request) return;
+    if (!request || operation.current) return;
+    operation.current = true;
     setBusy(true);
     setError(null);
     try {
@@ -114,6 +135,7 @@ export function PairingPanel({
     } catch (cause) {
       setError(normalizeError(cause));
     } finally {
+      operation.current = false;
       setBusy(false);
     }
   }
@@ -185,11 +207,15 @@ export function PairingPanel({
       ) : (
         <>
           <div className="qr-frame">
-            {qr ? (
+            {qr && seconds > 0 ? (
               <img src={qr} width="216" height="216" alt="设备配对二维码" />
             ) : (
               <div className="qr-loading">
-                {error ? "二维码暂不可用" : "正在生成二维码…"}
+                {seconds === 0
+                  ? "二维码已过期"
+                  : error
+                    ? "二维码暂不可用"
+                    : "正在生成二维码…"}
               </div>
             )}
           </div>
@@ -214,4 +240,4 @@ export function PairingPanel({
       )}
     </div>
   );
-}
+});

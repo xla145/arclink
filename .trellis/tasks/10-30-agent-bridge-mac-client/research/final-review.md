@@ -8,9 +8,18 @@
 - Desktop owner fixed raw CLI version display, mandatory view permission, and retaining pairing ownership/cache after cancellation failure.
 - Reviewer ran workspace formatter and fixed Clippy's `while_let_loop` finding in `desktop/src-tauri/src/runtime.rs`; event closure/lag behavior is preserved.
 
-## Remaining finding
+## Resolved follow-up
 
-- `crates/agentd/src/lib.rs`, `stop_process`: current in-memory process lookup precedes completed-operation lookup. A repeated successful stop after terminal entry eviction or daemon restart returns `process_gone` rather than the stored result. No duplicate side effect occurs. Reported to main agent for follow-up; recommended checking existing operation fingerprint/result before requiring a live entry, retaining ownership checks. This finding is not covered by the passing gate below.
+- Core fixed `stop_process` replay after eviction/restart: existing operation fingerprint/result is now checked before target lookup and returned metadata retains owner validation. Reviewer inspected the final path. Core reports 15 daemon + 2 adapter tests and Clippy passing, including the new regression (commit `09c2d26`). The earlier outstanding finding is resolved.
+
+## Same-panel pairing and rounded-window follow-up
+
+- Independently reviewed current frontend/native diff after user's explicit same-panel requirement. Pairing now mounts within the main panel; separate pairing window builder, commands and capability entry are removed. Only `main` is configured and authorized.
+- React retains one invitation promise across StrictMode effect replay; native start also serializes and reuses only the matching active invitation.
+- Cancel/back/Escape await backend cancellation; cancellation failure preserves the invitation for retry. Success, rejection, cancellation and expiry unmount/clear frontend QR/session; native event forwarding clears the matching terminal invitation cache. Approval hides QR immediately and returns to devices after 1.2 seconds. Expired QR is hidden even when cancellation fails.
+- Native transparent/background settings, Cargo `macos-private-api` feature and Tauri `macOSPrivateApi` flag are aligned. Transparent document background and 14px clipping provide rounded outer corners.
+- Independent latest `corepack pnpm exec tsc --noEmit && corepack pnpm test --run` from `agent-bridge/desktop/` passed: 19 tests (App 13, bridge 5, contract 1), including StrictMode, inline cancel failure/retry, success, expiry and invitation preservation across hide/focus.
+- No new defect found in this focused review. Desktop owner reports latest `cargo check -p agent-bridge-desktop --locked`, Rust format and diff checks passed with transparency/private API enabled; native tests/Clippy were not rerun for this follow-up. Production packaging is in progress under desktop/main ownership; no competing Cargo build was started by reviewer.
 
 ## Commands and results
 
@@ -31,7 +40,7 @@ From repository root:
 
 - `git diff --check` — pass.
 
-Total distinct passing tests: 45 (30 standard Rust + 1 explicit real-Codex + 14 frontend). Repeated scoped runs are not double-counted.
+Initial full-gate total: 45 (30 standard Rust + 1 explicit real-Codex + 14 frontend). Latest combined evidence: 51 distinct tests (31 Rust including core's stop regression + 1 explicit real-Codex + 19 frontend). The latest combined count includes owner-reported core results; it is not a claim that reviewer reran the full workspace after the transparency changes. Repeated scoped runs are not double-counted.
 
 ## Scope and limitations
 

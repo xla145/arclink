@@ -14,7 +14,8 @@ tauri-build = { version = "2", features = [] }
 
 [dependencies]
 agentd = { path = "../../crates/agentd" }
-tauri = { version = "2", features = ["tray-icon", "image-png"] }
+# Transparent rounded WebViews on macOS require private APIs: local distribution, not Mac App Store.
+tauri = { version = "2", features = ["tray-icon", "image-png", "macos-private-api"] }
 tauri-plugin-single-instance = "2"
 tauri-plugin-autostart = "2"
 tauri-plugin-log = "2"

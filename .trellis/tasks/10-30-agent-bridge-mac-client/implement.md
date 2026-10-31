@@ -22,11 +22,14 @@ and implementation delegated with explicit file ownership.
 ## 3. Native shell and product UI
 - [ ] Implement Tauri service setup and command/event adapters using daemon APIs.
 - [ ] Implement tray positioning, accessory/template behavior, single instance,
-      main hide behavior, independent pairing window and guarded shutdown.
+      main hide behavior, inline pairing view and guarded shutdown.
 - [ ] Recreate prototype hierarchy with components, hooks, styles and bridge.
 - [ ] Wire real device/Agent/process data, QR/permissions/revoke, errors/retry,
       settings, autostart and log actions; keep fixtures preview/test-only.
 - [ ] Validate race handling, stale snapshots, busy/error UX and cleanup.
+- [ ] Apply latest user UX direction: prototype outer/card radii and pairing QR
+      inside the existing panel, with no secondary native window. Verify return
+      navigation, cancellation failure and successful/expired invitation cleanup.
 
 ## 4. Verification and delivery
 - [ ] Run automated gates below and fix failures within assigned scope.
