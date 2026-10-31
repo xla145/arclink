@@ -4,6 +4,9 @@ struct SettingsView: View {
     @Environment(AppStore.self) private var store
     @Binding var path: NavigationPath
     @State private var clearHistory = false
+    @AppStorage("appearance") private var appearance = "自动"
+    @AppStorage("retention") private var retention = "7 天"
+    @AppStorage("language") private var language = "简体中文"
 
     var body: some View {
         @Bindable var store = store
@@ -35,9 +38,16 @@ struct SettingsView: View {
                 Toggle("执行失败", isOn: $store.notifyFailed)
             }
             Section("Agent Bridge") {
-                LabeledContent("外观", value: "自动")
-                LabeledContent("会话保留", value: "7 天")
-                LabeledContent("语言", value: "简体中文")
+                Picker("外观", selection: $appearance) {
+                    ForEach(["自动", "浅色", "深色"], id: \.self) { Text($0).tag($0) }
+                }
+                .accessibilityIdentifier("appearance-picker")
+                Picker("会话保留", selection: $retention) {
+                    ForEach(["3 天", "7 天", "30 天", "永久"], id: \.self) { Text($0).tag($0) }
+                }
+                Picker("语言", selection: $language) {
+                    Text("简体中文").tag("简体中文")
+                }
                 Button("清除会话历史", role: .destructive) { clearHistory = true }
             }
             Section("关于") {
@@ -46,11 +56,16 @@ struct SettingsView: View {
         }
         .navigationTitle("设置")
         .navigationBarTitleDisplayMode(.inline)
+        .onAppear { store.prune(retention: retention) }
+        .onChange(of: retention) { _, value in store.prune(retention: value) }
+        .onChange(of: store.permission) { _, _ in store.save() }
+        .onChange(of: store.notifyApproval) { _, _ in store.save() }
+        .onChange(of: store.notifyDone) { _, _ in store.save() }
+        .onChange(of: store.notifyOnMac) { _, _ in store.save() }
+        .onChange(of: store.notifyFailed) { _, _ in store.save() }
         .confirmationDialog("清除全部会话历史？此操作不能撤销。", isPresented: $clearHistory, titleVisibility: .visible) {
             Button("清除会话历史", role: .destructive) {
-                store.messages.removeAll()
-                store.sessions.removeAll()
-                store.show("已清除会话历史")
+                store.clearHistory()
             }
         }
     }
@@ -58,6 +73,7 @@ struct SettingsView: View {
 
 struct DeviceListView: View {
     @Environment(AppStore.self) private var store
+    @State private var showQR = false
 
     var body: some View {
         List {
@@ -65,7 +81,7 @@ struct DeviceListView: View {
                 Label {
                     VStack(alignment: .leading) {
                         Text(store.hostName)
-                        Text(store.online ? "在线 · 直连" : "离线")
+                        Text(store.paired ? "已配对 · 未连接桌面进程" : "未配对")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
@@ -75,16 +91,17 @@ struct DeviceListView: View {
             }
             Section {
                 Button {
-                    store.showPairQR.toggle()
+                    showQR.toggle()
                 } label: {
-                    Label(store.showPairQR ? "收起二维码" : "添加新的 Mac", systemImage: "plus")
+                    Label(showQR ? "收起二维码" : "重新配对", systemImage: "qrcode")
                 }
-                if store.showPairQR {
-                    QRCodeView(payload: "agent-bridge://pair?host=new")
+                if showQR {
+                    QRCodeView(payload: "agent-bridge://pair?token=\(store.pairToken)")
                         .listRowInsets(EdgeInsets(top: 8, leading: 8, bottom: 8, trailing: 8))
                 }
+                Button("断开配对", role: .destructive) { store.unpair() }
             } footer: {
-                Text("二维码显示在当前页面。桌面端确认后完成配对。首版同一时间只连接一台 Mac。")
+                Text("二维码显示在这一页。桌面端确认后，手机才算配对。断开后会回到未配对页。")
             }
         }
         .navigationTitle("我的 Mac")

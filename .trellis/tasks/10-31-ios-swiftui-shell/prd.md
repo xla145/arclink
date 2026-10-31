@@ -29,3 +29,9 @@
 ## Notes
 
 - 交互以 `doc/agent-bridge-mobile.html` 为准，实现细节以 `doc/agent-bridge-ios-client.md` 为参考，但本任务不实现其中的 Rust / UniFFI / SQLite。
+
+## 0.1 mock acceptance contract
+
+Follow `doc/I-AB-0.1-UI-mock.md` for this continuation: complete all five primary paths with a paired mock Mac, text/reply, optional sample image, actionable tool/approval events, separate diff/command previews, decision feedback, and basic preferences. Keep Bundle `dev.agentbridge.ios`, display name Agent Bridge, version 0.1.0.
+
+Evidence: simulator Debug build log at `agent-bridge/ios/work/builds/0.1.0-sim-debug.log`; light and dark home/project/chat/approval/settings screenshots plus a short report under `agent-bridge/ios/work/codex-runs/`. Append READY_FOR_ACCEPTANCE only after evidence is complete. No iroh/UniFFI/Rust framework, real daemon pairing, APNs, multi-host, ASC/distribution or Android.

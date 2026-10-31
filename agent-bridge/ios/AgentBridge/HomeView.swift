@@ -8,7 +8,7 @@ struct HomeView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
-                if store.pendingCount > 0 {
+                if store.notifyApproval && store.pendingCount > 0 {
                     Button {
                         path.append(Route.approvals)
                     } label: {
@@ -111,7 +111,7 @@ struct HomeView: View {
                                             .lineLimit(1)
                                     }
                                     Spacer()
-                                    if project.pendingApprovals > 0 {
+                                    if store.pendingCount(projectId: project.id) > 0 {
                                         Pill(text: "待审批", tint: .orange)
                                     }
                                     Image(systemName: "chevron.right")
@@ -119,14 +119,16 @@ struct HomeView: View {
                                         .foregroundStyle(.tertiary)
                                 }
                                 .padding(14)
+                                .contentShape(Rectangle())
                             }
                             .buttonStyle(.plain)
+                            .accessibilityIdentifier("project-\(project.id)")
                             if project.id != items.last?.id {
                                 Divider().padding(.leading, 62)
                             }
                         }
                     }
-                    .background(.background, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                    .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
                 } else {
                     VStack(spacing: 8) {
                         Image(systemName: "terminal")
@@ -145,34 +147,38 @@ struct HomeView: View {
         }
         .background(Color(.systemGroupedBackground))
         .navigationTitle(store.hostName)
-        .navigationBarTitleDisplayMode(.large)
+        .navigationBarTitleDisplayMode(.inline)
         .toolbar {
+            ToolbarItem(placement: .principal) { Text(store.hostName).font(.headline) }
             ToolbarItem(placement: .topBarTrailing) {
                 NavigationLink(value: Route.settings) {
                     Image(systemName: "ellipsis")
                 }
-                .accessibilityLabel("更多")
-            }
-            ToolbarItem(placement: .principal) {
-                EmptyView()
+                .accessibilityLabel("设置")
             }
         }
         .safeAreaInset(edge: .top, spacing: 0) {
-            HStack(spacing: 6) {
-                Circle().fill(store.online ? Color.green : Color.secondary).frame(width: 8, height: 8)
-                Text(store.online ? "在线 · 直连" : "离线")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
+            HStack {
+                HStack(spacing: 6) {
+                    Circle().fill(store.online ? Color.green : Color.secondary).frame(width: 7, height: 7)
+                    Text(store.online ? "本机记录 · 未连接桌面" : "离线")
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 5)
+                .background(Color.green.opacity(0.10), in: Capsule())
                 Spacer()
             }
             .padding(.horizontal, 20)
             .padding(.bottom, 4)
-            .background(.bar)
+            .background(Color(.systemGroupedBackground))
         }
     }
 
     private func projectSubtitle(_ project: ProjectItem) -> String {
-        let sessions = project.sessionCount == 0 ? "无活跃会话" : "\(project.sessionCount) 个会话"
+        let count = store.sessions(for: project.id).count
+        let sessions = count == 0 ? "无活跃会话" : "\(count) 个会话"
         return "\(project.path) · \(sessions)"
     }
 }

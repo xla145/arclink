@@ -5,6 +5,18 @@
 	};
 	objectVersion = 77;
 	objects = {
+        AC0000000000000000000001 = {isa = PBXFileSystemSynchronizedRootGroup; path = AgentBridgeUITests; sourceTree = "<group>"; };
+        AC0000000000000000000002 = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; path = AgentBridgeUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+        AC0000000000000000000003 = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+        AC0000000000000000000004 = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+        AC0000000000000000000005 = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+        AC0000000000000000000006 = {isa = PBXNativeTarget; buildConfigurationList = AC0000000000000000000007; buildPhases = (AC0000000000000000000003, AC0000000000000000000004, AC0000000000000000000005); buildRules = (); dependencies = (AC000000000000000000000B); fileSystemSynchronizedGroups = (AC0000000000000000000001); name = AgentBridgeUITests; productName = AgentBridgeUITests; productReference = AC0000000000000000000002; productType = "com.apple.product-type.bundle.ui-testing"; };
+        AC0000000000000000000007 = {isa = XCConfigurationList; buildConfigurations = (AC0000000000000000000008, AC0000000000000000000009); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+        AC0000000000000000000008 = {isa = XCBuildConfiguration; name = Debug; buildSettings = {GENERATE_INFOPLIST_FILE = YES; PRODUCT_BUNDLE_IDENTIFIER = dev.agentbridge.ios.uitests; PRODUCT_NAME = "$(TARGET_NAME)"; SWIFT_VERSION = 5.0; TARGETED_DEVICE_FAMILY = 1; TEST_TARGET_NAME = AgentBridge; CODE_SIGNING_ALLOWED = NO; }; };
+        AC0000000000000000000009 = {isa = XCBuildConfiguration; name = Release; buildSettings = {GENERATE_INFOPLIST_FILE = YES; PRODUCT_BUNDLE_IDENTIFIER = dev.agentbridge.ios.uitests; PRODUCT_NAME = "$(TARGET_NAME)"; SWIFT_VERSION = 5.0; TARGETED_DEVICE_FAMILY = 1; TEST_TARGET_NAME = AgentBridge; CODE_SIGNING_ALLOWED = NO; }; };
+        AC000000000000000000000A = {isa = PBXContainerItemProxy; containerPortal = AB000000000000000000000A; proxyType = 1; remoteGlobalIDString = AB0000000000000000000006; remoteInfo = AgentBridge; };
+        AC000000000000000000000B = {isa = PBXTargetDependency; target = AB0000000000000000000006; targetProxy = AC000000000000000000000A; };
+
 
 /* Begin PBXFileReference section */
 		AB0000000000000000000005 /* AgentBridge.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = AgentBridge.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -33,6 +45,7 @@
 			isa = PBXGroup;
 			children = (
 				AB0000000000000000000001 /* AgentBridge */,
+                AC0000000000000000000001,
 				AB0000000000000000000004 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -41,6 +54,7 @@
 			isa = PBXGroup;
 			children = (
 				AB0000000000000000000005 /* AgentBridge.app */,
+                AC0000000000000000000002,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -75,6 +89,7 @@
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
+                TargetAttributes = { AC0000000000000000000006 = {TestTargetID = AB0000000000000000000006; }; };
 				LastSwiftUpdateCheck = 2600;
 				LastUpgradeCheck = 2600;
 			};
@@ -93,6 +108,7 @@
 			projectRoot = "";
 			targets = (
 				AB0000000000000000000006 /* AgentBridge */,
+                AC0000000000000000000006,
 			);
 		};
 /* End PBXProject section */

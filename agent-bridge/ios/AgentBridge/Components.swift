@@ -63,8 +63,9 @@ struct ToastBanner: View {
             .font(.subheadline.weight(.medium))
             .padding(.horizontal, 16)
             .padding(.vertical, 10)
-            .background(.primary, in: Capsule())
-            .foregroundStyle(.background)
+            .background(Color.primary, in: Capsule())
+            .foregroundStyle(Color(.systemBackground))
             .padding(.bottom, 24)
+            .accessibilityIdentifier("toast")
     }
 }

@@ -15,6 +15,7 @@ struct AgentBridgeApp: App {
 struct RootView: View {
     @Environment(AppStore.self) private var store
     @State private var path = NavigationPath()
+    @AppStorage("appearance") private var appearance = "自动"
 
     var body: some View {
         NavigationStack(path: $path) {
@@ -35,8 +36,8 @@ struct RootView: View {
                     ProjectDetailView(projectId: id, path: $path)
                 case .session(let projectId, let sessionId):
                     ChatView(projectId: projectId, sessionId: sessionId, path: $path)
-                case .terminal:
-                    TerminalView()
+                case .terminal(let sessionId):
+                    TerminalView(sessionId: sessionId)
                 case .addProject(let editing):
                     AddProjectView(editingId: editing)
                 case .settings:
@@ -53,6 +54,7 @@ struct RootView: View {
             }
         }
         .animation(.easeOut(duration: 0.2), value: store.toast)
+        .preferredColorScheme(appearance == "深色" ? .dark : (appearance == "浅色" ? .light : nil))
     }
 }
 
@@ -77,11 +79,10 @@ struct UnpairedView: View {
                 }
                 .padding(.top, 12)
 
-                QRCodeView(payload: "agent-bridge://pair?token=demo-one-time")
+                QRCodeView(payload: "agent-bridge://pair?token=\(store.pairToken)")
 
                 Button("我已在桌面端确认") {
-                    store.paired = true
-                    store.show("已配对 MacBook Pro")
+                    store.confirmPair()
                 }
                 .buttonStyle(.borderedProminent)
                 .controlSize(.large)

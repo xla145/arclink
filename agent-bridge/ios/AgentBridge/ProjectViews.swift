@@ -17,14 +17,14 @@ struct ProjectDetailView: View {
                             .background(project.agent.tint.opacity(0.15), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
                             .foregroundStyle(project.agent.tint)
                         VStack(alignment: .leading, spacing: 2) {
-                            Text(project.name).font(.title3.bold())
-                            Text("\(project.path) · \(project.agent.rawValue)")
+                            Text(project.agent.rawValue).font(.headline)
+                            Text(project.path)
                                 .font(.caption.monospaced())
                                 .foregroundStyle(.secondary)
                         }
                         Spacer()
-                        if project.pendingApprovals > 0 {
-                            Pill(text: "\(project.pendingApprovals) 待审批", tint: .orange)
+                        if store.pendingCount(projectId: projectId) > 0 {
+                            Pill(text: "\(store.pendingCount(projectId: projectId)) 待审批", tint: .orange)
                         }
                     }
 
@@ -33,6 +33,9 @@ struct ProjectDetailView: View {
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(.secondary)
                     VStack(spacing: 0) {
+                        if rows.isEmpty {
+                            ContentUnavailableView("还没有会话", systemImage: "bubble.left.and.bubble.right", description: Text("点击右上角 + 开始一个任务"))
+                        }
                         ForEach(rows) { session in
                             Button {
                                 path.append(Route.session(projectId: projectId, sessionId: session.id))
@@ -53,12 +56,14 @@ struct ProjectDetailView: View {
                                         .foregroundStyle(.tertiary)
                                 }
                                 .padding(14)
+                                .contentShape(Rectangle())
                             }
                             .buttonStyle(.plain)
+                            .accessibilityIdentifier("session-\(session.id)")
                             if session.id != rows.last?.id { Divider().padding(.leading, 58) }
                         }
                     }
-                    .background(.background, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                    .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
                 }
             }
             .padding(16)
@@ -143,8 +148,8 @@ struct AddProjectView: View {
                     guard !trimmed.isEmpty else { return }
                     if !editing {
                         store.addProject(name: trimmed, path: pathText, agent: agent)
-                    } else {
-                        store.show("已保存")
+                    } else if let editingId {
+                        store.updateProject(id: editingId, name: trimmed, path: pathText, agent: agent)
                     }
                     dismiss()
                 }
@@ -157,13 +162,20 @@ struct AddProjectView: View {
         }
         .navigationTitle(editing ? "项目设置" : "添加项目")
         .navigationBarTitleDisplayMode(.inline)
+        .onAppear {
+            if let editingId, let project = store.project(editingId) {
+                agent = project.agent
+                pathText = project.path
+                name = project.name
+            } else {
+                agent = store.selectedAgent.installed ? store.selectedAgent : .claude
+            }
+        }
         .confirmationDialog("删除这个项目？会话记录会一起去掉。", isPresented: $confirmDelete, titleVisibility: .visible) {
             Button("删除项目", role: .destructive) {
                 if let editingId {
-                    store.projects.removeAll { $0.id == editingId }
-                    store.sessions.removeAll { $0.projectId == editingId }
+                    store.deleteProject(id: editingId)
                 }
-                store.show("已删除项目")
                 dismiss()
             }
         }
