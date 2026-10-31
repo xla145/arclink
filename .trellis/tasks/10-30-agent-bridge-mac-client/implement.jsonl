@@ -1,0 +1,3 @@
+{"file": ".trellis/spec/backend/agent-bridge-control.md", "reason": "Existing authorization, state and lifecycle invariants"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Rust stdout protocol and Swift Codable consistency"}
+{"file": ".trellis/tasks/10-30-agent-bridge-mac-client/research/context.md", "reason": "User reference and verified native toolchain scope"}

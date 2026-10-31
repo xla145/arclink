@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/backend/agent-bridge-phase0.md", "reason": "Native correlation, evidence, uncertainty and validation contracts"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Shared protocol, storage and consumer consistency"}
+{"file": ".trellis/tasks/10-30-agent-bridge-completion/design.md", "reason": "Reviewed architecture and compatibility boundaries"}
+{"file": "phase0/compat-record.md", "reason": "Verified Codex capabilities and explicit untested limits"}
+{"file": ".trellis/tasks/10-30-agent-bridge-completion/research/review-matrix.md", "reason": "Integration race and failure assertions for reviewed scope"}

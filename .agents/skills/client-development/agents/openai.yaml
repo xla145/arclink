@@ -1,0 +1,4 @@
+interface:
+  display_name: "客户端开发"
+  short_description: "使用 Rust 与 React 实现桌面客户端，完成系统集成、交互验证及应用打包"
+  default_prompt: "使用 $client-development，基于已有需求或设计实现 Rust + React 桌面客户端，并完成测试、视觉验证和打包。"

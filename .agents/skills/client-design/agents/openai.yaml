@@ -1,0 +1,4 @@
+interface:
+  display_name: "客户端设计"
+  short_description: "设计桌面客户端的布局、交互状态与视觉规范，产出可供开发实现的交接说明"
+  default_prompt: "使用 $client-design，结合已有需求和参考图设计客户端，输出精简、可实现的界面与交互方案。"
