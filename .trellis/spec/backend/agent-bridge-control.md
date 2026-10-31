@@ -1,5 +1,9 @@
 # Agent Bridge durable control contract
 
+> Historical architecture. The greenfield desktop host uses
+> [agent-bridge-host.md](./agent-bridge-host.md); it does not persist or parse
+> mobile session/task/approval business state on the desktop.
+
 ## 1. Scope / Trigger
 Applies to `agent-bridge/crates/{abp-protocol,agent-store,agent-adapters,agentd,agent-bridge-client,abp-test-harness}`. Read the Phase 0 contract before modifying native permissions. Production is macOS single-Codex; transport and store tests inject endpoints and adapters.
 

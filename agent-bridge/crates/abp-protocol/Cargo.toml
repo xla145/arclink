@@ -1,0 +1,13 @@
+[package]
+name = "abp-protocol"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.91"
+
+[dependencies]
+prost = "=0.13.5"
+tokio = { version = "1", features = ["io-util"] }
+thiserror = "2"
+
+[dev-dependencies]
+tokio = { version = "1", features = ["macros", "rt", "io-util"] }

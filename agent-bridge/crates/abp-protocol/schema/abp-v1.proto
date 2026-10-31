@@ -1,0 +1,13 @@
+syntax = "proto3";
+package agent_bridge.v1;
+// Frame = u32 big-endian length (type + payload), u8 type, protobuf payload.
+// Type tags: Hello=1, Open=2, Pair=3, Request=4, Response=5, Io=6, Error=7.
+message Hello { uint32 major = 1; uint32 minor = 2; string instance_id = 3; uint32 max_frame_bytes = 4; }
+message StreamOpen { int32 kind = 1; string process_id = 2; string generation = 3; uint64 cursor = 4; }
+message PairRequest { string session_id = 1; string token = 2; string name = 3; }
+// body_json is a daemon DTO, never an Agent business protocol message.
+message RpcRequest { string rpc_id = 1; string method = 2; string body_json = 3; uint32 timeout_ms = 4; }
+message RpcResponse { string rpc_id = 1; string body_json = 2; string error_code = 3; string error_message = 4; }
+// Channels: stdin=0 stdout=1 stderr=2 gap=3 exit=4. Cursor is relay sequence.
+message IoFrame { int32 channel = 1; bytes data = 2; uint64 cursor = 3; uint64 offset = 4; uint64 lost_bytes = 5; optional int32 exit_code = 6; int32 affected_channel = 7; }
+message ProtocolError { string code = 1; string message = 2; }

@@ -1,3 +1,6 @@
-{"file": ".trellis/spec/backend/agent-bridge-control.md", "reason": "Existing authorization, state and lifecycle invariants"}
-{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Rust stdout protocol and Swift Codable consistency"}
-{"file": ".trellis/tasks/10-30-agent-bridge-mac-client/research/context.md", "reason": "User reference and verified native toolchain scope"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Shared DTO, command/event, transport and authoritative state boundaries"}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "One owner for protocol types, adapter capabilities and authorization"}
+{"file": ".trellis/tasks/10-30-agent-bridge-mac-client/research/greenfield-contract.md", "reason": "Current greenfield decisions and precedence over historical Swift/server business-state specs"}
+{"file": ".agents/skills/client-development/references/tauri-react-contracts.md", "reason": "Tauri 2 permissions, native lifecycle, bridge safety and real validation requirements"}
+{"file": ".trellis/spec/backend/agent-bridge-host.md", "reason": "Current embedded host contracts, replacing historical server business-state assumptions"}
+{"file": ".trellis/spec/frontend/agent-bridge-desktop.md", "reason": "Current Tauri/React bridge and native lifecycle contract"}

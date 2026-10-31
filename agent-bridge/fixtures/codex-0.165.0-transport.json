@@ -1,0 +1,31 @@
+{
+  "recorded_at": "2026-10-31",
+  "platform": "macOS arm64",
+  "agent": "codex",
+  "reported_version": "codex-cli 0.165.0",
+  "launch": ["codex", "app-server", "--stdio"],
+  "evidence_kind": "real_local_native_process",
+  "checks": [
+    {
+      "request": {
+        "id": 1,
+        "method": "initialize",
+        "params": {
+          "clientInfo": {"name": "agent_bridge_transport_probe", "version": "0.1.0"},
+          "capabilities": {"experimentalApi": false}
+        }
+      },
+      "observed": {"matching_id": true, "result_present": true, "error_present": false}
+    },
+    {"notification": {"method": "initialized"}},
+    {
+      "request": {"id": 2, "method": "thread/list", "params": {"limit": 1}},
+      "observed": {"matching_id": true, "result_present": true, "error_present": false}
+    }
+  ],
+  "verified": ["stdio_transport", "initialization", "read_only_rpc_response"],
+  "not_verified": ["submit_task", "approval", "cancel_task", "resume", "terminal"],
+  "privacy": "No model request was made; thread contents, credentials and raw diagnostic output were not retained.",
+  "cleanup": "The probe terminated and awaited its owned process group.",
+  "environment_note": "Sandbox attempt received no response within 12 seconds; authorized host-context retry completed in 0.27 seconds."
+}

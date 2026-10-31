@@ -1,5 +1,8 @@
 # Agent Bridge macOS menu-bar contract
 
+> Historical Swift architecture. Current development follows
+> [agent-bridge-desktop.md](./agent-bridge-desktop.md) with Tauri 2 and React.
+
 ## 1. Scope / Trigger
 Applies to `agent-bridge/macos/`, the bundled daemon local administration mode and `scripts/build-macos-app.sh`. This is a native local host panel, not an iOS app or a remote session workspace. Reference screenshot defines hierarchy only; no copied third-party branding or unsupported connectivity claims.
 

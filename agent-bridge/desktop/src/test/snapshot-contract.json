@@ -1,0 +1,55 @@
+{
+  "service_instance": "fixture-instance",
+  "revision": "9007199254740993",
+  "status": {
+    "running": true,
+    "uptime_secs": 120,
+    "network": {
+      "state": "ready",
+      "endpoint_id": "fixture-endpoint",
+      "detail": null
+    },
+    "active_processes": 1,
+    "connected_devices": 1
+  },
+  "agents": [
+    {
+      "id": "codex",
+      "name": "Codex CLI",
+      "version": "0.165.0",
+      "status": "available",
+      "validation": "verified",
+      "capabilities": ["stdio"],
+      "diagnostic": null
+    }
+  ],
+  "devices": [
+    {
+      "device_id": "fixture-peer",
+      "name": "Phone",
+      "paired_at": "2026-10-31T00:00:00.000Z",
+      "last_seen": null,
+      "connection": "online",
+      "permissions": ["view", "session", "task", "approval"]
+    }
+  ],
+  "processes": [
+    {
+      "process_id": "fixture-process",
+      "generation": "9007199254740993",
+      "agent_id": "codex",
+      "owner_device_id": "fixture-peer",
+      "pid": 1234,
+      "state": "running",
+      "started_at": "2026-10-31T00:00:00.000Z",
+      "exit_code": null
+    }
+  ],
+  "pairing": {
+    "session_id": null,
+    "expires_at": null,
+    "request": null,
+    "state": "idle"
+  },
+  "settings": { "device_name": "Fixture Mac" }
+}

@@ -1,31 +1,94 @@
-# Simple Agent Bridge Mac menu-bar client
+# Agent Bridge desktop host - greenfield implementation
 
 ## Goal
-Deliver a small, launchable macOS menu-bar application managing the local Agent Bridge service. The user explicitly requested Mac rather than iOS, then supplied image.png (Remmo menu-bar popover) and requested a simple client. This resolves the earlier local-vs-remote product question in favor of local host management.
+Deliver a working desktop host based on `doc/agent-bridge-desktop-client.md`
+and `doc/agent-bridge-tray.html`: discover local Agents, pair and revoke
+trusted devices, relay Agent process I/O, and show authoritative status in
+a compact tray panel. Build the required Rust daemon from scratch alongside
+the Tauri 2 / React / TypeScript application.
 
-## Background and evidence
-- `agent-bridge/` has no desktop UI; its daemon and development CLI are implemented Rust programs.
-- `crates/agentd/src/main.rs` supports serve, devices, pairs, approve and revoke, but has no structured persistent local UI channel. Pair windows can currently be opened only at daemon startup via --pair.
-- `crates/agentd/src/endpoint.rs` owns pairing, local endpoint identity and lifecycle. `crates/agentd/src/identity.rs` uses macOS Keychain.
-- Existing backend support is verified Codex 0.165.0; unverified versions must not be presented as supported. There is no mobile application yet.
-- Xcode/macOS SDK and Swift6.3.3 are available; native Rust target is aarch64-apple-darwin.
+## Confirmed background and decisions
+- The user approved task planning, then explicitly chose a greenfield build
+  on 2026-10-31 after the missing source was reported.
+- No product workspace or Rust/Swift source exists in this checkout. Previous
+  implementation claims and validation counts are historical, not evidence.
+- The desktop specification owns host behavior; the HTML owns visual
+  hierarchy. The broader plan supplies transport and pairing details.
+- macOS on this machine is the first native delivery target. Keep portable
+  boundaries; report Windows/Linux validation separately when available.
+- The HTML devices, versions, statuses and decorative QR are sample data.
+- No phone application is part of this task. A test peer verifies the host
+  network contract; phone scanning/interoperability remains a later check.
 
 ## Requirements
-R1 Menu-bar UI: compact native popover resembling the reference hierarchy: app name/Mac name and status; optional actionable error card; devices; Agents; footer controls. Chinese labels, light/dark appearance and bounded height. No full session workspace.
-R2 Service ownership: launch bundled agentd, show starting/running/stopped/failed and Endpoint ID, start/stop/restart controls, open local logs. Only manage the app-owned child; never kill an independently running daemon. Collapsing popover does not stop service. Quit/stop/restart must disclose interruption when active work exists.
-R3 Pairing/devices: create a short-lived pairing invitation without restarting daemon, show/copy endpoint/token with countdown, show pending requests and require explicit local confirmation of displayed permissions, list authorized devices and revoke them. Do not imply an unimplemented phone app can scan/connect. Do not invent last-seen or connected state when unavailable.
-R4 Agents: refresh installed Codex version and supported/unverified/unavailable status; show concrete diagnostic for missing CLI or version mismatch. Other agents are not advertised as controllable.
-R5 Local settings: login-item toggle backed by SMAppService, off until user enables; visible error/pending system approval state. Open logs/data location; version and quit. Persist data in the user Application Support directory and logs in Library/Logs, with private file permissions.
-R6 Build and tests: runnable .app bundle including the Rust daemon, repeatable local packaging script, Rust local-control contract tests, Swift model/state tests and visual smoke check. Preserve the backend37-test suite.
+R1. Compact UI: implement the prototype header/status, device/Agent/process
+    tabs, footer, settings, initial empty state, network errors, pairing and
+    revoke confirmation. Follow system theme, bound list height, truncate
+    long labels and expose keyboard/accessibility labels.
+R2. Native lifecycle: tray click opens a screen-clamped panel; blur/Esc hides
+    it without stopping the daemon. Use an accessory app/template icon on
+    macOS and a single instance. Pairing has its own window. Exit with active
+    processes requires disclosure/confirmation and cleans owned processes.
+R3. Discovery: detect Claude Code, Codex and Herdr using bounded version
+    probes, known paths and PATH. Distinguish missing, installed, verified,
+    unverified, probe failure and running. Persist a five-minute cache.
+    Enable launch capabilities only with actual compatibility evidence;
+    begin with one verified structured adapter as required by the base plan.
+R4. Pairing: generate a real locally rendered QR with endpoint identity,
+    protocol version, one-use high-entropy token and 120-second validity.
+    Bind requests to the authenticated peer and require local approval of
+    identity and permissions. Support reject, cancel, timeout and completion.
+R5. Devices: persist authorized identities/permissions; display actual online
+    status and last-seen when known. Revocation closes the device connections
+    and input leases and rejects future operations without stopping already
+    running Agents. Do not claim already submitted input can be withdrawn.
+R6. Process relay: authenticated peers can discover, start, query and stop
+    approved adapters and attach I/O. The daemon owns process identities,
+    generations, pipes and cleanup. Serialize stdin; keep stdout/stderr
+    separate; bound output at 64 KiB and explicitly report loss. Disconnect
+    preserves the process. Do not parse/store Agent business state on desktop.
+R7. Transport/persistence: implement versioned ABP over iroh with bounded
+    Protobuf frames, per-operation/per-stream authorization and durable
+    operation deduplication. Crash-ambiguous starts are reported unknown,
+    never replayed automatically. Keep identity in OS secure storage and
+    host metadata in SQLite, without storing sessions/tasks/approvals.
+R8. Settings/diagnostics: manual autostart toggle with actual system result,
+    supported network/settings controls, actionable startup/network errors,
+    bounded redacted logs and a real log-view action. No simulated success.
+R9. Reproducible delivery: lock Rust and frontend dependencies, document
+    development/build commands, run meaningful behavior and integration
+    tests, inspect UI states, and build a launchable local macOS app/package.
 
 ## Acceptance criteria
-- Build and launch app on this Mac; menu icon opens correctly sized popover and controls reflect real state.
-- Start/stop/restart affect one owned process; independent daemon conflict and native startup errors are visible.
-- Pairing invitation expires, pending requests can be explicitly authorized, revoke takes effect, and no invitation token enters ordinary logs.
-- Missing/unverified Codex is visibly distinguished from supported Codex; process running does not falsely imply Relay connectivity.
-- Closing popover keeps service running. Application exit cleans owned process and has clear active-task interruption behavior.
-- Login toggle changes only after deliberate user action and reports OS errors.
-- Automated tests and native build pass; visual verification artifacts recorded.
+- AC1 (R1,R2): the built app renders the prototype hierarchy in light/dark,
+  with empty/error/loading states; tray positioning, hide, reopen, second
+  launch and exit are checked natively, not inferred from a browser.
+- AC2 (R3): actual installed/missing/timeout/version-mismatch results are
+  visible; an adapter is never labeled verified from help/version alone.
+- AC3 (R4,R5,R7): a real iroh test peer pairs only after local confirmation;
+  expired/reused/cancelled tokens and unauthorized requests fail; revocation
+  immediately ends streams and future access while owned processes survive.
+- AC4 (R6,R7): peer start/query/stop and raw bidirectional I/O work; repeated
+  operation IDs do not spawn twice; altered duplicate payloads conflict;
+  disconnect, overflow, EOF, stale generations and crash ambiguity have tests.
+- AC5 (R1,R8): UI actions reach Rust, errors remain visible, old responses
+  cannot replace newer state, subscriptions are cleaned up, unknown network
+  state is not shown as direct/relay, and toggles reflect actual OS state.
+- AC6 (R9): frontend type-check/build and Rust fmt/clippy/tests pass; the app
+  contains local assets/icons and has native launch evidence. Report exact
+  artifacts and any unavailable native/network/real-Agent checks honestly.
 
-## Out of scope
-Full session/task/approval workbench, remote Mac controller views, iOS/Android, terminal emulator, new adapters, APNs, auto-update, App Store distribution/notarization and standalone LaunchAgent installation. Existing remote-control backend remains available.
+## Out of scope / deferred verification
+Mobile apps and their business state machines; desktop task/session/approval
+workbench; file preview and notifications; unattended service installation;
+public distribution/notarization; arbitrary existing terminal takeover;
+process survival across daemon/host restart. Generic PTY is capability-gated
+and deferred until its adapter/lease/resize contract is verified, consistent
+with the base plan. Do not advertise terminal support before that gate.
+Windows/Linux native packages and phone-camera scanning are not claimed
+validated by a macOS build or test peer.
+
+## Planning status
+Greenfield source decision resolved. No blocking product questions remain.
+Design and implementation plan accompany this PRD. The latest final planning
+summary still requires review under the project planning workflow.

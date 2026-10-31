@@ -1,0 +1,28 @@
+[package]
+name = "agent-bridge-desktop"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[lib]
+name = "agent_bridge_desktop_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+agentd = { path = "../../crates/agentd" }
+tauri = { version = "2", features = ["tray-icon", "image-png"] }
+tauri-plugin-single-instance = "2"
+tauri-plugin-autostart = "2"
+tauri-plugin-log = "2"
+log = "0.4"
+tokio.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+iroh.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true

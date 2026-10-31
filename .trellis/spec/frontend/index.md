@@ -14,7 +14,8 @@ This directory contains guidelines for frontend development. Fill in each file w
 
 | Guide | Description | Status |
 |-------|-------------|--------|
-| [Agent Bridge macOS](./agent-bridge-macos.md) | Native menu-bar, process ownership and local JSONL contracts | Implemented |
+| [Agent Bridge Desktop](./agent-bridge-desktop.md) | Current Tauri/React bridge, tray lifecycle, state and verification | Current |
+| [Agent Bridge macOS](./agent-bridge-macos.md) | Historical Swift menu-bar and stdio administration contract | Superseded |
 | [Directory Structure](./directory-structure.md) | Module organization and file layout | To fill |
 | [Component Guidelines](./component-guidelines.md) | Component patterns, props, composition | To fill |
 | [Hook Guidelines](./hook-guidelines.md) | Custom hooks, data fetching patterns | To fill |
