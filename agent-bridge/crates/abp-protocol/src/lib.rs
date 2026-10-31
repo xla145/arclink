@@ -161,7 +161,7 @@ impl Frame {
         bytes.extend_from_slice(&payload);
         Ok(bytes)
     }
-    fn decode_payload(bytes: &[u8]) -> Result<Self, FrameError> {
+    pub fn decode_payload(bytes: &[u8]) -> Result<Self, FrameError> {
         let (&tag, payload) = bytes.split_first().ok_or(FrameError::InvalidLength)?;
         Ok(match tag {
             1 => Self::Hello(Hello::decode(payload)?),

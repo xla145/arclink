@@ -1,6 +1,7 @@
 //! Embedded, byte-transparent Agent host. Business state stays with the peer.
 pub mod identity;
 pub mod network;
+mod pair_http;
 mod process;
 mod store;
 pub mod types;
@@ -410,6 +411,9 @@ impl Daemon {
             expires_at,
             qr_payload,
         })
+    }
+    pub async fn open_pair_http(self: &Arc<Self>) -> Result<Vec<String>> {
+        pair_http::open(self.clone()).await
     }
     pub async fn pairing_state(&self) -> PairingState {
         let mut p = self.pairing.lock().await;

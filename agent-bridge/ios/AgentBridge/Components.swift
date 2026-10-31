@@ -1,5 +1,4 @@
-import CoreImage
-import CoreImage.CIFilterBuiltins
+import AVFoundation
 import SwiftUI
 
 struct Pill: View {
@@ -16,42 +15,114 @@ struct Pill: View {
     }
 }
 
-struct QRCodeView: View {
-    var payload: String
+struct MacQRScanner: View {
+    var onCode: (String) async -> Bool
+    @State private var denied = false
 
     var body: some View {
-        VStack(spacing: 10) {
-            if let image = Self.image(for: payload) {
-                Image(uiImage: image)
-                    .interpolation(.none)
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: 180, height: 180)
-                    .padding(12)
-                    .background(.white, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        Group {
+            if denied {
+                Text("没有相机权限。请在系统设置里允许 Agent Bridge 使用相机，然后扫描 Mac 上的二维码。")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .padding()
+            } else {
+                AVCaptureQRScanner(onCode: onCode)
             }
-            Text("在桌面端打开配对窗口，用这里的二维码完成绑定")
-                .font(.footnote)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-            Text("有效期 2:00")
-                .font(.footnote.monospacedDigit())
-                .foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity)
-        .padding(16)
-        .background(.background, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .frame(height: 300)
+        .background(Color.black.opacity(0.9), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .task {
+            let status = AVCaptureDevice.authorizationStatus(for: .video)
+            if status == .notDetermined {
+                let granted = await AVCaptureDevice.requestAccess(for: .video)
+                denied = !granted
+            } else {
+                denied = status == .denied || status == .restricted
+            }
+        }
+    }
+}
+
+private final class PreviewView: UIView {
+    override class var layerClass: AnyClass { AVCaptureVideoPreviewLayer.self }
+    var previewLayer: AVCaptureVideoPreviewLayer { layer as! AVCaptureVideoPreviewLayer }
+}
+
+private struct AVCaptureQRScanner: UIViewRepresentable {
+    var onCode: (String) async -> Bool
+
+    func makeUIView(context: Context) -> PreviewView {
+        let view = PreviewView()
+        view.previewLayer.session = context.coordinator.session
+        view.previewLayer.videoGravity = .resizeAspectFill
+        context.coordinator.start()
+        return view
     }
 
-    private static func image(for text: String) -> UIImage? {
-        let filter = CIFilter.qrCodeGenerator()
-        filter.message = Data(text.utf8)
-        filter.correctionLevel = "M"
-        guard let output = filter.outputImage else { return nil }
-        let scaled = output.transformed(by: CGAffineTransform(scaleX: 8, y: 8))
-        let context = CIContext()
-        guard let cg = context.createCGImage(scaled, from: scaled.extent) else { return nil }
-        return UIImage(cgImage: cg)
+    func updateUIView(_ view: PreviewView, context: Context) {}
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(onCode: onCode)
+    }
+
+    final class Coordinator: NSObject, AVCaptureMetadataOutputObjectsDelegate {
+        let session = AVCaptureSession()
+        let onCode: (String) async -> Bool
+        private var handled = false
+
+        init(onCode: @escaping (String) async -> Bool) {
+            self.onCode = onCode
+        }
+
+        func start() {
+            let configuration = { [session] in
+                session.beginConfiguration()
+                session.sessionPreset = .high
+                if let device = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .back),
+                   let input = try? AVCaptureDeviceInput(device: device),
+                   session.canAddInput(input) {
+                    session.addInput(input)
+                    if device.isFocusModeSupported(.continuousAutoFocus) {
+                        try? device.lockForConfiguration()
+                        device.focusMode = .continuousAutoFocus
+                        if device.isFocusPointOfInterestSupported {
+                            device.focusPointOfInterest = CGPoint(x: 0.5, y: 0.5)
+                        }
+                        device.unlockForConfiguration()
+                    }
+                }
+                let output = AVCaptureMetadataOutput()
+                if session.canAddOutput(output) {
+                    session.addOutput(output)
+                    output.setMetadataObjectsDelegate(self, queue: .main)
+                    output.metadataObjectTypes = output.availableMetadataObjectTypes.filter { $0 == .qr }
+                }
+                session.commitConfiguration()
+            }
+            DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+                guard let self else { return }
+                configuration()
+                self.session.startRunning()
+            }
+        }
+
+        func metadataOutput(_ output: AVCaptureMetadataOutput, didOutput metadataObjects: [AVMetadataObject], from connection: AVCaptureConnection) {
+            guard !handled else { return }
+            for case let object as AVMetadataMachineReadableCodeObject in metadataObjects where object.type == .qr {
+                guard let value = object.stringValue else { continue }
+                handled = true
+                let callback = onCode
+                Task { @MainActor in
+                    let ok = await callback(value)
+                    if !ok { self.handled = false }
+                }
+                return
+            }
+        }
     }
 }
 

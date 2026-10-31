@@ -27,8 +27,9 @@ export function Icon({
     ),
     settings: (
       <>
-        <circle cx="8" cy="8" r="2.5" />
-        <path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.1 3.1l1.4 1.4M11.5 11.5l1.4 1.4M3.1 12.9l1.4-1.4M11.5 4.5l1.4-1.4" />
+        <path d="M2 4.5h2.5M7.5 4.5H14M2 11.5h6.5M11.5 11.5H14" />
+        <circle cx="6" cy="4.5" r="1.5" />
+        <circle cx="10" cy="11.5" r="1.5" />
       </>
     ),
     close: <path d="m4 4 8 8M12 4l-8 8" />,

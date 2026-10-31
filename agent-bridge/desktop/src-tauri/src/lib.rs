@@ -56,9 +56,6 @@ pub fn run() {
                 api.prevent_close();
                 let _ = window.hide();
             }
-            tauri::WindowEvent::Focused(false) if window.label() == "main" => {
-                let _ = window.hide();
-            }
             _ => {}
         })
         .build(tauri::generate_context!())

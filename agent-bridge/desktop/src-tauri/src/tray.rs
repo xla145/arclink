@@ -61,6 +61,8 @@ pub fn show_panel(app: &AppHandle, anchor: Option<PhysicalPosition<f64>>) {
     let Some(window) = app.get_webview_window("main") else {
         return;
     };
+    #[cfg(target_os = "macos")]
+    let _ = app.set_activation_policy(tauri::ActivationPolicy::Regular);
     let monitor = anchor
         .and_then(|position| {
             window

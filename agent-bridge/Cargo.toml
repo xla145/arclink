@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/abp-protocol", "crates/agent-adapters", "crates/agentd", "crates/abp-test-harness", "desktop/src-tauri"]
+members = ["crates/abp-protocol", "crates/agent-adapters", "crates/agentd", "crates/abp-test-harness", "crates/agent-bridge-client", "desktop/src-tauri"]
 default-members = ["crates/abp-protocol", "crates/agent-adapters", "crates/agentd", "crates/abp-test-harness"]
 
 [workspace.package]
@@ -25,3 +25,7 @@ libc = "0.2"
 prost = "=0.13.5"
 iroh = { version = "=1.4.1", default-features = false, features = ["tls-ring"] }
 tempfile = "3"
+
+[patch.crates-io]
+netdev = { path = "third_party/netdev" }
+netwatch = { path = "third_party/netwatch" }

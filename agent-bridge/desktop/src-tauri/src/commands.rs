@@ -4,6 +4,7 @@ use agentd::{
     Result,
 };
 use serde::Serialize;
+use serde_json::Value;
 use tauri::{AppHandle, Manager, WebviewWindow};
 use tauri_plugin_autostart::ManagerExt;
 
@@ -35,7 +36,15 @@ pub async fn start_pairing(app: AppHandle, window: WebviewWindow) -> Result<Pair
         }
     }
     *invitation = None;
-    let session = daemon.start_pairing().await?;
+    let mut session = daemon.start_pairing().await?;
+    if let Ok(urls) = daemon.open_pair_http().await {
+        if let Ok(mut payload) = serde_json::from_str::<serde_json::Value>(&session.qr_payload) {
+            payload["pair_urls"] = serde_json::json!(urls);
+            if let Ok(text) = serde_json::to_string(&payload) {
+                session.qr_payload = text;
+            }
+        }
+    }
     *invitation = Some(session.clone());
     Ok(session)
 }

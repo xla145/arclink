@@ -3,35 +3,44 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 77;
+	objectVersion = 70;
 	objects = {
-        AC0000000000000000000001 = {isa = PBXFileSystemSynchronizedRootGroup; path = AgentBridgeUITests; sourceTree = "<group>"; };
-        AC0000000000000000000002 = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; path = AgentBridgeUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-        AC0000000000000000000003 = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
-        AC0000000000000000000004 = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
-        AC0000000000000000000005 = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
-        AC0000000000000000000006 = {isa = PBXNativeTarget; buildConfigurationList = AC0000000000000000000007; buildPhases = (AC0000000000000000000003, AC0000000000000000000004, AC0000000000000000000005); buildRules = (); dependencies = (AC000000000000000000000B); fileSystemSynchronizedGroups = (AC0000000000000000000001); name = AgentBridgeUITests; productName = AgentBridgeUITests; productReference = AC0000000000000000000002; productType = "com.apple.product-type.bundle.ui-testing"; };
-        AC0000000000000000000007 = {isa = XCConfigurationList; buildConfigurations = (AC0000000000000000000008, AC0000000000000000000009); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
-        AC0000000000000000000008 = {isa = XCBuildConfiguration; name = Debug; buildSettings = {GENERATE_INFOPLIST_FILE = YES; PRODUCT_BUNDLE_IDENTIFIER = dev.agentbridge.ios.uitests; PRODUCT_NAME = "$(TARGET_NAME)"; SWIFT_VERSION = 5.0; TARGETED_DEVICE_FAMILY = 1; TEST_TARGET_NAME = AgentBridge; CODE_SIGNING_ALLOWED = NO; }; };
-        AC0000000000000000000009 = {isa = XCBuildConfiguration; name = Release; buildSettings = {GENERATE_INFOPLIST_FILE = YES; PRODUCT_BUNDLE_IDENTIFIER = dev.agentbridge.ios.uitests; PRODUCT_NAME = "$(TARGET_NAME)"; SWIFT_VERSION = 5.0; TARGETED_DEVICE_FAMILY = 1; TEST_TARGET_NAME = AgentBridge; CODE_SIGNING_ALLOWED = NO; }; };
-        AC000000000000000000000A = {isa = PBXContainerItemProxy; containerPortal = AB000000000000000000000A; proxyType = 1; remoteGlobalIDString = AB0000000000000000000006; remoteInfo = AgentBridge; };
-        AC000000000000000000000B = {isa = PBXTargetDependency; target = AB0000000000000000000006; targetProxy = AC000000000000000000000A; };
 
+/* Begin PBXBuildFile section */
+		AB0000000000000000000010 /* AgentBridgeClient.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = AB0000000000000000000011 /* AgentBridgeClient.xcframework */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		AC000000000000000000000A /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = AB000000000000000000000A /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = AB0000000000000000000006;
+			remoteInfo = AgentBridge;
+		};
+/* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
 		AB0000000000000000000005 /* AgentBridge.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = AgentBridge.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		AB0000000000000000000011 /* AgentBridgeClient.xcframework */ = {isa = PBXFileReference; explicitFileType = wrapper.xcframework; includeInIndex = 0; name = AgentBridgeClient.xcframework; path = Frameworks/AgentBridgeClient.xcframework; sourceTree = "<group>"; };
+		AC0000000000000000000002 /* AgentBridgeUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; path = AgentBridgeUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		AB0000000000000000000001 /* AgentBridge */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			path = AgentBridge;
-			sourceTree = "<group>";
-		};
+		AB0000000000000000000001 /* AgentBridge */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = AgentBridge; sourceTree = "<group>"; };
+		AC0000000000000000000001 /* AgentBridgeUITests */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = AgentBridgeUITests; sourceTree = "<group>"; };
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
 		AB0000000000000000000002 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				AB0000000000000000000010 /* AgentBridgeClient.xcframework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		AC0000000000000000000004 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -45,7 +54,8 @@
 			isa = PBXGroup;
 			children = (
 				AB0000000000000000000001 /* AgentBridge */,
-                AC0000000000000000000001,
+				AB0000000000000000000011 /* AgentBridgeClient.xcframework */,
+				AC0000000000000000000001 /* AgentBridgeUITests */,
 				AB0000000000000000000004 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -54,7 +64,7 @@
 			isa = PBXGroup;
 			children = (
 				AB0000000000000000000005 /* AgentBridge.app */,
-                AC0000000000000000000002,
+				AC0000000000000000000002 /* AgentBridgeUITests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -82,6 +92,27 @@
 			productReference = AB0000000000000000000005 /* AgentBridge.app */;
 			productType = "com.apple.product-type.application";
 		};
+		AC0000000000000000000006 /* AgentBridgeUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = AC0000000000000000000007 /* Build configuration list for PBXNativeTarget "AgentBridgeUITests" */;
+			buildPhases = (
+				AC0000000000000000000003 /* Sources */,
+				AC0000000000000000000004 /* Frameworks */,
+				AC0000000000000000000005 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				AC000000000000000000000B /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				AC0000000000000000000001 /* AgentBridgeUITests */,
+			);
+			name = AgentBridgeUITests;
+			productName = AgentBridgeUITests;
+			productReference = AC0000000000000000000002 /* AgentBridgeUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -89,9 +120,13 @@
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
-                TargetAttributes = { AC0000000000000000000006 = {TestTargetID = AB0000000000000000000006; }; };
 				LastSwiftUpdateCheck = 2600;
 				LastUpgradeCheck = 2600;
+				TargetAttributes = {
+					AC0000000000000000000006 = {
+						TestTargetID = AB0000000000000000000006;
+					};
+				};
 			};
 			buildConfigurationList = AB000000000000000000000B /* Build configuration list for PBXProject "AgentBridge" */;
 			compatibilityVersion = "Xcode 15.0";
@@ -108,13 +143,20 @@
 			projectRoot = "";
 			targets = (
 				AB0000000000000000000006 /* AgentBridge */,
-                AC0000000000000000000006,
+				AC0000000000000000000006 /* AgentBridgeUITests */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
 		AB0000000000000000000009 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		AC0000000000000000000005 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -131,7 +173,22 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		AC0000000000000000000003 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		AC000000000000000000000B /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = AB0000000000000000000006 /* AgentBridge */;
+			targetProxy = AC000000000000000000000A /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		AB000000000000000000000C /* Debug */ = {
@@ -181,6 +238,8 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = "Agent Bridge";
+				INFOPLIST_KEY_NSAppTransportSecurity_NSAllowsArbitraryLoads = YES;
+				INFOPLIST_KEY_NSCameraUsageDescription = "用于扫描 Mac 上显示的配对二维码";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -193,6 +252,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = dev.agentbridge.ios;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OBJC_BRIDGING_HEADER = "AgentBridge/Bridging-Header.h";
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = 1;
 			};
@@ -210,6 +270,8 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = "Agent Bridge";
+				INFOPLIST_KEY_NSAppTransportSecurity_NSAllowsArbitraryLoads = YES;
+				INFOPLIST_KEY_NSCameraUsageDescription = "用于扫描 Mac 上显示的配对二维码";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -222,14 +284,50 @@
 				PRODUCT_BUNDLE_IDENTIFIER = dev.agentbridge.ios;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OBJC_BRIDGING_HEADER = "AgentBridge/Bridging-Header.h";
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Release;
+		};
+		AC0000000000000000000008 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGNING_ALLOWED = NO;
+				GENERATE_INFOPLIST_FILE = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = dev.agentbridge.ios.uitests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+				TEST_TARGET_NAME = AgentBridge;
+			};
+			name = Debug;
+		};
+		AC0000000000000000000009 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGNING_ALLOWED = NO;
+				GENERATE_INFOPLIST_FILE = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = dev.agentbridge.ios.uitests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+				TEST_TARGET_NAME = AgentBridge;
 			};
 			name = Release;
 		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		AB0000000000000000000007 /* Build configuration list for PBXNativeTarget "AgentBridge" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				AB000000000000000000000E /* Debug */,
+				AB000000000000000000000F /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		AB000000000000000000000B /* Build configuration list for PBXProject "AgentBridge" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
@@ -239,11 +337,11 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		AB0000000000000000000007 /* Build configuration list for PBXNativeTarget "AgentBridge" */ = {
+		AC0000000000000000000007 /* Build configuration list for PBXNativeTarget "AgentBridgeUITests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				AB000000000000000000000E /* Debug */,
-				AB000000000000000000000F /* Release */,
+				AC0000000000000000000008 /* Debug */,
+				AC0000000000000000000009 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

@@ -70,22 +70,18 @@ struct UnpairedView: View {
                         .foregroundStyle(.tint)
                         .frame(width: 72, height: 72)
                         .background(Color.accentColor.opacity(0.12), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-                    Text("连接你的桌面主机")
+                    Text("扫描 Mac 上的二维码")
                         .font(.title2.bold())
-                    Text("二维码就在这一页。桌面端确认后即可开始。")
+                    Text("在桌面端打开 Agent Bridge 的配对窗口，用手机对准屏幕上的二维码。")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
                 }
                 .padding(.top, 12)
 
-                QRCodeView(payload: "agent-bridge://pair?token=\(store.pairToken)")
-
-                Button("我已在桌面端确认") {
-                    store.confirmPair()
+                MacQRScanner { code in
+                    await store.pair(from: code)
                 }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.large)
             }
             .padding(16)
         }

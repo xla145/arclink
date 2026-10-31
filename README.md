@@ -31,4 +31,4 @@ xcodebuild -project AgentBridge.xcodeproj -scheme AgentBridge \
   -configuration Debug build CODE_SIGNING_ALLOWED=NO
 ```
 
-本地构建产物在 `agent-bridge/ios/work/`，已被 Git 忽略。
+本地构建产物在 `agent-bridge/ios/work/`，已被 Git 忽略。配对时由 Mac 显示二维码，手机扫描。

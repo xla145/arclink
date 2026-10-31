@@ -107,30 +107,14 @@ enum Route: Hashable {
 @MainActor
 @Observable
 final class AppStore {
-    var paired = true
-    var hostName = "MacBook Pro"
-    var online = true
+    var paired = false
+    var hostName = ""
+    var online = false
     var selectedAgent: AgentKind = .claude
-    var projects: [ProjectItem] = [
-        ProjectItem(id: "p1", name: "my-app", path: "~/projects/my-app", agent: .claude),
-        ProjectItem(id: "p2", name: "backend", path: "~/work/backend", agent: .claude),
-        ProjectItem(id: "p3", name: "api-server", path: "~/projects/api-server", agent: .codex),
-    ]
-    var sessions: [SessionItem] = [
-        SessionItem(id: "s1", projectId: "p1", title: "重构 Dashboard 组件", status: .waiting, detail: "进行中 · 12 分钟 · 2 个待审批"),
-        SessionItem(id: "s2", projectId: "p1", title: "修复登录页 CSS", status: .done, detail: "已完成 · 3 分钟前"),
-        SessionItem(id: "s3", projectId: "p1", title: "添加用户设置页", status: .cancelled, detail: "已取消 · 昨天"),
-        SessionItem(id: "s4", projectId: "p3", title: "生成 API 文档", status: .running, detail: "运行中 · 5 分钟"),
-    ]
-    var messages: [ChatMessage] = [
-        ChatMessage(id: "m1", sessionId: "s1", isUser: true, text: "重构 Dashboard 组件，使用 useQuery 替换手动 fetch", imageData: nil, time: "14:22"),
-        ChatMessage(id: "m2", sessionId: "s1", isUser: false, text: "我来帮你重构 Dashboard 组件。先读取当前实现。", imageData: nil, time: "14:22"),
-        ChatMessage(id: "m3", sessionId: "s1", isUser: false, text: "写入 Dashboard.tsx 的变更等待你的批准（+42 / −18）。", imageData: nil, time: "14:23"),
-    ]
-    var approvals: [ApprovalItem] = [
-        ApprovalItem(id: "a1", sessionId: "s1", title: "写入 src/components/Dashboard.tsx", kind: "工具调用 · 写入文件", target: "src/components/Dashboard.tsx", detail: "+42 行 / −18 行", pending: true, approved: nil),
-        ApprovalItem(id: "a2", sessionId: "s1", title: "运行 npm test", kind: "工具调用 · 执行命令", target: "npm test --coverage --watchAll=false", detail: "无文件变更", pending: true, approved: nil),
-    ]
+    var projects: [ProjectItem] = []
+    var sessions: [SessionItem] = []
+    var messages: [ChatMessage] = []
+    var approvals: [ApprovalItem] = []
     var toast: String?
     var permission = "完全访问"
     var notifyApproval = true
@@ -156,6 +140,28 @@ final class AppStore {
             notifyOnMac = saved.notifyOnMac
             notifyFailed = saved.notifyFailed
         }
+        removeStaleDemoData()
+    }
+
+    /// 0.1 shipped demo rows pre-seeded on first launch. Drop them once so pairing starts clean.
+    private func removeStaleDemoData() {
+        let demoProjects: Set<String> = ["p1", "p2", "p3"]
+        let demoSessions: Set<String> = ["s1", "s2", "s3", "s4"]
+        let demoMessages: Set<String> = ["m1", "m2", "m3"]
+        let demoApprovals: Set<String> = ["a1", "a2"]
+        let flagged = UserDefaults.standard.bool(forKey: "agentbridge.demoDataRemoved")
+        guard !flagged else { return }
+        UserDefaults.standard.set(true, forKey: "agentbridge.demoDataRemoved")
+        let touchedProjects = !projects.filter { demoProjects.contains($0.id) }.isEmpty
+        let touchedSessions = !sessions.filter { demoSessions.contains($0.id) }.isEmpty
+        let touchedMessages = !messages.filter { demoMessages.contains($0.id) }.isEmpty
+        let touchedApprovals = !approvals.filter { demoApprovals.contains($0.id) }.isEmpty
+        guard touchedProjects || touchedSessions || touchedMessages || touchedApprovals else { return }
+        projects.removeAll { demoProjects.contains($0.id) }
+        sessions.removeAll { demoSessions.contains($0.id) }
+        messages.removeAll { demoMessages.contains($0.id) }
+        approvals.removeAll { demoApprovals.contains($0.id) }
+        persist()
     }
 
     var canSend: Bool { permission == "完全访问" }
@@ -305,11 +311,103 @@ final class AppStore {
         show(approved ? "已批准" : "已拒绝")
     }
 
-    func confirmPair() {
+    func pair(from payload: String) async -> Bool {
+        let text = payload.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let data = text.data(using: .utf8),
+              let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let token = object["token"] as? String, !token.isEmpty else {
+            show("扫到的不是 Mac 配对码")
+            return false
+        }
+        let sessionId = object["session_id"] as? String ?? ""
+        let endpointId = object["endpoint_id"] as? String ?? ""
+        if let name = object["device_name"] as? String, !name.isEmpty {
+            hostName = name
+        }
+        // Preferred path: iroh P2P. Works across the internet; the QR carries
+        // the Mac's endpoint id, no LAN address involved.
+        if !endpointId.isEmpty {
+            pairingPhase = "正在连接 Mac，需要你在 Mac 上点确认…"
+            let outcome = await pairOverIroh(
+                endpointId: endpointId,
+                sessionId: sessionId,
+                token: token,
+                deviceName: UIDevice.current.name,
+                keyPath: Self.irohKeyPath
+            )
+            pairingPhase = nil
+            if outcome.ok {
+                finishPair(token: token)
+                return true
+            }
+            // LAN fallback keeps same-network pairing working when iroh
+            // cannot establish a path (e.g. relay unreachable).
+            if !(await tryLANPair(object: object, token: token)) {
+                show(outcome.errorMessage.isEmpty ? "配对失败" : outcome.errorMessage)
+                return false
+            }
+            finishPair(token: token)
+            return true
+        }
+        if await tryLANPair(object: object, token: token) {
+            finishPair(token: token)
+            return true
+        }
+        show("这张码不能连上 Mac。请关掉桌面配对窗口后重新打开。")
+        return false
+    }
+
+    private func finishPair(token: String) {
+        pairToken = token
         paired = true
         online = true
         persist()
-        show("已在本机记下配对。桌面 daemon 仍未连接。")
+        show("已配对 \(hostName)")
+    }
+
+    private func tryLANPair(object: [String: Any], token: String) async -> Bool {
+        let urls = object["pair_urls"] as? [String] ?? []
+        let body: [String: String] = [
+            "token": token,
+            "name": UIDevice.current.name,
+            "device_id": phoneId,
+        ]
+        guard let encoded = try? JSONSerialization.data(withJSONObject: body) else { return false }
+        for urlString in urls {
+            guard let url = URL(string: urlString) else { continue }
+            var request = URLRequest(url: url)
+            request.httpMethod = "POST"
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            request.httpBody = encoded
+            request.timeoutInterval = 4
+            if let (_, response) = try? await URLSession.shared.data(for: request),
+               let http = response as? HTTPURLResponse, http.statusCode == 200 {
+                return true
+            }
+        }
+        return false
+    }
+
+    var pairingPhase: String?
+
+    private var phoneId: String {
+        let key = "agentbridge.phoneId"
+        if let existing = UserDefaults.standard.string(forKey: key), !existing.isEmpty {
+            return existing
+        }
+        let created = UUID().uuidString
+        UserDefaults.standard.set(created, forKey: key)
+        return created
+    }
+
+    private static var irohKeyPath: String {
+        let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+        let folder = base?.appendingPathComponent("AgentBridge", isDirectory: true)
+        if let folder {
+            try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+            return folder.appendingPathComponent("iroh-key").path
+        }
+        return NSTemporaryDirectory() + "iroh-key"
     }
 
     func addProject(name: String, path: String, agent: AgentKind) {

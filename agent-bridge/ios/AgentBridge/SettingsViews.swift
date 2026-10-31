@@ -93,15 +93,19 @@ struct DeviceListView: View {
                 Button {
                     showQR.toggle()
                 } label: {
-                    Label(showQR ? "收起二维码" : "重新配对", systemImage: "qrcode")
+                    Label(showQR ? "收起扫描" : "扫描 Mac 二维码", systemImage: "qrcode.viewfinder")
                 }
                 if showQR {
-                    QRCodeView(payload: "agent-bridge://pair?token=\(store.pairToken)")
-                        .listRowInsets(EdgeInsets(top: 8, leading: 8, bottom: 8, trailing: 8))
+                    MacQRScanner { code in
+                        let ok = await store.pair(from: code)
+                        if ok { showQR = false }
+                        return ok
+                    }
+                    .listRowInsets(EdgeInsets(top: 8, leading: 8, bottom: 8, trailing: 8))
                 }
                 Button("断开配对", role: .destructive) { store.unpair() }
             } footer: {
-                Text("二维码显示在这一页。桌面端确认后，手机才算配对。断开后会回到未配对页。")
+                Text("二维码由 Mac 显示。手机只负责扫描。断开后会回到未配对页。")
             }
         }
         .navigationTitle("我的 Mac")

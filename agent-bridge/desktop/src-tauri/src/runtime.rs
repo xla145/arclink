@@ -182,7 +182,8 @@ pub async fn request_shutdown(app: AppHandle, confirmed: bool) -> Result<()> {
         }
     }
     if let Some(network) = state.network.lock().await.take() {
-        network.shutdown().await;
+        // iroh can stall in close(); don't leave Quit hanging on it.
+        let _ = tokio::time::timeout(std::time::Duration::from_secs(3), network.shutdown()).await;
     }
     state.exit_allowed.store(true, Ordering::SeqCst);
     log::info!("Owned host stopped");

@@ -1,0 +1,7 @@
+module agent_bridge_clientFFI {
+    header "agent_bridge_clientFFI.h"
+    export *
+    use "Darwin"
+    use "_Builtin_stdbool"
+    use "_Builtin_stdint"
+}
