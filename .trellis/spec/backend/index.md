@@ -14,6 +14,7 @@ This directory contains guidelines for backend development. Fill in each file wi
 
 | Guide | Description | Status |
 |-------|-------------|--------|
+| [Agent Bridge Private Relay](./agent-bridge-private-relay.md) | Direct-first transport, credential boundaries and relay lease lifecycle | Current |
 | [Agent Bridge Host](./agent-bridge-host.md) | Current embedded daemon, ABP, pairing, process ownership and byte relay | Current |
 | [Agent Bridge Control](./agent-bridge-control.md) | Historical server-side business-state architecture | Superseded for current host |
 | [Agent Bridge Phase 0](./agent-bridge-phase0.md) | Native protocol and evidence contract | Implemented |

@@ -1,6 +1,6 @@
 # Agent Bridge iOS mock UI
 
-Scope: `agent-bridge/ios/`, SwiftUI on iOS 17+. The 0.1 contract is `doc/I-AB-0.1-UI-mock.md`; use `agent-bridge-mobile.html` and client document §04/§10 as visual references. Project/session/approval/chat state is still local mock (see `agent-bridge/ios/README.md` for the current real/mock boundary). As of the `10-31-ios-iroh-transport` task, real iroh transport exists: `agent-bridge/crates/agent-bridge-client` (UniFFI) provides persistent pairing, Control RPC (`Ping`/`GetSystemInfo`/`ListAgents`/`ListProcesses`/`Start|StopProcess`/`GetProcessStatus`), and raw `STREAM_AGENT_IO` byte streaming — Swift `TerminalSession` now provides explicit process start/attach/stop, while nothing parses a given Agent's own protocol (Claude Code/Codex semantics, e.g. a "project list") — see "Real iroh transport" below before extending either direction.
+Scope: `agent-bridge/ios/`, SwiftUI on iOS 17+. The 0.1 contract is `doc/I-AB-0.1-UI-mock.md`; use `agent-bridge-mobile.html` and client document §04/§10 as visual references. Unpaired/demo workspaces retain local mock chat; paired Codex projects support real remote text/image chat (see the remote Codex contract below). As of the `10-31-ios-iroh-transport` task, real iroh transport exists: `agent-bridge/crates/agent-bridge-client` (UniFFI) provides persistent pairing, Control RPC (`Ping`/`GetSystemInfo`/`ListAgents`/`ListProcesses`/`Start|StopProcess`/`GetProcessStatus`), and raw `STREAM_AGENT_IO` byte streaming — Swift `TerminalSession` now provides explicit process start/attach/stop, while the separate `CodexChatSession` parses Codex app-server JSON-RPC for remote text chat — see "Real iroh transport" below before extending either direction.
 
 ## State contracts
 
@@ -36,8 +36,7 @@ Use an item-bound image sheet so its data and presentation change together:
 ```
 
 Avoid a separate Boolean plus conditionally captured image state: the first sheet presentation can render empty. Use PhotosPicker and the system PasteButton for explicit local image selection.
-Do not read the clipboard or photo library automatically. Draft images are
-saved locally with the message; selection is not a remote upload.
+Do not read the clipboard or photo library automatically. Draft images remain local until Send. For paired Codex chats, Send prepares bounded JPEG payloads and saves exactly the bytes passed to the native image input.
 
 The UserDefaults `appearance` key accepts `自动`, `浅色`, `深色`; apply it at RootView. Retention is a mock preference only. Notification toggles change local UI state and do not register APNs.
 
@@ -152,7 +151,7 @@ The crate's iOS static lib pulls in `netdev`/`netwatch`/`system-configuration` (
 
 ### Gotcha: a system proxy/VPN can silently break iroh pairing
 
-A system-wide proxy/VPN in Fake-IP+TUN mode (common on macOS via Clash/Surge/V2Ray-style tools, common in China) can break both iroh connection paths (direct NAT traversal and relay), since both ultimately depend on UDP/QUIC that such tools often don't forward correctly — even though a plain `curl https://<relay-host>/` through it can still return `200 OK`. Diagnostic signature: `dig` any domain (including unrelated ones like `google.com`) and see it resolve into the `198.18.0.0/15` IANA benchmark-test range — that's the proxy's Fake-IP pool, not a real public IP. If iOS↔Mac pairing fails with `unreachable`/`timeout` and this network has that symptom, disable the Mac's proxy/VPN and retry before assuming a code bug.
+A system-wide proxy/VPN in Fake-IP+TUN mode can interfere with DNS resolution, direct NAT traversal and relay reachability even when `curl https://<relay-host>/` returns `200 OK`. Direct iroh paths use UDP/QUIC; HTTPS relay paths carry encrypted endpoint traffic over TLS/TCP/WebSocket and do **not** require working public UDP. DNS in the `198.18.0.0/15` benchmark-test range indicates a Fake-IP mapping, not the relay's public address. Diagnose the resolver and actual iroh handshake separately from a homepage request. Preserve TLS certificate verification and do not alter system-wide VPN settings automatically. A successful SSH-tunneled relay test proves the server protocol path, not cellular reachability. With HTTPS-only private relays use `RelayConfig::new(url, None)` for the absent QAD endpoint, and keep HTTPS latency probes enabled so a home relay can be selected when UDP is blocked.
 
 ## Verification
 
@@ -168,6 +167,11 @@ a per-Agent current project, bell-to-approvals, gear-to-settings and a scoped
 conversation chooser. `DeviceWorkspace.selectedProjectIDs` is optional for old
 snapshots. Validate a saved selection against both project existence and Agent;
 fall back to a matching project. Choosing a project never creates a session.
+
+Home balances readable content with a modest header: use semantic body text for
+project names, caption text for metadata, 12 pt outer card margins and 18 pt
+section spacing. Keep Agent tabs at least 44 pt tall; project names may wrap to
+two lines, with the current-project label above the name rather than beside it.
 
 `SessionSource` distinguishes `.cli` (phone-created local conversation) from
 `.desktop` (Mac-imported read-only history). Decode old Codex/Claude detail
@@ -188,3 +192,285 @@ raster data URLs or HTTP(S) requested explicitly by the person; never load local
 files. Image sheets are item-bound. `MessageDisclosure` displays only supplied
 public summaries/tool content. Host roles `summary` and `tool` need no FFI
 shape change; do not infer or expose private reasoning.
+
+
+Device selection is presented through `DevicePickerSheet` from Home and
+Settings, with its own NavigationStack and explicit completion. Preserve the
+main device/workspace isolation, including selecting after scanner cancellation
+and relaunching. UI tests should target the unique project row identifier and
+verify its label plus a real tap; the current-project card duplicates its title.
+If an unsigned simulator test run reports steps absent from current source,
+reinstall the test runner before treating that output as a new code regression.
+
+The QR representable tears down its capture session and metadata delegate on
+view dismantle, using one serial queue for capture configuration/start/stop and
+camera control. Scanner sweep animations use finite, cancellable tasks rather
+than retaining a forever animation transaction after leaving the screen.
+
+
+## Private relay integration
+
+See [the private relay contract](../backend/agent-bridge-private-relay.md) for additive APIs, QR metadata, Keychain namespaces, validation, shared endpoint leases and actual path reporting. Keep existing device identity, history and Agent lifecycle contracts.
+
+
+## Scenario: persistent project and conversation-list cache
+
+### 1. Scope / Trigger
+
+Applies to AppStore, DeviceWorkspace and project/conversation views when loading
+ListAgentProjects (which includes conversation summaries). Existing persisted
+workspace rows remain the immediate display projection. Message-body loading
+is outside this cache contract.
+
+### 2. Signatures
+
+- `DeviceWorkspace.projectCatalogs: [String: ProjectCatalogCache]?` persists
+  catalogs keyed by Agent ID; `nil` decodes older v2 records.
+- `ProjectCatalogCache(fetchedAt: Date, projects: [MacProject])` stores Codable
+  project/thread DTOs and exposes `isFresh(at:)` / `values`.
+- `AppStore.cachedMacProjects(deviceID:agent:) -> [MacProject]?` reads locally.
+- `AppStore.loadMacProjects(deviceID:agent:force:) async -> [MacProject]?`
+  owns freshness, refresh, coalescing and persistence.
+- `AppStore.refreshConversationList(agent:force:) async` captures selection;
+  views must not call `BridgeConnection.listAgentProjects` directly.
+- Existing DeviceStorage.load/save remain the atomic persistence boundary.
+
+### 3. Contracts
+
+Cache catalogs by paired device ID and Agent ID. A successful catalog stores its
+fetch time and bounded project/thread DTOs; an empty successful result is valid.
+Freshness is five minutes and survives relaunch. Future timestamps are stale.
+Views render local rows immediately; stale/absent catalogs refresh in the
+background when connected. Explicit pull-to-refresh bypasses freshness.
+Concurrent requests for the same device/Agent share one in-flight request.
+
+A response may update only its original device/runtime generation. Device
+removal, runtime replacement or foreground invalidation rejects late results.
+Save the catalog/freshness and derived rows together; failed persistence restores
+the previous workspace. Keep local conversations and their history untouched.
+Old device JSON without a catalog decodes and can obtain its first cache.
+
+### 4. Validation & Error Matrix
+
+| Condition | Behavior |
+| --- | --- |
+| Fresh successful cache | Return local data, no catalog RPC |
+| Expired/absent cache, connected | Refresh without clearing displayed rows |
+| Explicit refresh | Bypass age; coalesce with existing request |
+| Successful empty response | Persist fresh empty catalog |
+| Offline or RPC failure | Keep prior catalog/rows/time; explicit refresh gives feedback |
+| Persistence failure | Roll back catalog/time and derived rows |
+| Removed/replaced/invalidated runtime | Ignore late result |
+
+### 5. Good / Base / Bad Cases
+
+Good: relaunch with fresh cache and open the chooser without a catalog RPC.
+Base: offline browsing keeps the last list; pull-to-refresh after reconnect
+updates it. Bad: every page open fetches from Mac, or a failed request is marked
+fresh and suppresses retry.
+
+### 6. Tests Required
+
+Assert RPC counts for fresh relaunch, expiry, force refresh and coalesced loads;
+empty success versus failed request; stale offline preservation; write rollback;
+Agent/device isolation; late responses after removal/runtime invalidation; old
+record decoding. Build the application and test targets, reporting XCTest
+execution separately from compilation.
+
+### 7. Wrong vs Correct
+
+Wrong: view.task calls listAgentProjects on every presentation; a runtime Set
+marks an Agent imported before its request succeeds.
+Correct: views use AppStore's shared durable cache policy, with success-only
+freshness and retained stale data on failure.
+
+## Imported conversation source
+
+`MacThread.source` is optional for old hosts and carries `cli`, `desktop`, or
+`unknown`. Preserve it in `CachedMacThread` and map only at `SessionSource`.
+A source-only refresh must update existing rows. Catalogs without `sourceSchema`
+remain readable offline but are stale for the next connected refresh. Imported
+rows (`Codex 对话` / `Claude 对话`) are read-only regardless of origin; never use
+CLI source as authority to send or start a process for a historical thread.
+`stopSession` and `resolve` must reject imported history before mutating its
+status/detail; those markers identify historical rows on old persisted records.
+Unknown source remains explicit in lists and filters. Regenerate UniFFI bindings
+and both iOS static libraries together when the record changes.
+
+
+## Remote Codex text chat
+
+`CodexChatSession` owns exact-version app-server JSON-RPC over existing authenticated
+`StartProcess` and `STREAM_AGENT_IO`. The embedded Mac host remains an opaque byte
+relay and enforces session/task/approval grants. New paired Codex chats initialize,
+create or resume a persisted native thread, start turns and project only public
+assistant messages. Command/file approval requests use native request IDs; unsupported
+interactive requests are explicitly refused. Never synthesize successful assistant
+replies or approval requests for a real paired endpoint.
+
+The driver belongs to AppStore's captured `(deviceID, sessionID)`, not a ChatView.
+Callbacks may update only that original workspace and current driver instance.
+Retain incomplete UTF-8 as bytes until a complete bounded NDJSON record exists;
+use a bounded FIFO callback stream rather than independent actor tasks per chunk.
+The chat driver exclusively owns the process input lease; TerminalView must not
+attach to or stop that same process. Persist optional `codexThreadId` backward
+compatibly and avoid catalog duplication of a writable phone-created native thread.
+
+Send acknowledgment and turn completion are separate. Definite rejection preserves
+the draft; unknown delivery remains visible in history and blocks blind replay.
+A failed pre-turn startup can be retried by an explicit send with a fresh driver.
+No automatic mutating-input replay or background-delivery guarantee is implemented. Cross-connection byte resume is provided by the recoverable chat contract below. Unknown delivery must be reconciled before another send; interactive tool/user-input prompts remain unsupported. Stop sends
+`turn/interrupt`; only native completion marks the turn stopped.
+
+Validation: `CodexChatSessionTests`, `RemoteChatTests`, existing conversation/cache
+regressions, and opt-in `real_codex_chat_turns_over_iroh` (two real read-only model
+turns). The latter proves the Mac embedded-host path and installed native protocol,
+not a physical iPhone's cellular/background behavior.
+
+
+## Remote image input and foreground recovery
+
+`RemoteChatImage` uses ImageIO thumbnailing and JPEG encoding. Accept at most four
+valid locally selected images (original <=10 MiB), encode each <=256 KiB and all
+<=1 MiB. Both image-only and mixed turns use real `image` data URLs. The saved
+user message contains the exact prepared payload. Definite failures preserve the
+composer; never claim a local-only attachment was uploaded.
+
+`CodexChatSession` uses record-framed `attachChatIo` and retains process identity,
+lease proof, per-channel next byte offsets, partial NDJSON bytes, native request
+correlation, active turn and approvals in memory. Network failure suspends the
+physical writer. A new attachment epoch ignores late callbacks; resumed output
+clips overlaps and reports gaps explicitly. Never initialize the existing native
+process again or replay turn/start/approval writes. Pending and timed-out ACKs
+remain correlated; authoritative native clientUserMessageId/clientId snapshots
+can settle them without creating another turn.
+
+Recovery reads metadata and bounded turn/item pages instead of full image-bearing
+history. Native turn completion and runtime activity fence the next send.
+AppStore coalesces host reconnect by device and reattachment by chat, with four
+short exponential attempts and explicit retry. Background/removal invalidates
+recovery publication; a foreground/reachability transition can reset retry budget,
+ordinary healthy polls cannot. The UI shows restoring/uncertain/lost state.
+
+Checkpoint/partial input state is not persisted by itself. After a cold launch,
+query a stored prior process first; if still live, block a duplicate new process
+and direct the user to check it on the Mac. Ended/lost processes may resume the
+persisted native thread, checking runtime activity before sending. A host restart
+does not resurrect a lost process, and an evicted output gap is not full recovery.
+
+
+Project catalog source schema 2 invalidates older successful caches on the next
+connected load while retaining them for offline browsing. A successful empty
+native project catalog removes prior imported-only projects and their imported
+rows; local phone conversations remain protected. Verify removal survives relaunch.
+
+
+## Historical step summary and detail interaction
+
+`AgentStepsDisclosure` expands to short public excerpts only; tapping an individual
+`MessageStep` opens an item-bound detail sheet with separate input/output sections.
+Reasoning-summary steps show only the recorded public summary. Create full Markdown
+bodies only in the selected detail sheet, not for every collapsed step. Disclosure
+headers and step rows have full-width hit areas at least 44 pt tall.
+
+`MacMessage` optional toolCallId/toolName/toolPhase metadata correlates input/output
+by native call ID, including parallel outputs arriving in reverse order or across
+assistant prose. Never pair legacy records by adjacency. Retain unmatched results
+and explicitly label missing input/output; do not fabricate records. DEBUG UI tests
+may inject historical messages only under a valid isolated ARCLINK_UI_TEST_ID using
+ARCLINK_UI_TEST_MAC_MESSAGES; Release always uses the real Mac history RPC.
+
+
+## Start-conversation form
+
+Home's floating chat action presents `NewConversationSheet` at large detent:
+project, per-session execution policy, model, first message, and up to four
+prepared images. Merely opening or cancelling it creates no session. Starting
+sends the first message through the existing real/mock boundary; success or
+unknown retained delivery navigates to that same session. Definite failure keeps
+the draft/images and reuses the provisional row on retry. Offline preflight
+creates no provisional row. Capture device identity; do not navigate a late send
+result into a newly selected device. Disable duplicate submission/dismissal
+while awaiting send. Epoch-fence photo/paste completion and wait for pending
+image loads before enabling start.
+
+`SessionItem.chatOptions` is optional for old snapshots. Codex configures model
+and sandbox/approvalPolicy before native thread start/resume; old rows default
+to workspace-write/on-request and omit model to retain Mac settings. Read-only
+maps to read-only/never, full access to danger-full-access/never. These are
+execution settings, never a replacement for paired-device authorization.
+Unsent startup failures may revise setup; native thread/process identity,
+recorded messages, active/recovering or uncertain delivery freeze setup.
+
+Model choices are automatically fetched bounded display metadata from the Mac
+cache via ListAgentModels. Re-fetch when connectivity changes. Offer the Mac
+default when metadata is empty/unavailable; never ask users to enter model IDs.
+No bundled model catalog or fabricated success. Unavailable selections must remain
+a normal failed send with the draft preserved.
+
+
+## Scan completion and Home navigation
+
+`AppStore.pair(from:repairingDeviceID:)` completes only for an authenticated
+iroh result with `ok == true && pending == false`, after durable device/credential
+storage succeeds. HTTP invitation submission is not approval and must never
+create a paired device: endpoint-less legacy QR codes request a refreshed Mac QR.
+Old endpoint-bearing invitations remain supported with optional network hints.
+
+`pairingSuccessID` is an ephemeral completion event, never persisted; change it
+after every durable completion, including re-scanning the selected endpoint.
+RootView clears its navigation path on this event. DeviceListView invokes its
+chooser completion after a successful scanner dismissal so nested sheets close
+as well. Pending approval displays `pairingPhase`; rejection, cancellation and
+storage failure do not emit success or navigate Home. Test relay-only invitations,
+repeated current-device scans and unsuccessful outcomes separately from real
+cellular/device acceptance.
+
+
+Pairing progress must come from authenticated protocol milestones. The additive
+`pairOverIrohWithProgress` callback emits connecting, handshaking, and
+awaitingApproval; only an actual pending ACK permits the last state. Consume
+callbacks in order via one AsyncStream task, checking the pairing generation
+and active phase before publication. Cancel the consumer on completion. Display
+connection-deadline versus approval-deadline errors distinctly; do not show a
+Mac-confirmation instruction merely because a QR decoded successfully.
+
+
+## Scenario: combined assistant turns and execution summaries
+
+### 1. Scope / Trigger
+Conversation detail history and live chat group native assistant items into one visible reply per user turn and display elapsed time, execution count and failures.
+
+### 2. Signatures
+`ConversationTurn.live(_:)` and `history(_:formatTime:)` project raw rows for ChatView. `ChatMessage.turnMetrics: ChatTurnMetrics?` is optional Codable data; metrics retain native turnID, observed start/completion dates, completion state and itemID-keyed `ChatExecutionStep` records. Historical `MacMessage.toolFailed: Bool?` is additive from host `tool_failed`.
+
+### 3. Contracts
+Actual user rows are hard grouping boundaries, including image-only/consecutive users. Keep explicitly final assistant paragraphs in original order; put public intermediate commentary and recorded summaries into ordered process steps. Retain images and full step details, and never mutate source content or deduplicate identical prose. Historical tool pairing stays within one turn and uses call IDs, including reversed parallel results. Summaries exclude reasoning records from execution counts. Native item replay updates one step; a replayed start cannot erase a terminal result. Keep approximate history timing distinct from precise claims; missing or invalid dates/outcomes remain unknown. No APNs or secret reasoning inference is involved.
+
+### 4. Validation & Error Matrix
+- Old messages without metrics/outcome fields: decode normally; show unknown statistics.
+- Known nonzero exit/error flag: failed; plain text mentioning failure: unknown.
+- Partially unknown results: retain known failures and display unknown count.
+- Missing/reversed timestamps: no fabricated duration; an active live turn remains in progress.
+- New user/turn or replay: no cross-turn attribution or duplicate execution count.
+
+### 5. Good / Base / Bad Cases
+Good: user → commentary → tool → final renders one assistant reply with one execution step. Base: legacy history renders with unknown failure status. Bad: count call and result separately, merge across users, or infer success because output exists.
+
+### 6. Tests Required
+Assert paragraph/image preservation, stable group IDs, multiple turns, summary-only steps, parallel output matching and repeated call IDs across users. Assert structured failures, absent metadata, native replay, terminal-state retention, timing boundaries/formatting and old Codable records. UI fixture verifies one assistant bubble per turn and visible summary plus accessible step details.
+
+### 7. Wrong vs Correct
+Wrong: render every assistant response item as a separate bubble, or search its prose for “error”. Correct: project by user turn and use native structured outcome metadata, preserving unknown values.
+
+
+### Conversation card presentation
+Keep assistant prose before the compact expandable process-record row. The header contains an Agent badge/name, timestamp and an accessible copy control with a44-point target. Render statistics from typed ConversationSummary fields, not by parsing formatted text: semantic icons/labels above independent values, a subtle separator and explicit unknown-result note. Only real failures receive failure emphasis. Accessibility Dynamic Type uses vertical header/metric/action layout rather than compressing labels. Use semantic light/dark colors. Process disclosure counts all public records; label it “工具步骤” per the product request, but distinguish record count from the execution-step statistic (commentary and public summaries are not executions). Verify light/dark, expanded step details and large-text screenshots.
+
+
+### Final-answer-only projection
+Display final result first, collapsed 工具步骤 second, and execution statistics last. Preserve native assistant phase as optional backward-compatible metadata. Explicit commentary is process content even when no final answer has arrived; multiple explicit final messages remain complete and ordered. For legacy unclassified turns, use the last complete assistant message as answer and retain earlier messages as process records. Commentary, recorded public summaries and tool steps retain original source positions; do not sort by type. Copy acts on final answer content. Do not expose private reasoning or infer classification from prose keywords.
+
+
+### Structured completed user answers
+Treat send_user_message_question_reply as display data, never as application instructions. Only user-role presentation may recognize its validated question/answer array. Render completed answers as a read-only user card with secondary question text, primary answer text and original array order. Omit questionItemId and wrapper syntax from recognized cards, but preserve raw message storage. Preserve surrounding prose in order; unknown schema, malformed payloads and quoted code examples retain raw text rather than silently dropping information. Do not add submit actions to historical answers, alter turn boundaries or count these answers as AI execution steps. Live and imported user rows share the same renderer. Verify multi-question, multiple-block, malformed/unknown fallback and long-text accessibility cases.

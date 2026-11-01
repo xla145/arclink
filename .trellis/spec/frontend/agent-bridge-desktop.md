@@ -100,3 +100,22 @@ Correct: preserve unknown outcome and consult authoritative state first.
 
 Wrong: reset invitation cache before cancellation has succeeded.
 Correct: keep the cache until daemon cancellation succeeds, preserving retry.
+
+
+## Private relay integration
+
+See [the private relay contract](../backend/agent-bridge-private-relay.md) for additive APIs, QR metadata, Keychain namespaces, validation, shared endpoint leases and actual path reporting. Keep existing device identity, history and Agent lifecycle contracts.
+
+## Development credential storage
+
+macOS Debug and Release share the existing private relay Keychain item
+`dev.agent-bridge.desktop.relay` / `private-relay-v1`, as explicitly requested by
+the user. A missing development file must not silently disable the user's saved
+private relay. Read/write the same item in both builds; never copy its key into
+source, logs or a development JSON file. Keychain access failures remain errors.
+
+Debug network identity remains separate in `development-identity-v1.key` (0600),
+so changing relay storage does not change the existing debug endpoint or grants.
+Non-macOS debug relay settings retain atomic 0600 development-file storage.
+Release retains Keychain exclusively. Legacy macOS development relay files are
+left untouched and no longer selected by the macOS runtime.

@@ -5,7 +5,7 @@
 Applies to `agent-bridge/crates/{abp-protocol,agent-adapters,agentd,abp-test-harness}`.
 This greenfield host supersedes the historical server-side session/approval
 architecture in `agent-bridge-control.md`. The host relays opaque bytes;
-mobile business state is outside this workspace.
+native chat semantics remain in the mobile client.
 
 ## 2. Signatures
 
@@ -48,14 +48,14 @@ an in-memory process, while always enforcing the current peer grant and owner.
 
 Each owned process has an opaque process ID and generation, a single input
 lease, serialized bounded stdin, independent stdout/stderr drains and a total
-64 KiB output ring. Overflow reports a gap before retained output. Detach
+4 MiB output ring. Overflow reports a gap before retained output. Detach
 preserves the process. Normal app shutdown cleans owned process groups.
 Wait for authoritative process exit before emitting a final exit frame.
 
 UI snapshot revisions and corresponding state mutation share a publication
 gate. Do not stamp a partially old snapshot with a newly incremented revision.
 Native protocol/business capabilities require separate evidence; the checked-in
-Codex 0.165.0 fixture proves only stdio initialization/read-only RPC.
+Codex 0.165.0 fixture proves only stdio initialization/read-only RPC. The separate opt-in `real_codex_chat_turns_over_iroh` test additionally verifies two read-only model turns through the embedded host; mobile `CodexChatSession` owns chat semantics and native approvals.
 
 ## 4. Validation & Error Matrix
 
@@ -103,7 +103,7 @@ Correct: register only capabilities demonstrated by exact-version evidence.
 
 Applies to `crates/agent-bridge-client/{src/endpoint.rs,src/connection.rs,src/lib.rs}`
 when one phone identity pairs with or connects to multiple hosts. This does not
-change host authorization, the wire protocol, or the public UniFFI signatures.
+change host authorization or the wire protocol. Private relay support adds UniFFI entry points while retaining the legacy signatures; see `agent-bridge-private-relay.md`.
 
 ### 2. Signatures
 
@@ -172,3 +172,149 @@ turns with an explicit shortened-history notice; never imply the result is full.
 Swift renders
 remote images only after explicit user action. This endpoint remains historical
 read-only access; it does not imply structured live Agent chat or image upload.
+
+## Conversation catalog metadata
+
+Read Codex's newest numeric `state_N.sqlite` in read-only mode for live thread
+metadata. When its `projects`, `project_roots` and `threads.project_id` schema is
+available, use those project registrations and explicit thread memberships as
+authoritative. An empty native project table is a successful empty catalog.
+Never union legacy `local-projects` or synthesize projects from historical cwd
+in this mode: removed desktop projects must not reappear. Unassigned threads may
+match an existing project's longest root; dangling explicit memberships do not
+fall back to cwd. Older schemas keep the legacy registration/cwd fallback. Exclude archived and internal subagent rows. Preserve explicit desktop
+project assignments; otherwise match cwd against all named project roots using
+the longest ancestor, then create an exact cwd bucket. Merge same-root projects
+without losing their threads. CLI and desktop origin must travel separately from
+project membership (`AgentThread.source`); legacy assignment-only results have
+unknown origin. Legacy metadata remains a best-effort fallback when the database
+is unavailable. Claude Code's local project transcripts carry CLI origin.
+
+
+## Recoverable record-framed AgentIO
+
+`GetCapabilities` (view grant) advertises `io_resume_offsets_v1`,
+`io_lease_replace_v1`, and `io_ndjson_records_v1`. The UniFFI client must confirm
+all three before `attach_chat_io` or `resume_chat_io`; an old host returns an
+explicit upgrade error rather than silently replaying bytes from zero. Legacy
+`attach_io` remains raw and compatible.
+
+`StreamOpen.resume` (tag 5) contains next stdout/stderr byte offsets and the
+previous lease ID; `record_framed` is tag 6. Open returns the new `lease_id`.
+A resume may replace an active lease only with its matching proof, for the same
+authenticated owner/generation/current task+approval grants. Old queued writes
+and old session drops cannot write through or release the new lease. Reject
+future offsets before acquiring a lease. Replay slices a retained block at the
+requested offset, emits per-channel gaps for evicted bytes (even an entirely
+evicted channel), and allows retained exited processes to drain before exit.
+
+Record-framed mode buffers at most 2 MiB per NDJSON record on the Mac, forwards
+only complete newline-terminated records, and discards an interrupted partial
+record. This prevents half an uploaded image poisoning subsequent native input.
+It does not provide mutating-message replay or an exactly-once stdin protocol.
+Image messages still cross bounded 16 KiB transport frames (or smaller negotiated
+limits); the native record may exceed a single 1 MiB ABP frame. Retained output
+is bounded at 4 MiB to accommodate image echoes. No lease or image bytes in logs.
+
+Validation: protocol legacy encoding, negotiated-frame input, capability fallback,
+host offset/lease/eviction/exit/revocation and real iroh record-transfer regressions.
+The ignored `real_codex_image_and_connection_recovery` additionally sends a real
+image, recognizes its colors, disconnects and resumes the same process/thread,
+then completes another model turn. This does not prove cellular/iOS background
+execution guarantees.
+
+## Scenario: cold host restart with saved direct addresses
+
+### 1. Scope / Trigger
+
+Applies to `agentd::network::NetworkServer` startup and the host SQLite store.
+A paired phone can have only direct IP/port hints, with no usable relay or public
+address lookup. Keeping the Ed25519 identity alone does not preserve reachability
+if every desktop launch allocates a different UDP port.
+
+### 2. Signatures
+
+- `Store::network_bind_addrs() -> Result<Option<Vec<SocketAddr>>>`.
+- `Store::save_network_bind_addrs(&[SocketAddr]) -> Result<()>`.
+- Existing `NetworkServer::{start,start_with_network}` signatures are unchanged.
+- SQLite schema 1 `metadata`: key `network_bind_addrs_v1`, JSON array of local
+  wildcard socket addresses, e.g. `["0.0.0.0:55555","[::]:55556"]`.
+
+### 3. Contracts
+
+Absent metadata permits the first OS-selected ports. Subsequent starts pass the
+saved addresses to `Endpoint::builder(...).bind_addr(address)` before binding.
+Save `endpoint.bound_sockets()` before publishing `ready` or allowing invitations.
+A persistence failure closes the new endpoint and fails startup. Never replace a
+saved occupied port with a random one. Store only public bind information; do not
+change identity storage, paired grants, relay selection or the wire protocol.
+
+An old installation's already-stale phone hints cannot be inferred from the Mac
+store. Refresh the existing device using a new QR once after upgrading; retain
+its workspace and pairing identity. This fixes port drift on host restart with
+unchanged LAN addresses, not DHCP changes, subnet migration or relay outages.
+
+### 4. Validation & Error Matrix
+
+| Condition | Required behavior |
+| --- | --- |
+| No saved bindings | Bind normally, persist actual sockets before ready |
+| Valid saved bindings | Reuse original ports and identity |
+| Empty/malformed bindings, zero ports, non-wildcard IPs, duplicate families, >2 sockets | `storage_error`; preserve metadata, no random-port fallback |
+| Saved port occupied | `network_error`; retain metadata for a later retry |
+| Saving bindings fails | Close endpoint, fail startup, no ready publication |
+
+### 5. Good / Base / Bad Cases
+
+Good: pair, close both endpoints, reopen the host store and both identities, then
+Ping through the original saved direct address without another approval.
+Base: restarting only the phone retains the host grant.
+Bad: a warm endpoint's address cache hides random host port allocation in tests.
+
+### 6. Tests Required
+
+`cargo test -p abp-test-harness --test host_restart --locked` proves cold two-end
+recreation, original-grant reuse, and occupied-port failure/retry. Tests disable
+relays, use a loopback address and retain no lookup cache between phone instances.
+Wait for OS socket release after `Endpoint::close()` before rebind assertions.
+`store::network_bind_tests` covers reopen persistence, unchanged settings and
+invalid metadata preservation. These tests do not prove cellular recovery.
+
+### 7. Wrong vs Correct
+
+Wrong: keep only the endpoint ID stable and assume public discovery will always
+repair the stale port saved in a QR.
+Correct: persist actual host socket bindings and reuse them before advertising
+readiness; retain existing identity and authorization checks on every reconnect.
+
+
+Historical `AgentMessage` adds optional tool_call_id, tool_name and tool_phase
+(input/output). Codex uses payload.call_id; Claude uses tool_use.id and
+tool_result.tool_use_id. Keep role=tool and existing text projection compatible.
+Preserve these IDs through bounded-history projection and UniFFI MacMessage;
+regenerate Swift bindings and device/simulator libraries together. Missing old
+metadata remains nil, not an invented correlation. Public summaries remain the
+only reasoning content returned.
+
+
+`ListAgentModels {agent_id}` requires the existing view grant and returns at most
+100 `{id,name}` entries from a bounded (4 MiB) Codex models_cache.json projection.
+Hide `visibility=hide`, deduplicate IDs, bound identifiers/labels, and never return
+base instructions or the raw cache. Missing/unsupported catalogs return empty;
+clients can retain Mac defaults or accept an explicit model ID. This is cached
+discovery metadata, not an entitlement guarantee or a live model/list response.
+
+## Historical tool outcome metadata
+
+`AgentMessage.tool_failed` and client `MacMessage.tool_failed` are additive optional
+booleans, defaulting to unknown for old hosts/records. Only result records carry
+outcomes: explicit `is_error`/`isError` booleans or integer `exit_code`/`exitCode`.
+Codex execution/MCP envelopes may be exact JSON in output text blocks; decode only
+that whole envelope, never JSON buried in its arbitrary program output. Recognized
+allSettled wrappers preserve their nested result outcome. Ignore narrative blocks
+when result envelopes exist; any explicit failure wins, all known successes yield
+false, and mixed success/unfinished execution remains unknown. A running
+`chunk_id`/`session_id` result without an exit status is not success. Claude uses
+explicit tool_result flags; nonempty stderr and failure words are not evidence.
+Retain empty result rows with explicit outcome and their original call ID/phase.
+Unknown outcomes must not be converted into successful results in UI summaries.

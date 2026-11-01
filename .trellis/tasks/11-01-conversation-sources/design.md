@@ -1,0 +1,2 @@
+# Boundary
+Mac agentd owns read-only Codex catalog discovery (SQLite metadata with legacy fallback), project attribution and normalized source. AgentThread -> MacThread -> cached thread -> SessionItem carries optional source for old-server compatibility. Keep imported history read-only independently of source. Update generated bindings and libraries together. No live chat/resume or unrelated UI redesign. Existing workspace edits preserved.
