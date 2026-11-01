@@ -96,3 +96,79 @@ and its task is cancelled when the owning stream ends.
 
 Wrong: version/help output proves task, approval or resume support.
 Correct: register only capabilities demonstrated by exact-version evidence.
+
+## Client scenario: simultaneous Mac connections
+
+### 1. Scope / Trigger
+
+Applies to `crates/agent-bridge-client/{src/endpoint.rs,src/connection.rs,src/lib.rs}`
+when one phone identity pairs with or connects to multiple hosts. This does not
+change host authorization, the wire protocol, or the public UniFFI signatures.
+
+### 2. Signatures
+
+- `SharedEndpoint::for_key(path: &str) -> Arc<SharedEndpoint>` selects the owner.
+- `SharedEndpoint::get()` initializes and returns a clone of the same endpoint.
+- `BridgeConnection::new(key_path, endpoint_id)` owns one remote connection.
+- `pair_over_iroh(..., key_path)` uses the same endpoint owner while pairing.
+
+### 3. Contracts
+
+A weak registry keyed by the normalized identity path shares an `Arc` owner;
+its async `OnceCell` serializes endpoint initialization. Do not hold the registry
+mutex across a network await. Each `BridgeConnection` retains its owner; pairing
+retains an owner for the call. `disconnect()` closes only that host's connection,
+never the shared endpoint. Host connection operations use a per-host mutex.
+Disconnect increments a generation before waiting for that mutex; queued or
+late dials from the previous generation must not publish a connected state.
+Identity initialization is serialized and creates files exclusively with Unix
+mode `0600`. A malformed/unreadable existing key is an error, not permission to
+generate a replacement identity that invalidates previous pairings.
+
+### 4. Validation & Error Matrix
+
+| Condition | Required behavior |
+| --- | --- |
+| Corrupt or unreadable existing identity | `identity_error`; preserve file |
+| Invalid target endpoint | `invalid_params`; other hosts remain connected |
+| Endpoint bind failure | `network_error`; no partially initialized owner |
+| Disconnect during queued/in-flight dial | Old generation returns disconnected |
+| One host closes or pairing fails | Other host RPCs remain usable |
+
+### 5. Good / Base / Bad Cases
+
+Good: A and B return independent `ListAgents` results while C pairs using the
+same phone ID. Base: disconnect A and continue pinging B. Bad: pairing cleanup
+calls `Endpoint::close()`, tearing down every host owned by that phone.
+
+### 6. Tests Required
+
+`cargo test -p agent-bridge-client` covers concurrent identity creation, corrupt
+key preservation, two-host RPC isolation, concurrent third-host pairing,
+independent disconnect/remote-close, failed pairing, and a queued dial invalidated
+by disconnect. Local fake hosts prove transport behavior, not real multi-Mac
+internet reachability or Agent semantic capabilities.
+
+### 7. Wrong vs Correct
+
+Wrong: create a new bound endpoint with the same phone key for every host, then
+close it at the end of pairing. Correct: share the identity's endpoint owner and
+close only the remote connection being removed.
+
+
+## Rich historical message projection
+
+`agent_projects::list_thread_messages` keeps the existing `role/text/timestamp`
+shape consumed by the UniFFI client. Ordinary turns retain user/assistant roles;
+explicit public Codex reasoning summaries use `summary`, and recorded tool
+calls/results use `tool`. Never expose private thinking or encrypted reasoning.
+Both plain Codex `.jsonl` and `.jsonl.zst` are accepted. Image parts become
+Markdown image references; unsupported/local/over-700-KB embedded references
+become a readable placeholder without source/path disclosure. Bound the complete
+serialized message array below 900,000 bytes, leaving response/frame metadata
+margin under the 1 MiB transport maximum. For oversized histories, strip embedded
+image data, bound individual escaped text on UTF-8 boundaries and retain recent
+turns with an explicit shortened-history notice; never imply the result is full.
+Swift renders
+remote images only after explicit user action. This endpoint remains historical
+read-only access; it does not imply structured live Agent chat or image upload.

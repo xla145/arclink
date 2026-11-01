@@ -36,7 +36,7 @@ async function call<T>(
   if (!isTauri())
     throw {
       code: "desktop_required",
-      message: "请在 Agent Bridge 桌面客户端中打开。浏览器无法访问本机服务。",
+      message: "请在 ArcLink 桌面客户端中打开。浏览器无法访问本机服务。",
     } satisfies BridgeError;
   let timer: ReturnType<typeof setTimeout> | undefined;
   try {

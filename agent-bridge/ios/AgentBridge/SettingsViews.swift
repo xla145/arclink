@@ -23,6 +23,12 @@ struct SettingsView: View {
                         Image(systemName: "chevron.right").font(.caption).foregroundStyle(.tertiary)
                     }
                 }
+                if store.connectionState != nil {
+                    LabeledContent("连接状态", value: store.connectionStateLabel)
+                }
+                if !store.macAgents.isEmpty {
+                    LabeledContent("Mac 上的 Agent", value: "\(store.macAgents.count) 个")
+                }
             }
             Section("智能体") {
                 Picker("权限", selection: $store.permission) {
@@ -31,13 +37,15 @@ struct SettingsView: View {
                     Text("仅查看").tag("仅查看")
                 }
             }
-            Section("通知") {
+            Section {
                 Toggle("需要批准", isOn: $store.notifyApproval)
                 Toggle("已完成", isOn: $store.notifyDone)
                 Toggle("在 Mac 上完成", isOn: $store.notifyOnMac)
                 Toggle("执行失败", isOn: $store.notifyFailed)
+            } header: { Text("通知") } footer: {
+                Text("控制本机提示显示；暂未接入系统推送。")
             }
-            Section("Agent Bridge") {
+            Section("ArcLink") {
                 Picker("外观", selection: $appearance) {
                     ForEach(["自动", "浅色", "深色"], id: \.self) { Text($0).tag($0) }
                 }
@@ -49,6 +57,11 @@ struct SettingsView: View {
                     Text("简体中文").tag("简体中文")
                 }
                 Button("清除会话历史", role: .destructive) { clearHistory = true }
+            }
+            Section("记录") {
+                NavigationLink(value: Route.approvals) {
+                    Label("审批记录", systemImage: "bell.badge")
+                }
             }
             Section("关于") {
                 LabeledContent("版本", value: "0.1.0")
@@ -63,7 +76,7 @@ struct SettingsView: View {
         .onChange(of: store.notifyDone) { _, _ in store.save() }
         .onChange(of: store.notifyOnMac) { _, _ in store.save() }
         .onChange(of: store.notifyFailed) { _, _ in store.save() }
-        .confirmationDialog("清除全部会话历史？此操作不能撤销。", isPresented: $clearHistory, titleVisibility: .visible) {
+        .confirmationDialog("清除当前设备的会话历史？此操作不能撤销。", isPresented: $clearHistory, titleVisibility: .visible) {
             Button("清除会话历史", role: .destructive) {
                 store.clearHistory()
             }
@@ -73,42 +86,99 @@ struct SettingsView: View {
 
 struct DeviceListView: View {
     @Environment(AppStore.self) private var store
-    @State private var showQR = false
+    @Binding var path: NavigationPath
+    var onScan: (String?) -> Void
+    @State private var removeID: String?
 
     var body: some View {
         List {
-            Section("当前连接") {
-                Label {
-                    VStack(alignment: .leading) {
-                        Text(store.hostName)
-                        Text(store.paired ? "已配对 · 未连接桌面进程" : "未配对")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+            Section {
+                ForEach(store.devices) { device in
+                    Button {
+                        navigationTrace("[NavDebug] tap device=\(device.id) selected=\(store.selectedDeviceID ?? "nil") count=\(path.count)")
+                        if store.selectedDeviceID == device.id {
+                            path = NavigationPath()
+                        } else {
+                            store.selectDevice(device.id)
+                        }
+                    } label: {
+                        HStack(spacing: 12) {
+                            Image(systemName: "desktopcomputer").foregroundStyle(.secondary)
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(device.name).foregroundStyle(.primary)
+                                Text(store.connectionLabel(for: device.id))
+                                    .font(.caption).foregroundStyle(.secondary)
+                                if let endpoint = device.endpointID {
+                                    Text(String(endpoint.prefix(10))).font(.caption2.monospaced()).foregroundStyle(.tertiary)
+                                }
+                            }
+                            Spacer()
+                            Circle().fill(store.isOnline(device.id) ? Color.green : Color.secondary).frame(width: 7, height: 7)
+                            if device.id == store.selectedDeviceID {
+                                Image(systemName: "checkmark").foregroundStyle(Color.accentColor)
+                                    .accessibilityLabel("当前设备")
+                            }
+                        }
+                        .padding(.vertical, 4)
+                        .contentShape(Rectangle())
                     }
-                } icon: {
-                    Image(systemName: "desktopcomputer")
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("device-\(device.id)")
+                    .swipeActions {
+                        Button("移除", role: .destructive) { removeID = device.id }
+                    }
+                    if device.endpointID == nil {
+                        Button("重新扫码连接 \(device.name)") {
+                            onScan(device.id)
+                        }
+                    }
+                }
+            } header: { Text("已配对设备 · \(store.devices.count)") } footer: {
+                Text("多台电脑可同时连接。点选设备切换项目和会话，其他连接会保留。")
+            }
+            Section {
+                Button { onScan(nil) } label: {
+                    Label("添加设备", systemImage: "plus")
+                }
+                .accessibilityIdentifier("add-device")
+            }
+            if !store.macAgents.isEmpty {
+                Section("\(store.hostName) 上的 Agent") {
+                    ForEach(store.macAgents, id: \.id) { agent in
+                        LabeledContent(agent.name, value: Self.agentStatusLabel(agent.status))
+                    }
                 }
             }
             Section {
-                Button {
-                    showQR.toggle()
-                } label: {
-                    Label(showQR ? "收起扫描" : "扫描 Mac 二维码", systemImage: "qrcode.viewfinder")
-                }
-                if showQR {
-                    MacQRScanner { code in
-                        let ok = await store.pair(from: code)
-                        if ok { showQR = false }
-                        return ok
-                    }
-                    .listRowInsets(EdgeInsets(top: 8, leading: 8, bottom: 8, trailing: 8))
-                }
-                Button("断开配对", role: .destructive) { store.unpair() }
+                Button("移除当前设备", role: .destructive) { removeID = store.selectedDeviceID }
+                    .disabled(store.selectedDeviceID == nil)
             } footer: {
-                Text("二维码由 Mac 显示。手机只负责扫描。断开后会回到未配对页。")
+                Text("仅移除这台手机保存的设备与本机记录。Mac 上的访问授权可在桌面端撤销。")
             }
         }
-        .navigationTitle("我的 Mac")
+        .navigationTitle("我的设备")
         .navigationBarTitleDisplayMode(.inline)
+        .task { await store.refreshMacStatus() }
+        .refreshable { await store.refreshMacStatus() }
+        .confirmationDialog("移除这台设备及其本机记录？", isPresented: Binding(get: { removeID != nil }, set: { if !$0 { removeID = nil } }), titleVisibility: .visible) {
+            Button("移除设备", role: .destructive) {
+                if let id = removeID { store.removeDevice(id) }
+                removeID = nil
+            }
+            Button("取消", role: .cancel) { removeID = nil }
+        }
+
+    }
+
+    private static func agentStatusLabel(_ status: String) -> String {
+        switch status {
+        case "running": "运行中"
+        case "installed": "已安装"
+        case "available": "可用"
+        case "not_found": "未安装"
+        case "version_mismatch": "版本不匹配"
+        case "probe_failed": "检测失败"
+        default: status
+        }
     }
 }

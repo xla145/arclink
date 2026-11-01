@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/backend/agent-bridge-host.md", "reason": "Current embedded daemon/ABP/pairing/process-ownership contract that agent-bridge-client must match on the wire"}
+{"file": ".trellis/spec/frontend/agent-bridge-ios.md", "reason": "Existing SwiftUI mock-state conventions AppModel.swift must stay compatible with"}
+{"file": "doc/agent-bridge-ios-client.md", "reason": "End-state design for the iOS client; this task implements only its connection/Control-RPC/AgentIO slice"}
+{"file": ".trellis/tasks/10-30-agent-bridge-mac-client/design.md", "reason": "Mac daemon/transport design (R6/R7) that already implements the server side this task's client talks to"}

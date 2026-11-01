@@ -1,1 +1,13 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512"><rect x="28" y="28" width="456" height="456" rx="106" fill="#2563eb"/><g fill="none" stroke="#fff" stroke-width="32" stroke-linecap="round"><path d="M132 256h248M256 132v248M168 168l176 176M344 168 168 344"/></g></svg>
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" role="img" aria-labelledby="title desc">
+<title id="title">ArcLink · 弧连</title>
+<desc id="desc">Two interlocking rounded arcs form an open A, connecting devices and AI agents.</desc>
+<defs>
+  <linearGradient id="arc" x1="284" y1="320" x2="740" y2="702" gradientUnits="userSpaceOnUse"><stop stop-color="#50E3D4"/><stop offset="1" stop-color="#568BFF"/></linearGradient>
+  <mask id="overpass" maskUnits="userSpaceOnUse" x="0" y="0" width="1024" height="1024"><rect width="1024" height="1024" fill="white"/><path d="M 334 605 C 452 687 604 604 654 489" fill="none" stroke="black" stroke-width="124" stroke-linecap="round"/></mask>
+</defs>
+<rect x="64" y="64" width="896" height="896" rx="204" fill="#171C38"/>
+<g transform="translate(0 9)" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path d="M 284 702 L 438 354 C 468 286 556 286 586 354 L 740 702" stroke="url(#arc)" stroke-width="88" mask="url(#overpass)"/>
+  <path d="M 334 605 C 452 687 604 604 654 489" stroke="#568BFF" stroke-width="88"/>
+</g>
+</svg>

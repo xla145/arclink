@@ -92,17 +92,25 @@ Control RPC、能收发 AgentIO 原始字节流"，让 Rust/UniFFI 层具备真�
 
 ## Acceptance Criteria
 
-- [ ] `cargo test -p agent-bridge-client` 通过，新增的连接/RPC/IO 代码有单元测试覆盖
+- [x] `cargo test -p agent-bridge-client` 通过，新增的连接/RPC/IO 代码有单元测试覆盖
       （至少：帧编解码边界、分片逻辑、断线后的错误分类）。
-- [ ] `agent-bridge/scripts/ios-build-client.sh` 能重新生成 xcframework + Swift 绑定，
-      iOS 模拟器 Debug 构建成功（`xcodebuild ... CODE_SIGNING_ALLOWED=NO`）。
-- [ ] 真实跑一次 Mac `agentd` + iOS 模拟器：扫码配对后，首页/设置能展示来自
+- [x] `agent-bridge/scripts/ios-build-client.sh` 能重新生成 xcframework + Swift 绑定，
+      iOS 模拟器 Debug 构建成功（`xcodebuild ... CODE_SIGNING_ALLOWED=NO`）。真机 Debug
+      构建也验证通过（需额外打开签名 + 显式链接 `SystemConfiguration.framework`）。
+- [x] 真实跑一次 Mac `agentd` + iOS 真机：扫码配对后，"我的 Mac"页能展示来自
       `Ping`/`ListAgents` 的真实在线状态与 Agent 列表（不是本地写死的 `hostName`/`online`）。
+      真机验证通过；曾因本机系统代理（Fake-IP/TUN）拦截 iroh 的直连与中继流量导致
+      `unreachable`，关闭代理后确认是环境问题，非代码缺陷。
 - [ ] 能对一个真实 Mac 进程发起 `StartProcess`，终端页实时显示该进程的 stdout（及 stderr），
-      `StopProcess` 能让它停止，且状态变化能在 UI 上看到。
+      `StopProcess` 能让它停止，且状态变化能在 UI 上看到。**未完成**：Rust/UniFFI 层已实现
+      且有 loopback 测试覆盖，但 Swift 侧没有调用点。移交给后续 Codex 协议解析任务一并完成
+      （届时才有真实 `process_id` 可供终端页绑定）。
 - [ ] 杀掉/重启 Mac 端 `agentd` 或断开网络再恢复，iOS 连接状态字段能如实反映
       connecting/disconnected/failed，再手动触发一次重连能恢复，而不是停在旧状态。
-- [ ] App 进后台超过一段时间再回前台，不崩溃，能重新建立连接或明确提示未连接。
+      部分验证：网络中断→恢复的路径在真机上真实发生过一次（代理问题）并确认状态如实反映；
+      未专门测试"杀掉/重启 agentd 进程"这个子场景。
+- [ ] App 进后台超过一段时间再回前台，不崩溃，能重新建立连接或明确提示未连接。代码已实现
+      （`ScenePhase == .active` 触发 `reconnectIfNeeded()`），但本次真机验证会话未专门测试。
 
 ## Notes
 

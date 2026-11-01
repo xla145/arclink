@@ -137,7 +137,8 @@ a {
 .logo {
   width: 28px;
   height: 28px;
-  background: var(--accent);
+  background: #171c38;
+  overflow: hidden;
   border-radius: 7px;
   display: grid;
   place-items: center;

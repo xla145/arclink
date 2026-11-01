@@ -1,18 +1,22 @@
 //! iOS-side ABP client. Pairing rides the same iroh endpoint as the daemon,
 //! so it works across the internet, not only on the LAN.
-use iroh::{
-    endpoint::{presets, Connection},
-    Endpoint, EndpointId, SecretKey,
+mod connection;
+mod endpoint;
+pub use connection::{
+    AgentInfo, AgentIoCallback, BridgeConnection, BridgeError, ConnectionState, IoHandle, MacMessage,
+    MacProject, ProcessInfo, SystemInfo,
 };
+
+use iroh::{endpoint::Connection, EndpointId, SecretKey};
 use std::{path::Path, str::FromStr, time::Duration};
 use tokio::io::AsyncReadExt;
 
 uniffi::setup_scaffolding!("agent_bridge_client");
 
-const CONNECT_TIMEOUT: Duration = Duration::from_secs(40);
+pub(crate) const CONNECT_TIMEOUT: Duration = Duration::from_secs(40);
 const APPROVAL_TIMEOUT: Duration = Duration::from_secs(130);
-const HELLO_TIMEOUT: Duration = Duration::from_secs(10);
-const WRITE_TIMEOUT: Duration = Duration::from_secs(15);
+pub(crate) const HELLO_TIMEOUT: Duration = Duration::from_secs(10);
+pub(crate) const WRITE_TIMEOUT: Duration = Duration::from_secs(15);
 
 #[derive(uniffi::Record)]
 pub struct PairOutcome {
@@ -35,24 +39,48 @@ fn fail(device_id: String, code: &str, message: &str) -> PairOutcome {
     }
 }
 
-fn load_or_create_key(path: &Path) -> Result<SecretKey, String> {
-    if let Ok(text) = std::fs::read_to_string(path) {
-        if let Ok(bytes) = hex::decode(text.trim()) {
-            if bytes.len() == 32 {
-                let array: [u8; 32] = bytes.as_slice().try_into().unwrap();
-                return Ok(SecretKey::from_bytes(&array));
-            }
+pub(crate) fn load_or_create_key(path: &Path) -> Result<SecretKey, String> {
+    // Serialize initialization even when callers bypass the shared owner.
+    static KEY_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    let _guard = KEY_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    match std::fs::read_to_string(path) {
+        Ok(text) => {
+            let bytes =
+                hex::decode(text.trim()).map_err(|_| "Invalid phone identity file.".to_string())?;
+            let bytes: [u8; 32] = bytes
+                .try_into()
+                .map_err(|_| "Invalid phone identity file.".to_string())?;
+            return Ok(SecretKey::from_bytes(&bytes));
         }
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+        Err(_) => return Err("Could not read phone identity file.".into()),
     }
     let key = SecretKey::generate();
     if let Some(parent) = path.parent() {
-        let _ = std::fs::create_dir_all(parent);
+        std::fs::create_dir_all(parent)
+            .map_err(|_| "Could not create identity directory.".to_string())?;
     }
-    let _ = std::fs::write(path, hex::encode(key.to_bytes()));
+    use std::io::Write;
+    let mut options = std::fs::OpenOptions::new();
+    options.write(true).create_new(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        options.mode(0o600);
+    }
+    let mut file = options
+        .open(path)
+        .map_err(|_| "Could not create phone identity file.".to_string())?;
+    file.write_all(hex::encode(key.to_bytes()).as_bytes())
+        .and_then(|_| file.sync_all())
+        .map_err(|_| "Could not save phone identity file.".to_string())?;
     Ok(key)
 }
 
-async fn read_frame(recv: &mut iroh::endpoint::RecvStream, max: usize) -> Result<abp_protocol::Frame, String> {
+pub(crate) async fn read_frame(
+    recv: &mut iroh::endpoint::RecvStream,
+    max: usize,
+) -> Result<abp_protocol::Frame, String> {
     let len = recv
         .read_u32()
         .await
@@ -67,7 +95,7 @@ async fn read_frame(recv: &mut iroh::endpoint::RecvStream, max: usize) -> Result
     abp_protocol::Frame::decode_payload(&bytes).map_err(|e| e.to_string())
 }
 
-async fn write_frame(
+pub(crate) async fn write_frame(
     send: &mut iroh::endpoint::SendStream,
     frame: &abp_protocol::Frame,
     max: usize,
@@ -100,29 +128,31 @@ async fn pair_inner(
     device_name: String,
     key_path: String,
 ) -> PairOutcome {
-    let secret = match load_or_create_key(Path::new(&key_path)) {
-        Ok(key) => key,
-        Err(error) => return fail(String::new(), "identity_error", &error),
-    };
-    let endpoint = match Endpoint::builder(presets::N0)
-        .secret_key(secret)
-        .alpns(vec![abp_protocol::ALPN.to_vec()])
-        .bind()
-        .await
-    {
+    let owner = endpoint::SharedEndpoint::for_key(&key_path);
+    let endpoint = match owner.get().await {
         Ok(endpoint) => endpoint,
-        Err(_) => return fail(String::new(), "network_error", "Could not start the phone endpoint."),
+        Err((code, error)) => return fail(String::new(), code, &error),
     };
     let device_id = endpoint.id().to_string();
     let node = match EndpointId::from_str(&endpoint_id) {
         Ok(node) => node,
-        Err(_) => return fail(device_id, "invalid_params", "The QR code has an invalid endpoint id."),
+        Err(_) => {
+            return fail(
+                device_id,
+                "invalid_params",
+                "The QR code has an invalid endpoint id.",
+            )
+        }
     };
     let connect = tokio::time::timeout(CONNECT_TIMEOUT, endpoint.connect(node, abp_protocol::ALPN));
     let connection: Connection = match connect.await {
         Ok(Ok(connection)) => connection,
         Ok(Err(_)) => {
-            return fail(device_id, "unreachable", "Could not reach the Mac. Check both networks.")
+            return fail(
+                device_id,
+                "unreachable",
+                "Could not reach the Mac. Check both networks.",
+            )
         }
         Err(_) => {
             return fail(
@@ -134,21 +164,50 @@ async fn pair_inner(
     };
     let (mut send, mut recv) = match connection.open_bi().await {
         Ok(pair) => pair,
-        Err(_) => return fail(device_id, "network_error", "Could not open a pairing stream."),
+        Err(_) => {
+            return fail(
+                device_id,
+                "network_error",
+                "Could not open a pairing stream.",
+            )
+        }
     };
     let hello = abp_protocol::Frame::Hello(abp_protocol::Hello::new(device_id.clone()));
     if let Err(error) = write_frame(&mut send, &hello, abp_protocol::MAX_FRAME_BYTES).await {
         return fail(device_id, "network_error", &error);
     }
-    let peer_hello = match tokio::time::timeout(HELLO_TIMEOUT, read_frame(&mut recv, abp_protocol::MAX_FRAME_BYTES)).await {
+    let peer_hello = match tokio::time::timeout(
+        HELLO_TIMEOUT,
+        read_frame(&mut recv, abp_protocol::MAX_FRAME_BYTES),
+    )
+    .await
+    {
         Ok(Ok(abp_protocol::Frame::Hello(value))) => value,
-        Ok(Ok(_)) => return fail(device_id, "protocol_error", "The Mac did not answer with Hello."),
+        Ok(Ok(_)) => {
+            return fail(
+                device_id,
+                "protocol_error",
+                "The Mac did not answer with Hello.",
+            )
+        }
         Ok(Err(error)) => return fail(device_id, "protocol_error", &error),
-        Err(_) => return fail(device_id, "timeout", "The Mac did not complete the handshake."),
+        Err(_) => {
+            return fail(
+                device_id,
+                "timeout",
+                "The Mac did not complete the handshake.",
+            )
+        }
     };
     let max = match peer_hello.negotiate() {
         Ok(max) => max,
-        Err(_) => return fail(device_id, "incompatible", "The Mac speaks an incompatible protocol."),
+        Err(_) => {
+            return fail(
+                device_id,
+                "incompatible",
+                "The Mac speaks an incompatible protocol.",
+            )
+        }
     };
     let open = abp_protocol::Frame::Open(abp_protocol::StreamOpen {
         kind: abp_protocol::STREAM_PAIR,
@@ -163,7 +222,13 @@ async fn pair_inner(
         Ok(Ok(abp_protocol::Frame::Error(error))) => {
             return fail(device_id, &error.code, &error.message)
         }
-        _ => return fail(device_id, "protocol_error", "Unexpected reply on the pair stream."),
+        _ => {
+            return fail(
+                device_id,
+                "protocol_error",
+                "Unexpected reply on the pair stream.",
+            )
+        }
     }
     let request = abp_protocol::Frame::Pair(abp_protocol::PairRequest {
         session_id,
@@ -183,9 +248,21 @@ async fn pair_inner(
         Ok(Ok(abp_protocol::Frame::Error(error))) => {
             return fail(device_id, &error.code, &error.message)
         }
-        Ok(Ok(_)) => return fail(device_id, "protocol_error", "Unexpected reply on the pair stream."),
+        Ok(Ok(_)) => {
+            return fail(
+                device_id,
+                "protocol_error",
+                "Unexpected reply on the pair stream.",
+            )
+        }
         Ok(Err(error)) => return fail(device_id, "protocol_error", &error),
-        Err(_) => return fail(device_id, "timeout", "The Mac did not acknowledge the invitation."),
+        Err(_) => {
+            return fail(
+                device_id,
+                "timeout",
+                "The Mac did not acknowledge the invitation.",
+            )
+        }
     }
     // Second response arrives once the user approves on the Mac.
     loop {
@@ -225,7 +302,13 @@ async fn pair_inner(
             Ok(Ok(abp_protocol::Frame::Error(error))) => {
                 return fail(device_id, &error.code, &error.message)
             }
-            Ok(Ok(_)) => return fail(device_id, "protocol_error", "Unexpected reply while waiting."),
+            Ok(Ok(_)) => {
+                return fail(
+                    device_id,
+                    "protocol_error",
+                    "Unexpected reply while waiting.",
+                )
+            }
             Ok(Err(error)) => return fail(device_id, "protocol_error", &error),
             Err(_) => {
                 return fail(
@@ -240,6 +323,29 @@ async fn pair_inner(
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn concurrent_identity_creation_keeps_one_key() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("key");
+        let threads: Vec<_> = (0..8)
+            .map(|_| {
+                let path = path.clone();
+                std::thread::spawn(move || super::load_or_create_key(&path).unwrap().to_bytes())
+            })
+            .collect();
+        let keys: Vec<_> = threads.into_iter().map(|t| t.join().unwrap()).collect();
+        assert!(keys.iter().all(|k| k == &keys[0]));
+    }
+
+    #[test]
+    fn corrupt_identity_is_not_replaced() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("key");
+        std::fs::write(&path, "broken").unwrap();
+        assert!(super::load_or_create_key(&path).is_err());
+        assert_eq!(std::fs::read_to_string(path).unwrap(), "broken");
+    }
+
     #[test]
     fn key_file_roundtrip() {
         let dir = tempfile::tempdir().unwrap();

@@ -4,100 +4,166 @@ struct ProjectDetailView: View {
     @Environment(AppStore.self) private var store
     var projectId: String
     @Binding var path: NavigationPath
+    @State private var query = ""
+    @State private var source: SourceFilter = .all
+
+    private enum SourceFilter: String, CaseIterable {
+        case all = "全部"
+        case cli = "CLI"
+        case desktop = "桌面"
+    }
 
     private var project: ProjectItem? { store.project(projectId) }
+    private var allRows: [SessionItem] {
+        store.sessions(for: projectId).sorted { $0.createdAt > $1.createdAt }
+    }
+    private var rows: [SessionItem] {
+        allRows.filter { session in
+            let sourceMatches = source == .all || (source == .desktop ? session.source == .desktop : session.source == .cli)
+            let search = query.trimmingCharacters(in: .whitespacesAndNewlines)
+            return sourceMatches && (search.isEmpty || session.title.localizedCaseInsensitiveContains(search)
+                || store.messages.contains { $0.sessionId == session.id && $0.text.localizedCaseInsensitiveContains(search) })
+        }
+    }
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 14) {
+            VStack(alignment: .leading, spacing: 12) {
                 if let project {
-                    HStack(spacing: 12) {
-                        Image(systemName: "folder.fill")
-                            .frame(width: 40, height: 40)
-                            .background(project.agent.tint.opacity(0.15), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-                            .foregroundStyle(project.agent.tint)
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(project.agent.rawValue).font(.headline)
-                            Text(project.path)
-                                .font(.caption.monospaced())
-                                .foregroundStyle(.secondary)
-                        }
+                    HStack(spacing: 8) {
+                        Image(systemName: project.agent.symbolName).foregroundStyle(project.agent.tint)
+                        Text(project.agent.rawValue).fontWeight(.medium)
                         Spacer()
-                        if store.pendingCount(projectId: projectId) > 0 {
-                            Pill(text: "\(store.pendingCount(projectId: projectId)) 待审批", tint: .orange)
+                        Text("\(allRows.count) 个对话").foregroundStyle(.secondary)
+                    }
+                    .font(.caption)
+                    Text(project.path)
+                        .font(.caption2.monospaced()).foregroundStyle(.secondary)
+                        .textSelection(.enabled)
+                        .lineLimit(2).truncationMode(.middle)
+                    Picker("对话来源", selection: $source) {
+                        ForEach(SourceFilter.allCases, id: \.self) { filter in
+                            Text("\(filter.rawValue) \(count(filter))").tag(filter)
                         }
                     }
-
-                    let rows = store.sessions(for: projectId)
-                    Text("会话 · \(rows.count)")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.secondary)
-                    VStack(spacing: 0) {
-                        if rows.isEmpty {
-                            ContentUnavailableView("还没有会话", systemImage: "bubble.left.and.bubble.right", description: Text("点击右上角 + 开始一个任务"))
-                        }
-                        ForEach(rows) { session in
-                            Button {
-                                path.append(Route.session(projectId: projectId, sessionId: session.id))
-                            } label: {
-                                HStack(spacing: 12) {
-                                    Image(systemName: icon(session.status))
-                                        .frame(width: 32, height: 32)
-                                        .background(session.status.tint.opacity(0.15), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-                                        .foregroundStyle(session.status.tint)
-                                    VStack(alignment: .leading, spacing: 2) {
-                                        Text(session.title).font(.body.weight(.medium))
-                                        Text(session.detail).font(.caption).foregroundStyle(.secondary)
-                                    }
-                                    Spacer()
-                                    Pill(text: session.status.rawValue, tint: session.status.tint)
-                                    Image(systemName: "chevron.right")
-                                        .font(.caption.weight(.semibold))
-                                        .foregroundStyle(.tertiary)
-                                }
-                                .padding(14)
-                                .contentShape(Rectangle())
-                            }
-                            .buttonStyle(.plain)
-                            .accessibilityIdentifier("session-\(session.id)")
-                            if session.id != rows.last?.id { Divider().padding(.leading, 58) }
-                        }
-                    }
-                    .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                    .pickerStyle(.segmented)
+                    .accessibilityIdentifier("conversation-source-filter")
+                    searchField
+                    sessionList
+                    Text("按创建时间排序 · 桌面历史仅供查看")
+                        .font(.caption2).foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity).padding(.top, 2)
+                } else {
+                    ContentUnavailableView("项目不存在", systemImage: "folder.badge.questionmark", description: Text("这个项目可能已被移除，请返回首页选择其他项目。"))
                 }
             }
             .padding(16)
         }
+        .scrollDismissesKeyboard(.interactively)
         .background(Color(.systemGroupedBackground))
-        .navigationTitle(project?.name ?? "项目")
+        .navigationTitle(project?.name ?? "项目对话")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Button {
+                    store.selectProject(projectId)
                     path.append(Route.session(projectId: projectId, sessionId: nil))
-                } label: {
-                    Image(systemName: "plus")
-                }
-                .accessibilityLabel("新建会话")
+                } label: { Image(systemName: "plus.bubble") }
+                    .accessibilityLabel("新建 CLI 对话")
+                    .disabled(project == nil || !store.canSend)
             }
             ToolbarItem(placement: .topBarTrailing) {
-                Button {
-                    path.append(Route.addProject(editing: projectId))
-                } label: {
-                    Image(systemName: "gearshape")
-                }
-                .accessibilityLabel("项目设置")
+                Button { path.append(Route.addProject(editing: projectId)) } label: { Image(systemName: "ellipsis") }
+                    .accessibilityLabel("项目设置")
+                    .disabled(project == nil)
             }
         }
+        .onAppear { store.selectProject(projectId) }
     }
 
-    private func icon(_ status: SessionStatus) -> String {
-        switch status {
-        case .waiting: "exclamationmark"
-        case .running: "play.fill"
-        case .done: "checkmark"
-        case .cancelled: "minus"
+    private var searchField: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
+            TextField("搜索对话", text: $query)
+                .textInputAutocapitalization(.never).autocorrectionDisabled()
+                .accessibilityIdentifier("conversation-search")
+            if !query.isEmpty {
+                Button { query = "" } label: { Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary) }
+                    .accessibilityLabel("清除对话搜索")
+            }
         }
+        .font(.subheadline).padding(10)
+        .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 10))
+    }
+
+    private var sessionList: some View {
+        VStack(spacing: 0) {
+            if rows.isEmpty {
+                VStack(spacing: 8) {
+                    Image(systemName: "bubble.left.and.bubble.right").font(.title2)
+                    Text(query.isEmpty ? "还没有\(source == .all ? "" : source.rawValue)对话" : "没有匹配的对话")
+                        .font(.subheadline.weight(.medium))
+                    Text(query.isEmpty ? "可以点击右上角开始新的 CLI 对话。" : "试试其他关键词或切换来源筛选。")
+                        .font(.caption)
+                }
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity).padding(.vertical, 36).padding(.horizontal, 12)
+            }
+            ForEach(rows) { session in
+                Button { path.append(Route.session(projectId: projectId, sessionId: session.id)) } label: {
+                    sessionRow(session)
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("session-\(session.id)")
+                if session.id != rows.last?.id { Divider().padding(.leading, 54) }
+            }
+        }
+        .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 14))
+    }
+
+    private func sessionRow(_ session: SessionItem) -> some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: session.source == .desktop ? "desktopcomputer" : "terminal")
+                .font(.subheadline).foregroundStyle(.secondary)
+                .frame(width: 30, height: 30)
+                .background(Color(.tertiarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 8))
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    Text(session.title).font(.subheadline.weight(.medium)).lineLimit(2).foregroundStyle(.primary)
+                    Spacer(minLength: 0)
+                    Text(session.createdAt, style: .date).font(.system(size: 9)).foregroundStyle(.tertiary)
+                }
+                Text(snippet(session)).font(.caption2).foregroundStyle(.secondary).lineLimit(1)
+                HStack(spacing: 8) {
+                    Text(session.source == .desktop ? "桌面" : "CLI")
+                        .font(.system(size: 9, weight: .medium))
+                        .padding(.horizontal, 5).padding(.vertical, 2)
+                        .background(Color(.tertiarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 4))
+                        .foregroundStyle(.secondary)
+                    if session.isReadOnly {
+                        Label("只读历史", systemImage: "lock").font(.system(size: 9)).foregroundStyle(.secondary)
+                    } else {
+                        Text(session.status.rawValue).font(.system(size: 9)).foregroundStyle(session.status.tint)
+                    }
+                    let pending = store.approvals.filter { $0.sessionId == session.id && $0.pending }.count
+                    if pending > 0 { Text("\(pending) 待审批").font(.system(size: 9)).foregroundStyle(.orange) }
+                }
+            }
+            Image(systemName: "chevron.right").font(.caption2).foregroundStyle(.tertiary).padding(.top, 7)
+        }
+        .padding(12)
+        .contentShape(Rectangle())
+    }
+
+    private func count(_ filter: SourceFilter) -> Int {
+        allRows.filter { filter == .all || (filter == .desktop ? $0.source == .desktop : $0.source == .cli) }.count
+    }
+
+    private func snippet(_ session: SessionItem) -> String {
+        if let message = store.messages.last(where: { $0.sessionId == session.id }) {
+            return message.text.isEmpty ? "图片消息" : MessageMarkdown.snippet(message.text)
+        }
+        return session.isReadOnly ? "来自 Mac 的历史记录，点击查看内容" : session.detail
     }
 }
 
@@ -110,6 +176,11 @@ struct AddProjectView: View {
     @State private var pathText = "~/projects/my-app"
     @State private var name = "my-app"
     @State private var confirmDelete = false
+    /// Real, on-disk paths the Agent itself already tracked on the Mac
+    /// (`ListAgentProjects`) — nil while unknown/loading, `[]` once loaded
+    /// with nothing found, so the section can tell "haven't checked yet"
+    /// from "checked, there's nothing".
+    @State private var macProjects: [MacProject]?
 
     private var editing: Bool { editingId != nil }
 
@@ -132,6 +203,26 @@ struct AddProjectView: View {
                         }
                     }
                     .disabled(!kind.installed)
+                }
+            }
+            if !editing, let macProjects, !macProjects.isEmpty {
+                Section {
+                    ForEach(macProjects, id: \.path) { project in
+                        Button {
+                            importOne(project)
+                        } label: {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(AppStore.projectTitle(project)).foregroundStyle(.primary)
+                                Text(project.path).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                            }
+                        }
+                    }
+                    Button("全部导入（\(macProjects.count) 个）") { importAll(macProjects) }
+                        .font(.subheadline.weight(.medium))
+                } header: {
+                    Text("从 \(store.hostName) 导入")
+                } footer: {
+                    Text("\(agent.rawValue) 在这台 Mac 上已经记录过的项目路径。点一下导入项目；发送第一条消息时才创建对话。")
                 }
             }
             Section("项目地址") {
@@ -171,6 +262,7 @@ struct AddProjectView: View {
                 agent = store.selectedAgent.installed ? store.selectedAgent : .claude
             }
         }
+        .task(id: agent) { await loadMacProjects() }
         .confirmationDialog("删除这个项目？会话记录会一起去掉。", isPresented: $confirmDelete, titleVisibility: .visible) {
             Button("删除项目", role: .destructive) {
                 if let editingId {
@@ -179,5 +271,33 @@ struct AddProjectView: View {
                 dismiss()
             }
         }
+    }
+
+    /// Quiet on any failure (not connected, Mac doesn't know this Agent,
+    /// protocol error): the import section just stays hidden, matching the
+    /// existing empty-state convention rather than interrupting someone
+    /// mid-form with an error they didn't ask for.
+    private func loadMacProjects() async {
+        macProjects = nil
+        guard store.connectionState == .connected, let bridge = store.macBridge else { return }
+        macProjects = try? await bridge.listAgentProjects(agentId: agent.agentId)
+    }
+
+    private func importOne(_ project: MacProject) {
+        store.importMacProject(
+            name: AppStore.projectTitle(project), path: project.path, agent: agent,
+            createdAt: project.lastSeen.flatMap { AppStore.parseRFC3339($0) }
+        )
+        dismiss()
+    }
+
+    private func importAll(_ projects: [MacProject]) {
+        for project in projects {
+            store.importMacProject(
+                name: (project.path as NSString).lastPathComponent, path: project.path, agent: agent,
+                createdAt: project.lastSeen.flatMap { AppStore.parseRFC3339($0) }
+            )
+        }
+        dismiss()
     }
 }

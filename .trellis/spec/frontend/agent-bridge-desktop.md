@@ -19,6 +19,18 @@ implementation assumptions. Tauri 2 embeds `agentd`; React owns presentation.
 
 ## 3. Contracts
 
+### Display brand and icons
+
+Use `ArcLink` (Chinese brand: `弧连`) for `productName`, window/tray labels,
+and visible product text. Preserve `dev.agent-bridge.desktop`, the binary/crate
+names, protocol identifiers, and existing app-scoped data/log paths so branding
+does not reset pairing or storage. Design masters live in `output/arclink-brand/`;
+production assets must live in the project: `src/assets/arclink-icon.svg` for
+React and `src-tauri/icons/` for the PNG/ICNS/ICO files listed in
+`src-tauri/tauri.conf.json`. Keep `tray.png` monochrome with transparent pixels
+and `icon_as_template(true)` in `src-tauri/src/tray.rs`. Verify bundled icon
+references and transparency as well as the visible name after an icon update.
+
 Subscribe before requesting the initial snapshot. Preserve the service instance
 and revision; old responses cannot replace newer data or resurrect an old
 instance. Clean up listeners even if registration finishes after unmount.

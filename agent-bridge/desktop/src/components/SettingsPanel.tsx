@@ -117,7 +117,7 @@ export function SettingsPanel({
         <p className="subtle">仅向你信任的设备授予访问权限。</p>
       </div>
       <div className="setting-row">
-        <span className="subtle">Agent Bridge 0.1.0</span>
+        <span className="subtle">ArcLink 0.1.0</span>
         <button className="text-button danger-text" onClick={onExit}>
           退出应用
         </button>

@@ -1,4 +1,5 @@
 //! Embedded, byte-transparent Agent host. Business state stays with the peer.
+pub mod agent_projects;
 pub mod identity;
 pub mod network;
 mod pair_http;

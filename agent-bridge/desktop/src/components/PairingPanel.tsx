@@ -225,7 +225,7 @@ export const PairingPanel = forwardRef<
               {Math.floor(seconds / 60)}:{String(seconds % 60).padStart(2, "0")}
             </strong>
           </div>
-          <p className="pairing-hint">使用兼容的 Agent Bridge 客户端扫描</p>
+          <p className="pairing-hint">使用兼容的 ArcLink 客户端扫描</p>
           <p className="subtle centered">扫描后仍需在这台主机确认授权</p>
         </>
       )}

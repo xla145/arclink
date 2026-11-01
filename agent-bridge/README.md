@@ -1,4 +1,6 @@
-# Agent Bridge
+# ArcLink
+
+ArcLink（弧连）是应用展示名称；工程、协议、bundle ID 和数据目录继续使用 Agent Bridge 标识，以保持兼容。
 
 轻量 Agent 宿主。桌面端采用 Tauri 2、Rust、React 和 TypeScript，负责 Agent 发现、设备授权、进程生命周期和字节中继。`ios/` 是 SwiftUI 客户端壳，目前只在手机本机记录会话和审批，尚未连接 daemon。
 

@@ -7,7 +7,7 @@ use tauri::{
 pub fn install(app: &AppHandle) -> tauri::Result<()> {
     let open = MenuItem::with_id(app, "open", "打开面板", true, None::<&str>)?;
     let settings = MenuItem::with_id(app, "settings", "设置", true, None::<&str>)?;
-    let quit = MenuItem::with_id(app, "quit", "退出 Agent Bridge", true, None::<&str>)?;
+    let quit = MenuItem::with_id(app, "quit", "退出 ArcLink", true, None::<&str>)?;
     let separator = PredefinedMenuItem::separator(app)?;
     let menu = Menu::with_items(app, &[&open, &settings, &separator, &quit])?;
     TrayIconBuilder::with_id("agent-bridge-tray")
@@ -15,7 +15,7 @@ pub fn install(app: &AppHandle) -> tauri::Result<()> {
             "../icons/tray.png"
         ))?)
         .icon_as_template(true)
-        .tooltip("Agent Bridge")
+        .tooltip("ArcLink")
         .menu(&menu)
         .show_menu_on_left_click(false)
         .on_menu_event(|app, event| match event.id().as_ref() {

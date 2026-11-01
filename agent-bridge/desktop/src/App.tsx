@@ -1,3 +1,4 @@
+import arclinkIcon from "./assets/arclink-icon.svg";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { bridge, normalizeError, type Bridge } from "./bridge";
 import { useSnapshot } from "./hooks/useSnapshot";
@@ -119,12 +120,10 @@ export function App({
               </button>
             ) : (
               <div className="logo">
-                <Icon name="logo" />
+                <img src={arclinkIcon} width={28} height={28} alt="" />
               </div>
             )}
-            <h1>
-              {pairing ? "配对新设备" : settings ? "设置" : "Agent Bridge"}
-            </h1>
+            <h1>{pairing ? "配对新设备" : settings ? "设置" : "ArcLink"}</h1>
           </div>
           {!pairing && !settings && (
             <button
@@ -427,7 +426,7 @@ export function App({
       )}
       {exit && (
         <ConfirmDialog
-          title="退出 Agent Bridge"
+          title="退出 ArcLink"
           confirm="退出应用"
           busy={busy === "exit"}
           onCancel={cancelExit}

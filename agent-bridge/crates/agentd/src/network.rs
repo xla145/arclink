@@ -499,6 +499,17 @@ struct StopBody {
     process_id: String,
     generation: String,
 }
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct AgentProjectsBody {
+    agent_id: String,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ThreadMessagesBody {
+    agent_id: String,
+    thread_id: String,
+}
 async fn rpc(daemon: &Daemon, peer: &str, request: RpcRequest) -> Result<String> {
     match request.method.as_str() {
         "Ping" => {
@@ -512,6 +523,25 @@ async fn rpc(daemon: &Daemon, peer: &str, request: RpcRequest) -> Result<String>
         "ListAgents" => {
             daemon.authorize(peer, &["view"])?;
             json(&daemon.list_agents(false).await?)
+        }
+        "ListAgentProjects" => {
+            daemon.authorize(peer, &["view"])?;
+            let args: AgentProjectsBody = body(&request.body_json)?;
+            let base = dirs::home_dir().unwrap_or_default();
+            json(&crate::agent_projects::list_agent_projects(
+                &args.agent_id,
+                &base,
+            ))
+        }
+        "GetThreadMessages" => {
+            daemon.authorize(peer, &["view"])?;
+            let args: ThreadMessagesBody = body(&request.body_json)?;
+            let base = dirs::home_dir().unwrap_or_default();
+            json(&crate::agent_projects::list_thread_messages(
+                &args.agent_id,
+                &args.thread_id,
+                &base,
+            ))
         }
         "ListProcesses" => {
             daemon.authorize(peer, &["view"])?;

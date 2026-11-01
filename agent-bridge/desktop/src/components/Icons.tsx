@@ -6,7 +6,6 @@ export function Icon({
   style,
 }: {
   name:
-    | "logo"
     | "settings"
     | "close"
     | "phone"
@@ -20,11 +19,6 @@ export function Icon({
   style?: CSSProperties;
 }) {
   const paths = {
-    logo: (
-      <>
-        <path d="M3 8h10M8 3v10M4.5 4.5l7 7M11.5 4.5l-7 7" />
-      </>
-    ),
     settings: (
       <>
         <path d="M2 4.5h2.5M7.5 4.5H14M2 11.5h6.5M11.5 11.5H14" />
