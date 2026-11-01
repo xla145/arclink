@@ -110,6 +110,13 @@ export function SettingsPanel({
       </div>
       {autostart === null && <p className="subtle">尚未读取系统登录启动状态</p>}
       <div className="field">
+        <label>连接方式</label>
+        <strong>自动连接 · 优先直连</strong>
+        <p className="subtle">
+          手机扫码即可连接，直连不可用时自动使用中继，无需填写地址或密钥。
+        </p>
+      </div>
+      <div className="field">
         <label>连接身份</label>
         <code className="endpoint">
           {snapshot.status.network.endpoint_id ?? "等待网络服务启动"}

@@ -1,4 +1,5 @@
 mod commands;
+mod network_settings;
 mod runtime;
 mod tray;
 
@@ -24,6 +25,8 @@ pub fn run() {
         )
         .manage(AppState::default())
         .invoke_handler(tauri::generate_handler![
+            commands::get_network_settings,
+            commands::update_network_settings,
             commands::get_snapshot,
             commands::refresh_agents,
             commands::start_pairing,

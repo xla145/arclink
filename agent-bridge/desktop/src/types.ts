@@ -36,6 +36,7 @@ export interface PairedDevice {
   paired_at: string;
   last_seen: string | null;
   connection: string;
+  path_kind?: "direct" | "relay" | "unknown" | null;
   permissions: string[];
 }
 export interface ProcessInfo {
@@ -85,4 +86,15 @@ export interface Snapshot {
 }
 export interface AutostartStatus {
   enabled: boolean;
+}
+
+export interface NetworkSettings {
+  enabled: boolean;
+  relay_url: string;
+  has_access_key: boolean;
+}
+export interface NetworkUpdate {
+  enabled: boolean;
+  relay_url: string;
+  access_key: string | null;
 }

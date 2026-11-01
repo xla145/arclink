@@ -5,7 +5,7 @@ use agentd::{
 };
 use serde::Serialize;
 use serde_json::Value;
-use tauri::{AppHandle, Manager, WebviewWindow};
+use tauri::{AppHandle, Emitter, Manager, WebviewWindow};
 use tauri_plugin_autostart::ManagerExt;
 
 #[tauri::command]
@@ -24,6 +24,7 @@ pub async fn start_pairing(app: AppHandle, window: WebviewWindow) -> Result<Pair
         return Err(native_error("请在主面板中生成配对邀请。"));
     }
     let state = app.state::<AppState>();
+    let _lifecycle = state.lifecycle.lock().await;
     let mut invitation = state.invitation.lock().await;
     let daemon = service(&app).await?;
     // Retry/StrictMode calls share an active invitation without creating a second session.
@@ -45,6 +46,39 @@ pub async fn start_pairing(app: AppHandle, window: WebviewWindow) -> Result<Pair
             }
         }
     }
+    let credential_app = app.clone();
+    let settings =
+        tokio::task::spawn_blocking(move || crate::network_settings::load(&credential_app))
+            .await
+            .map_err(|_| native_error("无法读取中继配置。"))??;
+    let mut network = settings.network()?;
+    if let Some(server) = state.network.lock().await.as_ref() {
+        if network.hints.relay_url.is_none() {
+            // Share the actual default home relay too. On a cellular network,
+            // saved LAN addresses and endpoint discovery alone may be unusable.
+            network.hints.relay_url = server
+                .endpoint()
+                .addr()
+                .relay_urls()
+                .next()
+                .map(ToString::to_string);
+        }
+        network.hints.direct_addresses = server
+            .endpoint()
+            .addr()
+            .ip_addrs()
+            .take(8)
+            .map(ToString::to_string)
+            .collect();
+    }
+    let mut payload: Value = serde_json::from_str(&session.qr_payload)
+        .map_err(|_| native_error("无法生成配对邀请。"))?;
+    payload["network"] = network
+        .validate()
+        .map_err(|_| native_error("网络地址不可用。"))?
+        .invitation_value();
+    session.qr_payload =
+        serde_json::to_string(&payload).map_err(|_| native_error("无法生成配对邀请。"))?;
     *invitation = Some(session.clone());
     Ok(session)
 }
@@ -158,4 +192,43 @@ pub fn hide_panel(app: AppHandle) -> Result<()> {
 #[tauri::command]
 pub async fn request_exit(app: AppHandle, confirmed: bool) -> Result<()> {
     runtime::request_shutdown(app, confirmed).await
+}
+
+#[tauri::command]
+pub async fn get_network_settings(
+    app: AppHandle,
+) -> Result<crate::network_settings::NetworkSettings> {
+    tokio::task::spawn_blocking(move || {
+        crate::network_settings::load(&app).map(|settings| settings.descriptor())
+    })
+    .await
+    .map_err(|_| native_error("无法读取中继配置。"))?
+}
+#[tauri::command]
+pub async fn update_network_settings(
+    app: AppHandle,
+    settings: crate::network_settings::NetworkUpdate,
+) -> Result<crate::network_settings::NetworkSettings> {
+    let state = app.state::<AppState>();
+    let _lifecycle = state.lifecycle.lock().await;
+    service(&app).await?;
+    let mut server = state.network.lock().await;
+    let server_ref = server
+        .as_mut()
+        .ok_or_else(|| native_error("网络服务尚未就绪，请重试。"))?;
+    let credential_app = app.clone();
+    let next = tokio::task::spawn_blocking(move || {
+        let previous = crate::network_settings::load(&credential_app)?;
+        let next = previous.updated(settings)?;
+        crate::network_settings::save(&credential_app, &next)?;
+        Ok::<_, agentd::BridgeError>(next)
+    })
+    .await
+    .map_err(|_| native_error("无法保存中继配置。"))??;
+    // iroh relay registration is infallible, with no endpoint/Agent restart.
+    server_ref.apply_network(&next.network()?).await;
+    drop(server);
+    *state.invitation.lock().await = None;
+    let _ = app.emit("bridge-changed", ());
+    Ok(next.descriptor())
 }

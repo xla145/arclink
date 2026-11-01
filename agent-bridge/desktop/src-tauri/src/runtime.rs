@@ -138,16 +138,37 @@ async fn initialize_inner(app: &AppHandle) -> Result<()> {
     if state.network.lock().await.is_some() {
         return Ok(());
     }
-    let identity = tokio::task::spawn_blocking(agentd::identity::load_or_create)
+    #[cfg(all(debug_assertions, unix))]
+    let identity_loader = {
+        let directory = app
+            .path()
+            .app_data_dir()
+            .map_err(|_| native_error("无法定位开发身份目录。"))?;
+        move || agentd::identity::load_or_create_development(&directory)
+    };
+    #[cfg(not(all(debug_assertions, unix)))]
+    let identity_loader = agentd::identity::load_or_create;
+    let identity = tokio::task::spawn_blocking(identity_loader)
         .await
         .map_err(|_| native_error("系统凭据存储暂不可用。"))??;
     let _lifecycle = state.lifecycle.lock().await;
     if state.stopping.load(Ordering::SeqCst) {
         return Ok(());
     }
+    let credential_app = app.clone();
+    let settings =
+        tokio::task::spawn_blocking(move || crate::network_settings::load(&credential_app))
+            .await
+            .map_err(|_| native_error("无法读取中继配置。"))??;
+    let network = settings.network()?;
+    if let Some(url) = &network.hints.relay_url {
+        log::info!("Configured relay: {}", url);
+    } else {
+        log::info!("Using default public relays");
+    }
     let server = tokio::time::timeout(
         std::time::Duration::from_secs(15),
-        NetworkServer::start(daemon, identity, true),
+        NetworkServer::start_with_network(daemon, identity, true, &network),
     )
     .await
     .map_err(|_| native_error("网络服务启动超时，请检查网络后重试。"))??;

@@ -267,7 +267,11 @@ export function App({
                                   className={`status-dot ${device.connection === "online" ? "online" : "offline"}`}
                                 />
                                 {device.connection === "online"
-                                  ? "在线"
+                                  ? device.path_kind === "direct"
+                                    ? "直连"
+                                    : device.path_kind === "relay"
+                                      ? "中继"
+                                      : "在线"
                                   : "离线"}{" "}
                                 · {relativeTime(device.last_seen)}
                               </div>

@@ -373,3 +373,26 @@ test("native exit event asks confirmation and Esc cancels without hiding the app
   expect(api.exit).not.toHaveBeenCalled();
   expect(api.hide).not.toHaveBeenCalled();
 });
+
+test("pairing network configuration is automatic without credential entry", async () => {
+  const api = previewBridge("normal");
+  api.updateNetworkSettings = vi.fn();
+  render(<App api={api} />);
+  await screen.findByText("iPhone 16 Pro");
+  await userEvent.click(screen.getByRole("button", { name: "设置" }));
+  expect(screen.getByText("自动连接 · 优先直连")).toBeVisible();
+  expect(
+    screen.getByText(/手机扫码即可连接，直连不可用时自动使用中继/),
+  ).toBeVisible();
+  expect(screen.queryByLabelText("中继地址")).not.toBeInTheDocument();
+  expect(screen.queryByLabelText("访问密钥")).not.toBeInTheDocument();
+  expect(
+    screen.queryByRole("button", { name: "保存连接设置" }),
+  ).not.toBeInTheDocument();
+  expect(api.updateNetworkSettings).not.toHaveBeenCalled();
+  await userEvent.click(screen.getByRole("button", { name: "返回面板" }));
+  await userEvent.click(screen.getByRole("button", { name: "+ 配对" }));
+  expect(
+    await screen.findByRole("img", { name: "设备配对二维码" }),
+  ).toBeVisible();
+});

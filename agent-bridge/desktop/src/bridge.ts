@@ -1,6 +1,8 @@
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import type {
+  NetworkSettings,
+  NetworkUpdate,
   AppSettings,
   AutostartStatus,
   BridgeError,
@@ -76,6 +78,9 @@ export const bridge = {
   revokeDevice: (deviceId: string) => call<void>("revoke_device", { deviceId }),
   updateSettings: (settings: AppSettings) =>
     call<void>("update_settings", { settings }),
+  getNetworkSettings: () => call<NetworkSettings>("get_network_settings"),
+  updateNetworkSettings: (settings: NetworkUpdate) =>
+    call<NetworkSettings>("update_network_settings", { settings }),
   getAutostart: () => call<AutostartStatus>("get_autostart"),
   setAutostart: (enabled: boolean) =>
     call<AutostartStatus>("set_autostart", { enabled }),

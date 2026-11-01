@@ -110,6 +110,12 @@ export function previewBridge(state: string): Bridge {
     rejectPairing: unavailable,
     revokeDevice: unavailable,
     updateSettings: unavailable,
+    getNetworkSettings: async () => ({
+      enabled: false,
+      relay_url: "https://iroh.classktv.com/",
+      has_access_key: false,
+    }),
+    updateNetworkSettings: unavailable,
     getAutostart: async () => ({ enabled: false }),
     setAutostart: unavailable,
     openLogs: unavailable,
