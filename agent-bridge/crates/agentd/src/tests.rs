@@ -187,7 +187,7 @@ async fn relay_serializes_large_writes_and_revoke_releases_old_lease() {
 #[tokio::test]
 async fn output_overflow_is_bounded_and_reports_gap() {
     let dir = tempfile::tempdir().unwrap();
-    let service = daemon(dir.path(), "head -c 200000 /dev/zero\nexec cat");
+    let service = daemon(dir.path(), "head -c 6000000 /dev/zero\nexec cat");
     pair(&service, "peer").await;
     let p = service
         .start_process("peer", "start", "fixture", dir.path().to_str().unwrap())
@@ -448,4 +448,153 @@ async fn completed_stop_survives_restart_and_preserves_authorization() {
         "unauthorized"
     );
     restarted.shutdown().await.unwrap();
+}
+
+#[tokio::test]
+async fn chat_resume_clips_offsets_and_fences_replaced_writer() {
+    let dir = tempfile::tempdir().unwrap();
+    let service = daemon(dir.path(), "exec cat");
+    pair(&service, "peer").await;
+    let p = service
+        .start_process("peer", "chat", "fixture", dir.path().to_str().unwrap())
+        .await
+        .unwrap();
+    let mut first = service
+        .attach_chat_io("peer", &p.process_id, &p.generation, None, true)
+        .await
+        .unwrap();
+    let bytes = "abc你好\n".as_bytes().to_vec();
+    first.write_record(bytes.clone()).await.unwrap();
+    let frame = tokio::time::timeout(Duration::from_secs(5), first.next())
+        .await
+        .unwrap()
+        .unwrap()
+        .unwrap();
+    assert_eq!(frame.data, bytes);
+    let proof = first.lease_id().to_owned();
+    let invalid = abp_protocol::IoResume {
+        stdout_offset: bytes.len() as u64 + 1,
+        stderr_offset: 0,
+        previous_lease_id: proof.clone(),
+    };
+    assert_eq!(
+        service
+            .attach_chat_io("peer", &p.process_id, &p.generation, Some(&invalid), true)
+            .await
+            .err()
+            .unwrap()
+            .code,
+        "invalid_params"
+    );
+    let wrong = abp_protocol::IoResume {
+        stdout_offset: 2,
+        previous_lease_id: "wrong-proof".into(),
+        ..Default::default()
+    };
+    assert_eq!(
+        service
+            .attach_chat_io("peer", &p.process_id, &p.generation, Some(&wrong), true)
+            .await
+            .err()
+            .unwrap()
+            .code,
+        "conflict"
+    );
+    let resume = abp_protocol::IoResume {
+        stdout_offset: 2,
+        stderr_offset: 0,
+        previous_lease_id: proof,
+    };
+    let mut second = service
+        .attach_chat_io("peer", &p.process_id, &p.generation, Some(&resume), true)
+        .await
+        .unwrap();
+    assert_eq!(
+        first.write(b"old\n".to_vec()).await.unwrap_err().code,
+        "unauthorized"
+    );
+    drop(first); // Old Drop must not release the replacement lease.
+    let frame = second.next().await.unwrap().unwrap();
+    assert_eq!(frame.offset, "2");
+    assert_eq!(frame.data, bytes[2..]);
+    assert!(!frame.gap);
+    second.write_record(b"new\n".to_vec()).await.unwrap();
+    let next = tokio::time::timeout(Duration::from_secs(5), second.next())
+        .await
+        .unwrap()
+        .unwrap()
+        .unwrap();
+    assert_eq!(next.offset, bytes.len().to_string());
+    assert_eq!(next.data, b"new\n");
+    service.revoke_device("peer").await.unwrap();
+    assert_eq!(
+        second
+            .write_record(b"revoked\n".to_vec())
+            .await
+            .unwrap_err()
+            .code,
+        "unauthorized"
+    );
+    service.shutdown().await.unwrap();
+}
+
+#[tokio::test]
+async fn chat_resume_reports_a_fully_evicted_channel_and_exited_output() {
+    let dir = tempfile::tempdir().unwrap();
+    let service = daemon(
+        dir.path(),
+        "printf 'lost'; head -c 6000000 /dev/zero >&2; exec cat",
+    );
+    pair(&service, "peer").await;
+    let p = service
+        .start_process("peer", "chat-gap", "fixture", dir.path().to_str().unwrap())
+        .await
+        .unwrap();
+    tokio::time::sleep(Duration::from_millis(250)).await;
+    let mut io = service
+        .attach_chat_io("peer", &p.process_id, &p.generation, None, true)
+        .await
+        .unwrap();
+    let stdout_gap = io.next().await.unwrap().unwrap();
+    assert!(stdout_gap.gap);
+    assert_eq!(stdout_gap.channel, "stdout");
+    assert_eq!(stdout_gap.offset, "4");
+    assert!(stdout_gap.data.is_empty());
+    let stderr_gap = io.next().await.unwrap().unwrap();
+    assert!(stderr_gap.gap);
+    assert_eq!(stderr_gap.channel, "stderr");
+    assert!(stderr_gap.offset.parse::<u64>().unwrap() > 0);
+    let lease = io.lease_id().to_owned();
+    service
+        .stop_process("peer", "stop-gap", &p.process_id, &p.generation)
+        .await
+        .unwrap();
+    let resume = abp_protocol::IoResume {
+        stdout_offset: 4,
+        stderr_offset: 6_000_000,
+        previous_lease_id: lease,
+    };
+    let mut ended = service
+        .attach_chat_io("peer", &p.process_id, &p.generation, Some(&resume), true)
+        .await
+        .unwrap();
+    assert!(ended.next().await.unwrap().is_none());
+    service.shutdown().await.unwrap();
+}
+
+#[test]
+fn legacy_product_name_upgrades_without_replacing_custom_host_names() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("settings.sqlite");
+    let store = store::Store::open(&path).unwrap();
+    assert_eq!(store.settings().unwrap().device_name, "ArcLink");
+    for (saved, expected) in [("Agent Bridge", "ArcLink"), ("My Mac", "My Mac")] {
+        store
+            .save_settings(&AppSettings {
+                device_name: saved.into(),
+            })
+            .unwrap();
+        let reopened = store::Store::open(&path).unwrap();
+        assert_eq!(reopened.settings().unwrap().device_name, expected);
+    }
 }

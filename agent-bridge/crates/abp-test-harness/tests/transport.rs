@@ -13,6 +13,9 @@ struct Fixture {
 }
 impl Fixture {
     async fn new(args: &[&str]) -> Self {
+        Self::new_with_relay(args, false).await
+    }
+    async fn new_with_relay(args: &[&str], relay_enabled: bool) -> Self {
         let dir = tempfile::tempdir().unwrap();
         let spec = AdapterSpec {
             id: "fake".into(),
@@ -22,9 +25,13 @@ impl Fixture {
             verified_version: Some("abp-test-agent 1".into()),
         };
         let daemon = Daemon::open_with_adapters(dir.path(), vec![spec]).unwrap();
-        let server = NetworkServer::start(daemon.clone(), SecretKey::generate().to_bytes(), false)
-            .await
-            .unwrap();
+        let server = NetworkServer::start(
+            daemon.clone(),
+            SecretKey::generate().to_bytes(),
+            relay_enabled,
+        )
+        .await
+        .unwrap();
         Self {
             daemon,
             server,
@@ -286,7 +293,7 @@ async fn retained_output_has_gap_and_respects_negotiated_frame_limit() {
     let mut gap = false;
     let mut received = 0;
     tokio::time::timeout(Duration::from_secs(5), async {
-        while received < 64 * 1024 {
+        while received < 4 * 1024 * 1024 {
             let frame = stream.read().await.unwrap();
             assert!(frame.encode(1024).is_ok());
             if let Frame::Io(chunk) = frame {
@@ -303,7 +310,7 @@ async fn retained_output_has_gap_and_respects_negotiated_frame_limit() {
     })
     .await
     .unwrap();
-    assert_eq!(received, 64 * 1024);
+    assert_eq!(received, 4 * 1024 * 1024);
     peer.close().await;
     f.close().await;
 }
@@ -397,6 +404,119 @@ async fn real_codex_initialization_and_read_only_rpc_over_iroh() {
     peer.close().await;
     f.close().await;
 }
+/// Opt-in semantic smoke: two small read-only model turns through the same
+/// authenticated Mac host/AgentIO path used by the phone. No transcript is logged.
+#[tokio::test]
+#[ignore = "requires installed verified Codex, credentials and model network access"]
+async fn real_codex_chat_turns_over_iroh() {
+    let dir = tempfile::tempdir().unwrap();
+    let daemon = Daemon::open(dir.path()).unwrap();
+    let server = NetworkServer::start(daemon.clone(), SecretKey::generate().to_bytes(), false)
+        .await
+        .unwrap();
+    let f = Fixture {
+        daemon,
+        server,
+        _dir: dir,
+    };
+    let peer = f.paired().await;
+    let agents = peer.rpc("ListAgents", json!({})).await.unwrap();
+    assert!(
+        agents
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|a| a["id"] == "codex" && a["validation"] == "verified"),
+        "Codex probe: {agents}"
+    );
+    let process = peer.rpc("StartProcess", json!({"operation_id":"native-chat-probe","agent_id":"codex","cwd":f._dir.path().to_str().unwrap()})).await.unwrap();
+    let mut stream = io(&peer, &process).await;
+    let mut buffer = Vec::new();
+    native_chat_write(&mut stream, json!({"id":1,"method":"initialize","params":{"clientInfo":{"name":"arclink_chat_probe","version":"0.1.0"},"capabilities":{"experimentalApi":false}}})).await;
+    native_chat_result(&mut stream, &mut buffer, 1).await;
+    native_chat_write(&mut stream, json!({"method":"initialized"})).await;
+    native_chat_write(&mut stream, json!({"id":2,"method":"thread/start","params":{"cwd":f._dir.path().to_str().unwrap(),"approvalPolicy":"on-request","approvalsReviewer":"user","sandbox":"workspace-write"}})).await;
+    let result = native_chat_result(&mut stream, &mut buffer, 2).await;
+    let thread = result["thread"]["id"].as_str().expect("thread id");
+    for (id, prompt) in [
+        (3, "Reply with exactly ARCLINK_OK. Do not use any tools."),
+        (4, "Reply with exactly ARCLINK_AGAIN. Do not use any tools."),
+    ] {
+        native_chat_write(&mut stream, json!({"id":id,"method":"turn/start","params":{"threadId":thread,"sandboxPolicy":{"type":"readOnly"},"input":[{"type":"text","text":prompt}]}})).await;
+        native_chat_result(&mut stream, &mut buffer, id).await;
+        let mut assistant = false;
+        loop {
+            let event = native_chat_next(&mut stream, &mut buffer).await;
+            assert!(
+                event.get("id").is_none(),
+                "unexpected native server request in read-only smoke"
+            );
+            if event["method"] == "item/completed"
+                && event["params"]["item"]["type"] == "agentMessage"
+            {
+                assistant |= event["params"]["item"]["text"]
+                    .as_str()
+                    .is_some_and(|s| !s.is_empty());
+            }
+            if event["method"] == "turn/completed" {
+                assert_eq!(event["params"]["turn"]["status"], "completed");
+                assert!(assistant, "turn completed without public assistant output");
+                break;
+            }
+        }
+    }
+    let mut stop = proc_args(&process);
+    stop["operation_id"] = json!("native-chat-stop");
+    assert_eq!(
+        peer.rpc("StopProcess", stop).await.unwrap()["state"],
+        "exited"
+    );
+    peer.close().await;
+    f.close().await;
+}
+async fn native_chat_write(stream: &mut Stream, value: Value) {
+    stream
+        .write(Frame::Io(IoFrame {
+            data: format!("{value}\n").into_bytes(),
+            ..Default::default()
+        }))
+        .await
+        .unwrap();
+}
+async fn native_chat_result(stream: &mut Stream, buffer: &mut Vec<u8>, id: i32) -> Value {
+    loop {
+        let value = native_chat_next(stream, buffer).await;
+        if value.get("id") == Some(&json!(id)) {
+            assert!(value.get("error").is_none(), "native chat RPC failed");
+            return value.get("result").expect("native chat result").clone();
+        }
+    }
+}
+async fn native_chat_next(stream: &mut Stream, buffer: &mut Vec<u8>) -> Value {
+    tokio::time::timeout(Duration::from_secs(90), async {
+        loop {
+            if let Some(end) = buffer.iter().position(|b| *b == b'\n') {
+                let line: Vec<_> = buffer.drain(..=end).collect();
+                return serde_json::from_slice(&line).expect("native chat NDJSON");
+            }
+            match stream
+                .read_with_timeout(Duration::from_secs(90))
+                .await
+                .expect("native chat stream")
+            {
+                Frame::Io(chunk) if chunk.channel == wire::CHANNEL_STDOUT => {
+                    assert!(buffer.len() + chunk.data.len() <= 1024 * 1024);
+                    buffer.extend(chunk.data);
+                }
+                Frame::Io(chunk) if chunk.channel == wire::CHANNEL_STDERR => {}
+                _ => panic!("native chat stream exited or lost output"),
+            }
+        }
+    })
+    .await
+    .expect("native chat deadline")
+}
+
 async fn read_native_response(stream: &mut Stream, buffer: &mut Vec<u8>, id: i32) {
     tokio::time::timeout(Duration::from_secs(15), async {
         loop {
@@ -425,4 +545,177 @@ async fn read_native_response(stream: &mut Stream, buffer: &mut Vec<u8>, id: i32
     })
     .await
     .expect("native response timed out");
+}
+
+#[tokio::test]
+async fn relay_apply_keeps_identity_live_connection_and_agent_process() {
+    let mut fixture = Fixture::new_with_relay(&[], true).await;
+    let peer = fixture.paired().await;
+    let started = fixture.start(&peer, "network-apply-process").await;
+    let endpoint_id = fixture.server.endpoint().id();
+    let network = bridge_network::PeerNetwork::from_json(
+        r#"{"relay_url":"https://127.0.0.1:9","relay_access_key":"fixture-key"}"#,
+    )
+    .unwrap();
+    fixture.server.apply_network(&network).await;
+    assert_eq!(fixture.server.endpoint().id(), endpoint_id);
+    peer.rpc("Ping", json!({})).await.unwrap();
+    let processes = peer.rpc("ListProcesses", json!({})).await.unwrap();
+    assert!(processes
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|process| process["process_id"] == started["process_id"]));
+    fixture
+        .server
+        .apply_network(&bridge_network::PeerNetwork::default())
+        .await;
+    peer.rpc("Ping", json!({})).await.unwrap();
+    let baseline = iroh::RelayMode::Default
+        .relay_map()
+        .relays::<Vec<_>>()
+        .remove(0);
+    let mut baseline_network = bridge_network::PeerNetwork::default();
+    baseline_network.hints.relay_url = Some(baseline.url.to_string());
+    fixture.server.apply_network(&baseline_network).await;
+    fixture
+        .server
+        .apply_network(&bridge_network::PeerNetwork::default())
+        .await;
+    assert!(
+        fixture
+            .server
+            .endpoint()
+            .insert_relay(baseline.url.clone(), baseline)
+            .await
+            .is_some(),
+        "baseline registration must be restored"
+    );
+    fixture.close().await;
+}
+
+async fn chat_stdout(stream: &mut Stream, length: usize) -> Vec<u8> {
+    tokio::time::timeout(Duration::from_secs(10), async {
+        let mut bytes = Vec::new();
+        while bytes.len() < length {
+            match stream.read().await.unwrap() {
+                Frame::Io(chunk) if chunk.channel == wire::CHANNEL_STDOUT => {
+                    bytes.extend(chunk.data)
+                }
+                Frame::Io(chunk) if chunk.channel == wire::CHANNEL_STDERR => {}
+                _ => panic!("chat stream lost output or closed"),
+            }
+        }
+        bytes
+    })
+    .await
+    .unwrap()
+}
+
+#[tokio::test]
+async fn chat_resume_replaces_lease_replays_only_missing_output_and_keeps_identity() {
+    let f = Fixture::new(&[]).await;
+    let peer = f.paired().await;
+    let p = f.start(&peer, "chat-resume").await;
+    let id = p["process_id"].as_str().unwrap();
+    let generation = p["generation"].as_str().unwrap();
+    let caps = peer.rpc("GetCapabilities", json!(null)).await.unwrap();
+    assert!(caps
+        .as_array()
+        .unwrap()
+        .contains(&json!("io_ndjson_records_v1")));
+    let mut first = peer.open_chat(id, generation, None).await.unwrap();
+    assert!(!first.lease_id.is_empty());
+    let bytes = "abc你好\n".as_bytes();
+    first
+        .write(Frame::Io(IoFrame {
+            data: bytes.to_vec(),
+            ..Default::default()
+        }))
+        .await
+        .unwrap();
+    assert_eq!(chat_stdout(&mut first, bytes.len()).await, bytes);
+    // Simulate an interrupted reader midway through UTF-8, while old lease is
+    // still held. Offset is independent of the old connection's cursor.
+    let mut resumed = peer
+        .open_chat(
+            id,
+            generation,
+            Some(wire::IoResume {
+                stdout_offset: 4,
+                stderr_offset: 0,
+                previous_lease_id: first.lease_id.clone(),
+            }),
+        )
+        .await
+        .unwrap();
+    assert_ne!(first.lease_id, resumed.lease_id);
+    assert_eq!(chat_stdout(&mut resumed, bytes.len() - 4).await, bytes[4..]);
+    drop(first);
+    resumed
+        .write(Frame::Io(IoFrame {
+            data: b"next\n".to_vec(),
+            ..Default::default()
+        }))
+        .await
+        .unwrap();
+    assert_eq!(chat_stdout(&mut resumed, 5).await, b"next\n");
+    let all = peer.rpc("ListProcesses", json!({})).await.unwrap();
+    assert_eq!(
+        all.as_array().unwrap().len(),
+        1,
+        "recovery must not spawn another process"
+    );
+    assert_eq!(all[0]["process_id"], p["process_id"]);
+    peer.close().await;
+    f.close().await;
+}
+
+#[tokio::test]
+async fn chat_discards_partial_record_before_takeover_and_accepts_image_sized_record() {
+    let f = Fixture::new(&[]).await;
+    let peer = f.paired().await;
+    let p = f.start(&peer, "chat-atomic").await;
+    let id = p["process_id"].as_str().unwrap();
+    let generation = p["generation"].as_str().unwrap();
+    let mut first = peer.open_chat(id, generation, None).await.unwrap();
+    first
+        .write(Frame::Io(IoFrame {
+            data: b"{partial-image".to_vec(),
+            ..Default::default()
+        }))
+        .await
+        .unwrap();
+    // Take over without waiting for the old connection to be detected dead.
+    let mut resumed = peer
+        .open_chat(
+            id,
+            generation,
+            Some(wire::IoResume {
+                stdout_offset: 0,
+                stderr_offset: 0,
+                previous_lease_id: first.lease_id.clone(),
+            }),
+        )
+        .await
+        .unwrap();
+    drop(first);
+    let mut message = vec![b'i'; 1100 * 1024]; // larger than a single ABP frame
+    message.push(b'\n');
+    for chunk in message.chunks(wire::MAX_IO_BYTES) {
+        resumed
+            .write(Frame::Io(IoFrame {
+                data: chunk.to_vec(),
+                ..Default::default()
+            }))
+            .await
+            .unwrap();
+    }
+    assert_eq!(
+        chat_stdout(&mut resumed, message.len()).await,
+        message,
+        "partial old upload must never reach native stdin"
+    );
+    peer.close().await;
+    f.close().await;
 }

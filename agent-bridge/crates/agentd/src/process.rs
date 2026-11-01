@@ -12,7 +12,8 @@ use tokio::{
 };
 use uuid::Uuid;
 
-const OUTPUT_BUDGET: usize = 64 * 1024;
+pub(crate) const OUTPUT_BUDGET: usize = 4 * 1024 * 1024;
+pub(crate) const RECORD_LIMIT: usize = 2 * 1024 * 1024;
 const INPUT_LIMIT: usize = 64 * 1024;
 type Changed = Arc<dyn Fn(ProcessInfo) + Send + Sync>;
 struct Chunk {
@@ -319,6 +320,16 @@ impl ProcessManager {
         })
     }
     pub fn attach(&self, peer: &str, id: &str, generation: &str) -> Result<IoSession> {
+        self.attach_options(peer, id, generation, None, false)
+    }
+    pub fn attach_options(
+        &self,
+        peer: &str,
+        id: &str,
+        generation: &str,
+        resume: Option<&abp_protocol::IoResume>,
+        record_framed: bool,
+    ) -> Result<IoSession> {
         self.store.authorize(peer, &["task", "approval"])?;
         let p = self.managed(id, generation)?;
         {
@@ -329,29 +340,60 @@ impl ProcessManager {
                     "The process belongs to another device.",
                 ));
             }
-            if info.state != "running" {
+            if info.state != "running"
+                && !(resume.is_some() && matches!(info.state.as_str(), "exited" | "failed"))
+            {
                 return Err(BridgeError::new(
                     "process_gone",
                     "The process is not running.",
                 ));
             }
         }
+        if let Some(resume) = resume {
+            if resume.previous_lease_id.is_empty() || resume.previous_lease_id.len() > 128 {
+                return Err(BridgeError::new(
+                    "invalid_params",
+                    "A valid prior input lease is required.",
+                ));
+            }
+            let ring = p.ring.lock().unwrap();
+            if resume.stdout_offset > ring.stdout_offset
+                || resume.stderr_offset > ring.stderr_offset
+            {
+                return Err(BridgeError::new(
+                    "invalid_params",
+                    "Output checkpoint is ahead of the process.",
+                ));
+            }
+        }
         let lease = Uuid::new_v4().to_string();
         {
             let mut current = p.lease.lock().unwrap();
-            if current.is_some() {
-                return Err(BridgeError::new(
-                    "conflict",
-                    "This process already has an I/O writer.",
-                ));
+            if let Some(prior) = current.as_deref() {
+                if resume.map(|r| r.previous_lease_id.as_str()) != Some(prior) {
+                    return Err(BridgeError::new(
+                        "conflict",
+                        "This process already has another I/O writer.",
+                    ));
+                }
             }
             *current = Some(lease.clone());
         }
+        p.changed.notify_waiters();
         Ok(IoSession {
             process: p,
             peer: peer.into(),
             lease,
             cursor: 1,
+            resume_offsets: if record_framed || resume.is_some() {
+                Some(
+                    resume
+                        .map(|r| (r.stdout_offset, r.stderr_offset))
+                        .unwrap_or((0, 0)),
+                )
+            } else {
+                None
+            },
         })
     }
     pub fn notify_revocation(&self) {
@@ -398,8 +440,12 @@ pub struct IoSession {
     peer: String,
     lease: String,
     cursor: u64,
+    resume_offsets: Option<(u64, u64)>,
 }
 impl IoSession {
+    pub fn lease_id(&self) -> &str {
+        &self.lease
+    }
     fn check_lease(&self) -> Result<()> {
         if self.process.lease.lock().unwrap().as_deref() != Some(&self.lease) {
             Err(BridgeError::new(
@@ -411,10 +457,22 @@ impl IoSession {
         }
     }
     pub async fn write(&self, bytes: Vec<u8>) -> Result<()> {
-        if bytes.len() > INPUT_LIMIT {
+        self.write_bounded(bytes, INPUT_LIMIT).await
+    }
+    pub async fn write_record(&self, bytes: Vec<u8>) -> Result<()> {
+        if bytes.last() != Some(&b'\n') {
+            return Err(BridgeError::new(
+                "invalid_params",
+                "Agent record is incomplete.",
+            ));
+        }
+        self.write_bounded(bytes, RECORD_LIMIT).await
+    }
+    async fn write_bounded(&self, bytes: Vec<u8>, limit: usize) -> Result<()> {
+        if bytes.len() > limit {
             return Err(BridgeError::new(
                 "resource_limit",
-                "Input chunk exceeds 64 KiB.",
+                "Agent input exceeds its bounded limit.",
             ));
         }
         self.check_lease()?;
@@ -451,7 +509,54 @@ impl IoSession {
                 .authorize(&self.peer, &["task", "approval"])?;
             {
                 let ring = self.process.ring.lock().unwrap();
-                if let Some(chunk) = ring.chunks.iter().find(|c| c.sequence >= self.cursor) {
+                if let Some((stdout, stderr)) = self.resume_offsets.as_mut() {
+                    // Report each channel independently, including a channel whose
+                    // retained chunks have all been evicted by the other channel.
+                    for (channel, next, end) in [
+                        ("stdout", &mut *stdout, ring.stdout_offset),
+                        ("stderr", &mut *stderr, ring.stderr_offset),
+                    ] {
+                        let oldest = ring
+                            .chunks
+                            .iter()
+                            .find(|c| c.channel == channel)
+                            .map(|c| c.offset)
+                            .unwrap_or(end);
+                        if *next < oldest {
+                            *next = oldest;
+                            return Ok(Some(OutputFrame {
+                                channel: channel.into(),
+                                offset: oldest.to_string(),
+                                data: vec![],
+                                gap: true,
+                            }));
+                        }
+                    }
+                    if let Some(chunk) = ring.chunks.iter().find(|c| {
+                        c.offset + c.data.len() as u64
+                            > if c.channel == "stdout" {
+                                *stdout
+                            } else {
+                                *stderr
+                            }
+                    }) {
+                        let next = if chunk.channel == "stdout" {
+                            stdout
+                        } else {
+                            stderr
+                        };
+                        let skip = next.saturating_sub(chunk.offset) as usize;
+                        let offset = chunk.offset + skip as u64;
+                        let data = chunk.data[skip..].to_vec();
+                        *next = offset + data.len() as u64;
+                        return Ok(Some(OutputFrame {
+                            channel: chunk.channel.clone(),
+                            offset: offset.to_string(),
+                            data,
+                            gap: false,
+                        }));
+                    }
+                } else if let Some(chunk) = ring.chunks.iter().find(|c| c.sequence >= self.cursor) {
                     let gap = chunk.sequence > self.cursor;
                     self.cursor = chunk.sequence + 1;
                     return Ok(Some(OutputFrame {
@@ -494,5 +599,35 @@ impl Drop for ProcessManager {
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod resume_tests {
+    use super::*;
+
+    #[test]
+    fn ring_retains_image_sized_echo_and_bounds_memory() {
+        let mut ring = Ring {
+            chunks: VecDeque::new(),
+            bytes: 0,
+            sequence: 0,
+            stdout_offset: 0,
+            stderr_offset: 0,
+            open_readers: 2,
+        };
+        for _ in 0..180 {
+            ring.push("stdout", vec![b'x'; 8192]);
+        }
+        assert_eq!(
+            ring.chunks.front().unwrap().offset,
+            0,
+            "normal image echo must not be evicted"
+        );
+        for _ in 0..540 {
+            ring.push("stderr", vec![b'e'; 8192]);
+        }
+        assert!(ring.bytes <= OUTPUT_BUDGET);
+        assert!(ring.stdout_offset > 0 && ring.stderr_offset > 0);
     }
 }

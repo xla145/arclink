@@ -17,6 +17,7 @@ pub struct Stream {
     pub send: SendStream,
     pub recv: RecvStream,
     max: usize,
+    pub lease_id: String,
 }
 impl Peer {
     pub async fn connect(address: EndpointAddr) -> Result<Self> {
@@ -52,11 +53,43 @@ impl Peer {
         generation: &str,
         max_frame_bytes: usize,
     ) -> Result<Stream> {
+        self.open_options(
+            StreamOpen {
+                kind,
+                process_id: process_id.into(),
+                generation: generation.into(),
+                ..Default::default()
+            },
+            max_frame_bytes,
+        )
+        .await
+    }
+    pub async fn open_chat(
+        &self,
+        process_id: &str,
+        generation: &str,
+        resume: Option<wire::IoResume>,
+    ) -> Result<Stream> {
+        self.open_options(
+            StreamOpen {
+                kind: wire::STREAM_AGENT_IO,
+                process_id: process_id.into(),
+                generation: generation.into(),
+                resume,
+                record_framed: true,
+                ..Default::default()
+            },
+            wire::MAX_FRAME_BYTES,
+        )
+        .await
+    }
+    async fn open_options(&self, open: StreamOpen, max_frame_bytes: usize) -> Result<Stream> {
         let (send, recv) = self.connection.open_bi().await?;
         let mut stream = Stream {
             send,
             recv,
             max: wire::MAX_FRAME_BYTES,
+            lease_id: String::new(),
         };
         stream
             .write(Frame::Hello(Hello {
@@ -68,15 +101,12 @@ impl Peer {
             return Err("server did not negotiate Hello".into());
         };
         stream.max = hello.negotiate()?;
-        stream
-            .write(Frame::Open(StreamOpen {
-                kind,
-                process_id: process_id.into(),
-                generation: generation.into(),
-                cursor: 0,
-            }))
-            .await?;
-        stream.response().await?;
+        stream.write(Frame::Open(open)).await?;
+        let response = stream.response().await?;
+        stream.lease_id = serde_json::from_str::<Value>(&response.body_json)
+            .ok()
+            .and_then(|v| v["lease_id"].as_str().map(str::to_owned))
+            .unwrap_or_default();
         Ok(stream)
     }
     pub async fn rpc(&self, method: &str, body: Value) -> Result<Value> {

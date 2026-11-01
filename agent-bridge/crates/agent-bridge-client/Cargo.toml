@@ -10,6 +10,7 @@ name = "agent_bridge_client"
 crate-type = ["staticlib", "cdylib", "lib"]
 
 [dependencies]
+bridge-network = { path = "../bridge-network" }
 abp-protocol = { path = "../abp-protocol" }
 iroh = { version = "=1.4.1", default-features = false, features = ["tls-ring"] }
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "time", "net", "io-util", "sync"] }
@@ -20,6 +21,8 @@ thiserror = { workspace = true }
 hex = "0.4"
 
 [dev-dependencies]
+iroh = { version = "=1.4.1", default-features = false, features = ["tls-ring", "test-utils"] }
+iroh-relay = { version = "=1.4.1", default-features = false, features = ["server", "test-utils", "tls-ring"] }
 tempfile = "3"
 
 [[bin]]

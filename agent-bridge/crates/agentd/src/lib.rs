@@ -11,7 +11,7 @@ use fs2::FileExt;
 pub use process::IoSession;
 use sha2::{Digest, Sha256};
 use std::{
-    collections::HashSet,
+    collections::{HashMap, HashSet},
     fs::{File, OpenOptions},
     path::Path,
     sync::{
@@ -70,6 +70,7 @@ pub struct Daemon {
     processes: process::ProcessManager,
     network: Mutex<NetworkInfo>,
     connected: Mutex<HashSet<String>>,
+    paths: Mutex<HashMap<String, String>>,
     pairing: Arc<AsyncMutex<Pairing>>,
     adapters: Mutex<Vec<AdapterSpec>>,
     custom_adapters: bool,
@@ -113,7 +114,7 @@ impl Daemon {
         lock.try_lock_exclusive().map_err(|_| {
             BridgeError::new(
                 "conflict",
-                "Another Agent Bridge host is using this data directory.",
+                "Another ArcLink host is using this data directory.",
             )
         })?;
         let store = Arc::new(store::Store::open(&dir.join("host.sqlite3"))?);
@@ -155,6 +156,7 @@ impl Daemon {
                 detail: None,
             }),
             connected: Mutex::new(HashSet::new()),
+            paths: Mutex::new(HashMap::new()),
             pairing: Arc::new(AsyncMutex::new(Pairing {
                 state: PairingState::default(),
                 digest: None,
@@ -196,10 +198,20 @@ impl Daemon {
             self.connected.lock().unwrap().insert(peer.into());
         } else {
             self.connected.lock().unwrap().remove(peer);
+            self.paths.lock().unwrap().remove(peer);
         }
         self.hub
             .emit("device-changed", serde_json::json!({"device_id":peer}));
         Ok(())
+    }
+    pub fn set_device_path(&self, peer: &str, path: &str) {
+        let _snapshot = self.hub.snapshot_gate.lock().unwrap();
+        let mut paths = self.paths.lock().unwrap();
+        if paths.get(peer).map(String::as_str) != Some(path) {
+            paths.insert(peer.into(), path.into());
+            self.hub
+                .emit("device-changed", serde_json::json!({"device_id":peer}));
+        }
     }
     pub fn authorize(&self, peer: &str, permissions: &[&str]) -> Result<()> {
         self.store.authorize(peer, permissions)
@@ -265,6 +277,7 @@ impl Daemon {
         for d in &mut devices {
             if connected.contains(&d.device_id) {
                 d.connection = "online".into();
+                d.path_kind = self.paths.lock().unwrap().get(&d.device_id).cloned();
             }
         }
         Ok(devices)
@@ -730,6 +743,17 @@ impl Daemon {
         generation: &str,
     ) -> Result<IoSession> {
         self.processes.attach(peer, process_id, generation)
+    }
+    pub async fn attach_chat_io(
+        &self,
+        peer: &str,
+        process_id: &str,
+        generation: &str,
+        resume: Option<&abp_protocol::IoResume>,
+        record_framed: bool,
+    ) -> Result<IoSession> {
+        self.processes
+            .attach_options(peer, process_id, generation, resume, record_framed)
     }
     pub async fn shutdown(&self) -> Result<()> {
         let _mutation = self.mutation_gate.lock().await;

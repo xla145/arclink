@@ -3,8 +3,8 @@
 mod connection;
 mod endpoint;
 pub use connection::{
-    AgentInfo, AgentIoCallback, BridgeConnection, BridgeError, ConnectionState, IoHandle, MacMessage,
-    MacProject, ProcessInfo, SystemInfo,
+    AgentInfo, AgentIoCallback, BridgeConnection, BridgeError, ConnectionState, IoHandle,
+    MacMessage, MacModel, MacProject, ProcessInfo, SystemInfo,
 };
 
 use iroh::{endpoint::Connection, EndpointId, SecretKey};
@@ -27,6 +27,18 @@ pub struct PairOutcome {
     pub pending: bool,
     pub error_code: String,
     pub error_message: String,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, uniffi::Enum)]
+pub enum PairingStage {
+    Connecting,
+    Handshaking,
+    AwaitingApproval,
+}
+
+#[uniffi::export(callback_interface)]
+pub trait PairingProgressCallback: Send + Sync {
+    fn on_stage(&self, stage: PairingStage);
 }
 
 fn fail(device_id: String, code: &str, message: &str) -> PairOutcome {
@@ -108,6 +120,70 @@ pub(crate) async fn write_frame(
     Ok(())
 }
 
+/// Network input may carry an access key transiently; callers store it only in Keychain.
+#[derive(Clone, Default, uniffi::Record)]
+pub struct PeerNetworkConfig {
+    pub relay_url: Option<String>,
+    pub relay_access_key: Option<String>,
+    pub direct_addresses: Vec<String>,
+}
+impl PeerNetworkConfig {
+    pub(crate) fn validated(self) -> Result<bridge_network::PeerNetwork, BridgeError> {
+        bridge_network::PeerNetwork {
+            hints: bridge_network::AddressHints {
+                relay_url: self.relay_url,
+                direct_addresses: self.direct_addresses,
+            },
+            relay_access_key: self.relay_access_key,
+        }
+        .validate()
+        .map_err(|_| {
+            BridgeError::new(
+                "invalid_network",
+                "Invalid relay settings or address hints.",
+            )
+        })
+    }
+}
+#[uniffi::export]
+pub fn validate_peer_network(network: PeerNetworkConfig) -> Result<PeerNetworkConfig, BridgeError> {
+    let network = network.validated()?;
+    Ok(PeerNetworkConfig {
+        relay_url: network.hints.relay_url,
+        relay_access_key: network.relay_access_key,
+        direct_addresses: network.hints.direct_addresses,
+    })
+}
+#[uniffi::export(async_runtime = "tokio")]
+pub async fn pair_over_iroh_with_network(
+    endpoint_id: String,
+    session_id: String,
+    token: String,
+    device_name: String,
+    key_path: String,
+    network: PeerNetworkConfig,
+) -> PairOutcome {
+    let network = match network.validated() {
+        Ok(network) => network,
+        Err(_) => {
+            return fail(
+                String::new(),
+                "invalid_network",
+                "Invalid relay settings or address hints.",
+            )
+        }
+    };
+    pair_inner(
+        endpoint_id,
+        session_id,
+        token,
+        device_name,
+        key_path,
+        network,
+    )
+    .await
+}
+
 /// Connect to the Mac's iroh endpoint and complete pairing. The phone keeps
 /// one secret key file so the Mac's grant survives re-pairing attempts.
 #[uniffi::export(async_runtime = "tokio")]
@@ -118,7 +194,50 @@ pub async fn pair_over_iroh(
     device_name: String,
     key_path: String,
 ) -> PairOutcome {
-    pair_inner(endpoint_id, session_id, token, device_name, key_path).await
+    pair_inner(
+        endpoint_id,
+        session_id,
+        token,
+        device_name,
+        key_path,
+        Default::default(),
+    )
+    .await
+}
+
+/// Progress reflects authenticated protocol milestones, never a UI timer.
+#[uniffi::export(async_runtime = "tokio")]
+pub async fn pair_over_iroh_with_progress(
+    endpoint_id: String,
+    session_id: String,
+    token: String,
+    device_name: String,
+    key_path: String,
+    network: PeerNetworkConfig,
+    progress: Box<dyn PairingProgressCallback>,
+) -> PairOutcome {
+    let network = match network.validated() {
+        Ok(network) => network,
+        Err(_) => {
+            return fail(
+                String::new(),
+                "invalid_network",
+                "Invalid relay settings or address hints.",
+            )
+        }
+    };
+    pair_with_deadlines(
+        endpoint_id,
+        session_id,
+        token,
+        device_name,
+        key_path,
+        network,
+        Some(progress),
+        CONNECT_TIMEOUT,
+        APPROVAL_TIMEOUT,
+    )
+    .await
 }
 
 async fn pair_inner(
@@ -127,11 +246,90 @@ async fn pair_inner(
     token: String,
     device_name: String,
     key_path: String,
+    network: bridge_network::PeerNetwork,
+) -> PairOutcome {
+    pair_with_deadlines(
+        endpoint_id,
+        session_id,
+        token,
+        device_name,
+        key_path,
+        network,
+        None,
+        CONNECT_TIMEOUT,
+        APPROVAL_TIMEOUT,
+    )
+    .await
+}
+
+#[allow(clippy::too_many_arguments)]
+async fn pair_with_deadlines(
+    endpoint_id: String,
+    session_id: String,
+    token: String,
+    device_name: String,
+    key_path: String,
+    network: bridge_network::PeerNetwork,
+    progress: Option<Box<dyn PairingProgressCallback>>,
+    connect_timeout: Duration,
+    approval_timeout: Duration,
+) -> PairOutcome {
+    if let Some(progress) = &progress {
+        progress.on_stage(PairingStage::Connecting);
+    }
+    let (pending_tx, mut pending_rx) = tokio::sync::watch::channel(false);
+    let pairing = pair_protocol(
+        endpoint_id,
+        session_id,
+        token,
+        device_name,
+        key_path,
+        network,
+        progress,
+        pending_tx,
+    );
+    tokio::pin!(pairing);
+    // Covers endpoint initialization and relay-registration locks as well as dial,
+    // handshake and invitation submission. No unbounded work before this deadline.
+    tokio::select! {
+        outcome = &mut pairing => return outcome,
+        _ = tokio::time::sleep(connect_timeout) => {
+            return fail(String::new(), "connect_timeout", "The Mac did not acknowledge the invitation before the connection deadline.");
+        }
+        changed = pending_rx.changed() => {
+            if changed.is_err() { return pairing.await; }
+        }
+    }
+    // A fixed overall approval deadline; repeated pending frames cannot extend it.
+    match tokio::time::timeout(approval_timeout, pairing).await {
+        Ok(outcome) => outcome,
+        Err(_) => fail(
+            String::new(),
+            "approval_timeout",
+            "Timed out waiting for approval on the Mac.",
+        ),
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+async fn pair_protocol(
+    endpoint_id: String,
+    session_id: String,
+    token: String,
+    device_name: String,
+    key_path: String,
+    network: bridge_network::PeerNetwork,
+    progress: Option<Box<dyn PairingProgressCallback>>,
+    pending: tokio::sync::watch::Sender<bool>,
 ) -> PairOutcome {
     let owner = endpoint::SharedEndpoint::for_key(&key_path);
     let endpoint = match owner.get().await {
         Ok(endpoint) => endpoint,
         Err((code, error)) => return fail(String::new(), code, &error),
+    };
+    let _relay_lease = match owner.register_relay(&network).await {
+        Ok(lease) => lease,
+        Err((code, message)) => return fail(endpoint.id().to_string(), code, &message),
     };
     let device_id = endpoint.id().to_string();
     let node = match EndpointId::from_str(&endpoint_id) {
@@ -144,7 +342,11 @@ async fn pair_inner(
             )
         }
     };
-    let connect = tokio::time::timeout(CONNECT_TIMEOUT, endpoint.connect(node, abp_protocol::ALPN));
+    let addr = match network.peer_addr(&node.to_string()) {
+        Ok(addr) => addr,
+        Err(_) => return fail(device_id, "invalid_network", "Invalid peer address hints."),
+    };
+    let connect = tokio::time::timeout(CONNECT_TIMEOUT, endpoint.connect(addr, abp_protocol::ALPN));
     let connection: Connection = match connect.await {
         Ok(Ok(connection)) => connection,
         Ok(Err(_)) => {
@@ -157,11 +359,14 @@ async fn pair_inner(
         Err(_) => {
             return fail(
                 device_id,
-                "timeout",
+                "connect_timeout",
                 "Connecting to the Mac timed out. Direct and relay paths both failed.",
             )
         }
     };
+    if let Some(progress) = &progress {
+        progress.on_stage(PairingStage::Handshaking);
+    }
     let (mut send, mut recv) = match connection.open_bi().await {
         Ok(pair) => pair,
         Err(_) => {
@@ -194,7 +399,7 @@ async fn pair_inner(
         Err(_) => {
             return fail(
                 device_id,
-                "timeout",
+                "connect_timeout",
                 "The Mac did not complete the handshake.",
             )
         }
@@ -239,10 +444,23 @@ async fn pair_inner(
         return fail(device_id, "network_error", &error);
     }
     // First response: the Mac accepted the token and shows the approval prompt.
-    match tokio::time::timeout(APPROVAL_TIMEOUT, read_frame(&mut recv, max)).await {
+    match tokio::time::timeout(HELLO_TIMEOUT, read_frame(&mut recv, max)).await {
         Ok(Ok(abp_protocol::Frame::Response(value))) => {
             if !value.error_code.is_empty() {
                 return fail(device_id, &value.error_code, &value.error_message);
+            }
+            let body = serde_json::from_str::<serde_json::Value>(&value.body_json).ok();
+            if body
+                .as_ref()
+                .and_then(|body| body.get("state"))
+                .and_then(serde_json::Value::as_str)
+                != Some("pending")
+            {
+                return fail(
+                    device_id,
+                    "protocol_error",
+                    "The Mac did not acknowledge a pending pairing request.",
+                );
             }
         }
         Ok(Ok(abp_protocol::Frame::Error(error))) => {
@@ -259,11 +477,15 @@ async fn pair_inner(
         Err(_) => {
             return fail(
                 device_id,
-                "timeout",
+                "connect_timeout",
                 "The Mac did not acknowledge the invitation.",
             )
         }
     }
+    if let Some(progress) = &progress {
+        progress.on_stage(PairingStage::AwaitingApproval);
+    }
+    let _ = pending.send(true);
     // Second response arrives once the user approves on the Mac.
     loop {
         match tokio::time::timeout(APPROVAL_TIMEOUT, read_frame(&mut recv, max)).await {
@@ -313,7 +535,7 @@ async fn pair_inner(
             Err(_) => {
                 return fail(
                     device_id,
-                    "timeout",
+                    "approval_timeout",
                     "Timed out waiting for approval on the Mac.",
                 )
             }

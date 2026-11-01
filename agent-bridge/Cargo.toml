@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/abp-protocol", "crates/agent-adapters", "crates/agentd", "crates/abp-test-harness", "crates/agent-bridge-client", "desktop/src-tauri"]
+members = ["crates/bridge-network", "crates/abp-protocol", "crates/agent-adapters", "crates/agentd", "crates/abp-test-harness", "crates/agent-bridge-client", "desktop/src-tauri"]
 default-members = ["crates/abp-protocol", "crates/agent-adapters", "crates/agentd", "crates/abp-test-harness"]
 
 [workspace.package]

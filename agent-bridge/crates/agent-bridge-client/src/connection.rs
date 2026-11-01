@@ -34,7 +34,7 @@ pub enum BridgeError {
     Failed { code: String, message: String },
 }
 impl BridgeError {
-    fn new(code: &str, message: impl Into<String>) -> Self {
+    pub(crate) fn new(code: &str, message: impl Into<String>) -> Self {
         Self::Failed {
             code: code.into(),
             message: message.into(),
@@ -80,6 +80,8 @@ pub struct MacThread {
     pub id: String,
     pub title: String,
     pub updated_at: Option<String>,
+    #[serde(default)]
+    pub source: Option<String>,
 }
 
 /// One message in a conversation read back from the Mac's own session
@@ -89,6 +91,22 @@ pub struct MacMessage {
     pub role: String,
     pub text: String,
     pub timestamp: Option<String>,
+    #[serde(default)]
+    pub tool_call_id: Option<String>,
+    #[serde(default)]
+    pub tool_name: Option<String>,
+    #[serde(default)]
+    pub tool_phase: Option<String>,
+    #[serde(default)]
+    pub tool_failed: Option<bool>,
+    #[serde(default)]
+    pub assistant_phase: Option<String>,
+}
+
+#[derive(uniffi::Record, Clone, Debug, serde::Deserialize)]
+pub struct MacModel {
+    pub id: String,
+    pub name: String,
 }
 
 /// A project path the Mac's Agent already tracked itself, plus the newest
@@ -136,25 +154,50 @@ pub trait AgentIoCallback: Send + Sync {
 pub struct IoHandle {
     send: AsyncMutex<SendStream>,
     reader: StdMutex<Option<JoinHandle<()>>>,
+    lease_id: String,
+    record_framed: bool,
+    max_frame_bytes: usize,
 }
 #[uniffi::export(async_runtime = "tokio")]
 impl IoHandle {
+    pub fn lease_id(&self) -> String {
+        self.lease_id.clone()
+    }
     pub async fn write_stdin(&self, data: Vec<u8>) -> Result<(), BridgeError> {
         if data.is_empty() {
             return Ok(());
         }
         let mut send = self.send.lock().await;
-        for chunk in data.chunks(abp_protocol::MAX_IO_BYTES) {
-            let frame = Frame::Io(IoFrame {
-                channel: abp_protocol::CHANNEL_STDIN,
-                data: chunk.to_vec(),
-                ..Default::default()
-            });
-            write_frame(&mut send, &frame, abp_protocol::MAX_FRAME_BYTES)
-                .await
-                .map_err(|e| BridgeError::new("network_error", e))?;
+        if self.record_framed && data.len() > 2 * 1024 * 1024 {
+            return Err(BridgeError::new(
+                "resource_limit",
+                "Agent input record exceeds 2 MiB.",
+            ));
         }
-        Ok(())
+        let result = tokio::time::timeout(std::time::Duration::from_secs(30), async {
+            for chunk in data.chunks((self.max_frame_bytes - 128).min(abp_protocol::MAX_IO_BYTES)) {
+                let frame = Frame::Io(IoFrame {
+                    channel: abp_protocol::CHANNEL_STDIN,
+                    data: chunk.to_vec(),
+                    ..Default::default()
+                });
+                write_frame(&mut send, &frame, self.max_frame_bytes)
+                    .await
+                    .map_err(|e| BridgeError::new("network_error", e))?;
+            }
+            Ok(())
+        })
+        .await;
+        match result {
+            Ok(result) => result,
+            Err(_) => {
+                let _ = send.reset(0u32.into());
+                Err(BridgeError::new(
+                    "network_error",
+                    "Agent input write timed out; delivery is unknown.",
+                ))
+            }
+        }
     }
     pub fn close(&self) {
         if let Some(handle) = self.reader.lock().unwrap_or_else(|e| e.into_inner()).take() {
@@ -195,6 +238,8 @@ pub struct BridgeConnection {
     connection: AsyncMutex<Option<Connection>>,
     state: StdMutex<ConnectionState>,
     next_rpc: AtomicU64,
+    network: bridge_network::PeerNetwork,
+    relay_lease: AsyncMutex<Option<crate::endpoint::RelayLease>>,
 }
 
 #[uniffi::export(async_runtime = "tokio")]
@@ -209,7 +254,42 @@ impl BridgeConnection {
             connection: AsyncMutex::new(None),
             state: StdMutex::new(ConnectionState::Idle),
             next_rpc: AtomicU64::new(0),
+            network: Default::default(),
+            relay_lease: AsyncMutex::new(None),
         })
+    }
+
+    #[uniffi::constructor]
+    pub fn with_network(
+        key_path: String,
+        endpoint_id: String,
+        network: crate::PeerNetworkConfig,
+    ) -> Result<Arc<Self>, BridgeError> {
+        let network = network.validated()?;
+        network
+            .peer_addr(&endpoint_id)
+            .map_err(|_| BridgeError::new("invalid_params", "Invalid Mac endpoint id."))?;
+        Ok(Arc::new(Self {
+            endpoint: SharedEndpoint::for_key(&key_path),
+            operation: AsyncMutex::new(()),
+            generation: AtomicU64::new(0),
+            endpoint_id,
+            connection: AsyncMutex::new(None),
+            state: StdMutex::new(ConnectionState::Idle),
+            next_rpc: AtomicU64::new(0),
+            network,
+            relay_lease: AsyncMutex::new(None),
+        }))
+    }
+
+    pub async fn path_kind(&self) -> String {
+        self.connection
+            .lock()
+            .await
+            .as_ref()
+            .map(bridge_network::selected_path)
+            .unwrap_or("unknown")
+            .to_owned()
     }
 
     pub fn state(&self) -> ConnectionState {
@@ -236,6 +316,9 @@ impl BridgeConnection {
         if let Some(connection) = self.connection.lock().await.take() {
             connection.close(0u32.into(), b"client closed");
         }
+        if let Some(lease) = self.relay_lease.lock().await.take() {
+            lease.release().await;
+        }
         self.set_state(ConnectionState::Disconnected);
     }
 
@@ -259,10 +342,18 @@ impl BridgeConnection {
     /// Mac (Codex's `~/.codex/config.toml`, Claude Code's
     /// `~/.claude/projects/`) — not anything this phone invented. Empty is
     /// the normal "never ran here" case, not a failure.
-    pub async fn list_agent_projects(&self, agent_id: String) -> Result<Vec<MacProject>, BridgeError> {
+    pub async fn list_agent_projects(
+        &self,
+        agent_id: String,
+    ) -> Result<Vec<MacProject>, BridgeError> {
         let body = serde_json::json!({"agent_id": agent_id}).to_string();
         parse(&self.call("ListAgentProjects", body, 5_000).await?)
     }
+    pub async fn list_agent_models(&self, agent_id: String) -> Result<Vec<MacModel>, BridgeError> {
+        let body = serde_json::json!({"agent_id": agent_id}).to_string();
+        parse(&self.call("ListAgentModels", body, 5_000).await?)
+    }
+
     /// The user/assistant turns of one conversation, read from the Agent's
     /// own session records on the Mac. Tool calls, reasoning, and system
     /// prompts are filtered out server-side.
@@ -321,7 +412,7 @@ impl BridgeConnection {
     ) -> Result<Arc<IoHandle>, BridgeError> {
         let connection = self.live_connection().await?;
         let my_id = self.local_id().await;
-        let (send, mut recv, max) = open_stream(
+        let (send, recv, max) = open_stream(
             &connection,
             &my_id,
             abp_protocol::STREAM_AGENT_IO,
@@ -329,48 +420,43 @@ impl BridgeConnection {
             &generation,
         )
         .await?;
-        let callback: Arc<dyn AgentIoCallback> = Arc::from(callback);
-        let reader = tokio::spawn(async move {
-            loop {
-                match read_frame(&mut recv, max).await {
-                    Ok(Frame::Io(io)) => match io.channel {
-                        c if c == abp_protocol::CHANNEL_STDOUT => {
-                            callback.on_stdout(io.data, io.cursor, io.offset)
-                        }
-                        c if c == abp_protocol::CHANNEL_STDERR => {
-                            callback.on_stderr(io.data, io.cursor, io.offset)
-                        }
-                        c if c == abp_protocol::CHANNEL_GAP => {
-                            callback.on_gap(io.affected_channel, io.offset, io.lost_bytes)
-                        }
-                        c if c == abp_protocol::CHANNEL_EXIT => {
-                            callback.on_exit(io.exit_code);
-                            break;
-                        }
-                        _ => {}
-                    },
-                    Ok(Frame::Error(e)) => {
-                        callback.on_error(e.code, e.message);
-                        break;
-                    }
-                    Ok(_) => {
-                        callback.on_error(
-                            "protocol_error".into(),
-                            "Unexpected frame on the AgentIO stream.".into(),
-                        );
-                        break;
-                    }
-                    Err(message) => {
-                        callback.on_error("network_error".into(), message);
-                        break;
-                    }
-                }
-            }
-        });
-        Ok(Arc::new(IoHandle {
-            send: AsyncMutex::new(send),
-            reader: StdMutex::new(Some(reader)),
-        }))
+        Ok(io_handle(send, recv, max, callback, String::new(), false))
+    }
+    /// Opens an atomic NDJSON input stream with proven reconnect capabilities.
+    pub async fn attach_chat_io(
+        &self,
+        process_id: String,
+        generation: String,
+        callback: Box<dyn AgentIoCallback>,
+    ) -> Result<Arc<IoHandle>, BridgeError> {
+        self.chat_io(process_id, generation, None, callback).await
+    }
+    pub async fn resume_chat_io(
+        &self,
+        process_id: String,
+        generation: String,
+        stdout_offset: u64,
+        stderr_offset: u64,
+        previous_lease_id: String,
+        callback: Box<dyn AgentIoCallback>,
+    ) -> Result<Arc<IoHandle>, BridgeError> {
+        if previous_lease_id.is_empty() || previous_lease_id.len() > 128 {
+            return Err(BridgeError::new(
+                "invalid_params",
+                "A prior input lease is required.",
+            ));
+        }
+        self.chat_io(
+            process_id,
+            generation,
+            Some(abp_protocol::IoResume {
+                stdout_offset,
+                stderr_offset,
+                previous_lease_id,
+            }),
+            callback,
+        )
+        .await
     }
 }
 
@@ -379,7 +465,83 @@ impl BridgeConnection {
 // plain internal types/`impl Trait` (e.g. `Connection`, `impl Into<String>`)
 // are not UniFFI-representable.
 impl BridgeConnection {
+    async fn chat_io(
+        &self,
+        process_id: String,
+        generation: String,
+        resume: Option<abp_protocol::IoResume>,
+        callback: Box<dyn AgentIoCallback>,
+    ) -> Result<Arc<IoHandle>, BridgeError> {
+        tokio::time::timeout(std::time::Duration::from_secs(30), async {
+            let capabilities = self
+                .call("GetCapabilities", "null".into(), 10_000)
+                .await
+                .map_err(|error| {
+                    if error.code() == "unsupported" {
+                        BridgeError::new(
+                            "unsupported",
+                            "Update the Mac client to support chat recovery and images.",
+                        )
+                    } else {
+                        error
+                    }
+                })?;
+            let supported: Vec<String> = serde_json::from_str(&capabilities).map_err(|_| {
+                BridgeError::new("incompatible", "Invalid Mac capability response.")
+            })?;
+            if [
+                "io_resume_offsets_v1",
+                "io_lease_replace_v1",
+                "io_ndjson_records_v1",
+            ]
+            .iter()
+            .any(|required| !supported.iter().any(|value| value == required))
+            {
+                return Err(BridgeError::new(
+                    "unsupported",
+                    "Update the Mac client to support chat recovery and images.",
+                ));
+            }
+            let connection = self.live_connection().await?;
+            let my_id = self.local_id().await;
+            let (send, recv, max, response) = open_stream_options(
+                &connection,
+                &my_id,
+                StreamOpen {
+                    kind: abp_protocol::STREAM_AGENT_IO,
+                    process_id,
+                    generation,
+                    resume,
+                    record_framed: true,
+                    ..Default::default()
+                },
+                None,
+            )
+            .await?;
+            let body: serde_json::Value = serde_json::from_str(&response).map_err(|_| {
+                BridgeError::new("incompatible", "Mac did not return an input lease.")
+            })?;
+            let lease_id = body["lease_id"]
+                .as_str()
+                .filter(|value| !value.is_empty() && value.len() <= 128)
+                .ok_or_else(|| {
+                    BridgeError::new("incompatible", "Mac did not return an input lease.")
+                })?
+                .to_owned();
+            Ok(io_handle(send, recv, max, callback, lease_id, true))
+        })
+        .await
+        .map_err(|_| BridgeError::new("timeout", "Opening the Mac chat stream timed out."))?
+    }
     async fn connect_inner(&self, force: bool) -> ConnectionState {
+        self.connect_with_timeout(force, CONNECT_TIMEOUT).await
+    }
+
+    async fn connect_with_timeout(
+        &self,
+        force: bool,
+        timeout: std::time::Duration,
+    ) -> ConnectionState {
         let generation = self.generation.load(Ordering::SeqCst);
         let _operation = self.operation.lock().await;
         if generation != self.generation.load(Ordering::SeqCst) {
@@ -399,7 +561,11 @@ impl BridgeConnection {
         if let Some(old) = self.connection.lock().await.take() {
             old.close(0u32.into(), b"reconnecting");
         }
-        let result = self.dial().await;
+        // Include endpoint initialization and relay registration in the budget,
+        // not just the final QUIC handshake.
+        let result = tokio::time::timeout(timeout, self.dial())
+            .await
+            .unwrap_or_else(|_| Err(("timeout", "Connecting to the Mac timed out.".into())));
         if generation != self.generation.load(Ordering::SeqCst) {
             if let Ok(connection) = result {
                 connection.close(0u32.into(), b"dial cancelled");
@@ -421,16 +587,24 @@ impl BridgeConnection {
         let node = EndpointId::from_str(&self.endpoint_id)
             .map_err(|_| ("invalid_params", "Invalid Mac endpoint id.".into()))?;
         let endpoint = self.endpoint.get().await?;
-        match tokio::time::timeout(CONNECT_TIMEOUT, endpoint.connect(node, abp_protocol::ALPN))
-            .await
-        {
-            Ok(Ok(connection)) => Ok(connection),
-            Ok(Err(_)) => Err((
-                "unreachable",
-                "Could not reach the Mac. Check both networks.".into(),
-            )),
-            Err(_) => Err(("timeout", "Connecting to the Mac timed out.".into())),
+        let mut lease = self.relay_lease.lock().await;
+        if lease.is_none() {
+            *lease = self.endpoint.register_relay(&self.network).await?;
         }
+        drop(lease);
+        let addr = self
+            .network
+            .peer_addr(&node.to_string())
+            .map_err(|_| ("invalid_network", "Invalid peer address hints.".into()))?;
+        endpoint
+            .connect(addr, abp_protocol::ALPN)
+            .await
+            .map_err(|_| {
+                (
+                    "unreachable",
+                    "Could not reach the Mac. Check both networks.".into(),
+                )
+            })
     }
 
     async fn live_connection(&self) -> Result<Connection, BridgeError> {
@@ -456,8 +630,6 @@ impl BridgeConnection {
     ) -> Result<String, BridgeError> {
         let connection = self.live_connection().await?;
         let my_id = self.local_id().await;
-        let (mut send, mut recv, max) =
-            open_stream(&connection, &my_id, abp_protocol::STREAM_CONTROL, "", "").await?;
         let rpc_id = format!("rpc-{}", self.next_rpc.fetch_add(1, Ordering::SeqCst));
         let request = Frame::Request(RpcRequest {
             rpc_id,
@@ -465,9 +637,26 @@ impl BridgeConnection {
             body_json,
             timeout_ms,
         });
-        write_frame(&mut send, &request, max)
-            .await
-            .map_err(|e| BridgeError::new("network_error", e))?;
+        // This read-only catalog request is safe to buffer before negotiation:
+        // it fits every accepted ABP v1 frame limit. Mutations still wait for ACK.
+        let early_request = (method == "ListAgentProjects"
+            && request.encode(MIN_PEER_FRAME_BYTES).is_ok())
+        .then_some(&request);
+        let (mut send, mut recv, max, _) = open_stream_options(
+            &connection,
+            &my_id,
+            StreamOpen {
+                kind: abp_protocol::STREAM_CONTROL,
+                ..Default::default()
+            },
+            early_request,
+        )
+        .await?;
+        if early_request.is_none() {
+            write_frame(&mut send, &request, max)
+                .await
+                .map_err(|e| BridgeError::new("network_error", e))?;
+        }
         let deadline = std::time::Duration::from_millis(u64::from(timeout_ms) + 5_000);
         let outcome = match tokio::time::timeout(deadline, read_frame(&mut recv, max)).await {
             Ok(Ok(Frame::Response(r))) if r.error_code.is_empty() => Ok(r.body_json),
@@ -500,8 +689,63 @@ impl BridgeConnection {
     }
 }
 
-/// Shared stream-open sequence for every kind: bi-stream, Hello/negotiate,
-/// then `StreamOpen`, then (for CONTROL/AGENT_IO/PAIR alike) the Mac's ack.
+fn io_handle(
+    send: SendStream,
+    mut recv: RecvStream,
+    max: usize,
+    callback: Box<dyn AgentIoCallback>,
+    lease_id: String,
+    record_framed: bool,
+) -> Arc<IoHandle> {
+    let callback: Arc<dyn AgentIoCallback> = Arc::from(callback);
+    let reader = tokio::spawn(async move {
+        loop {
+            match read_frame(&mut recv, max).await {
+                Ok(Frame::Io(io)) => match io.channel {
+                    c if c == abp_protocol::CHANNEL_STDOUT => {
+                        callback.on_stdout(io.data, io.cursor, io.offset)
+                    }
+                    c if c == abp_protocol::CHANNEL_STDERR => {
+                        callback.on_stderr(io.data, io.cursor, io.offset)
+                    }
+                    c if c == abp_protocol::CHANNEL_GAP => {
+                        callback.on_gap(io.affected_channel, io.offset, io.lost_bytes)
+                    }
+                    c if c == abp_protocol::CHANNEL_EXIT => {
+                        callback.on_exit(io.exit_code);
+                        break;
+                    }
+                    _ => {}
+                },
+                Ok(Frame::Error(e)) => {
+                    callback.on_error(e.code, e.message);
+                    break;
+                }
+                Ok(_) => {
+                    callback.on_error(
+                        "protocol_error".into(),
+                        "Unexpected frame on the AgentIO stream.".into(),
+                    );
+                    break;
+                }
+                Err(message) => {
+                    callback.on_error("network_error".into(), message);
+                    break;
+                }
+            }
+        }
+    });
+    Arc::new(IoHandle {
+        send: AsyncMutex::new(send),
+        reader: StdMutex::new(Some(reader)),
+        lease_id,
+        record_framed,
+        max_frame_bytes: max,
+    })
+}
+
+/// Shared stream-open sequence. Small CONTROL opens may be pipelined with Hello;
+/// every caller still validates the negotiated Hello and the Mac's Open ACK.
 async fn open_stream(
     connection: &Connection,
     my_id: &str,
@@ -509,6 +753,29 @@ async fn open_stream(
     process_id: &str,
     generation: &str,
 ) -> Result<(SendStream, RecvStream, usize), BridgeError> {
+    let (send, recv, max, _) = open_stream_options(
+        connection,
+        my_id,
+        StreamOpen {
+            kind,
+            process_id: process_id.into(),
+            generation: generation.into(),
+            ..Default::default()
+        },
+        None,
+    )
+    .await?;
+    Ok((send, recv, max))
+}
+// Hello::negotiate rejects peers advertising less than 1024 bytes in ABP v1.
+const MIN_PEER_FRAME_BYTES: usize = 1024;
+
+async fn open_stream_options(
+    connection: &Connection,
+    my_id: &str,
+    open: StreamOpen,
+    early_request: Option<&Frame>,
+) -> Result<(SendStream, RecvStream, usize, String), BridgeError> {
     let (mut send, mut recv) = connection
         .open_bi()
         .await
@@ -517,6 +784,21 @@ async fn open_stream(
     write_frame(&mut send, &hello, abp_protocol::MAX_FRAME_BYTES)
         .await
         .map_err(|e| BridgeError::new("network_error", e))?;
+    let pipelined_open = open.kind == abp_protocol::STREAM_CONTROL
+        && Frame::Open(open.clone())
+            .encode(MIN_PEER_FRAME_BYTES)
+            .is_ok();
+    let open = Frame::Open(open);
+    if pipelined_open {
+        write_frame(&mut send, &open, MIN_PEER_FRAME_BYTES)
+            .await
+            .map_err(|e| BridgeError::new("network_error", e))?;
+        if let Some(request) = early_request {
+            write_frame(&mut send, request, MIN_PEER_FRAME_BYTES)
+                .await
+                .map_err(|e| BridgeError::new("network_error", e))?;
+        }
+    }
     let peer_hello = match tokio::time::timeout(
         HELLO_TIMEOUT,
         read_frame(&mut recv, abp_protocol::MAX_FRAME_BYTES),
@@ -541,17 +823,13 @@ async fn open_stream(
     let max = peer_hello.negotiate().map_err(|_| {
         BridgeError::new("incompatible", "The Mac speaks an incompatible protocol.")
     })?;
-    let open = Frame::Open(StreamOpen {
-        kind,
-        process_id: process_id.into(),
-        generation: generation.into(),
-        cursor: 0,
-    });
-    write_frame(&mut send, &open, max)
-        .await
-        .map_err(|e| BridgeError::new("network_error", e))?;
-    match tokio::time::timeout(HELLO_TIMEOUT, read_frame(&mut recv, max)).await {
-        Ok(Ok(Frame::Response(r))) if r.error_code.is_empty() => {}
+    if !pipelined_open {
+        write_frame(&mut send, &open, max)
+            .await
+            .map_err(|e| BridgeError::new("network_error", e))?;
+    }
+    let response = match tokio::time::timeout(HELLO_TIMEOUT, read_frame(&mut recv, max)).await {
+        Ok(Ok(Frame::Response(r))) if r.error_code.is_empty() => r.body_json,
         Ok(Ok(Frame::Response(r))) => return Err(BridgeError::new(&r.error_code, r.error_message)),
         Ok(Ok(Frame::Error(e))) => return Err(BridgeError::new(&e.code, e.message)),
         Ok(Ok(_)) => {
@@ -567,12 +845,67 @@ async fn open_stream(
                 "The Mac did not acknowledge the stream.",
             ))
         }
-    }
-    Ok((send, recv, max))
+    };
+    Ok((send, recv, max, response))
 }
 
 #[cfg(test)]
 mod tests {
+    #[tokio::test]
+    async fn connect_deadline_includes_pre_dial_setup_and_publishes_failure() {
+        let directory = tempfile::tempdir().unwrap();
+        let peer = iroh::SecretKey::generate().public().to_string();
+        let client = BridgeConnection::new(
+            directory
+                .path()
+                .join("phone.key")
+                .to_string_lossy()
+                .into_owned(),
+            peer,
+        );
+        // Hold a setup resource before the QUIC dial can start. The old timeout
+        // around endpoint.connect alone could never stop this connection.
+        let setup = client.relay_lease.lock().await;
+        let state = tokio::time::timeout(
+            std::time::Duration::from_secs(2),
+            client.connect_with_timeout(false, std::time::Duration::from_millis(40)),
+        )
+        .await
+        .expect("setup must obey the connection deadline");
+        assert!(matches!(state, ConnectionState::Failed { ref code, .. } if code == "timeout"));
+        assert_eq!(client.state(), state);
+        drop(setup);
+    }
+
+    #[test]
+    fn historical_tool_metadata_is_optional_for_older_hosts() {
+        let old: MacMessage =
+            serde_json::from_str(r#"{"role":"tool","text":"legacy output","timestamp":null}"#)
+                .unwrap();
+        assert!(old.tool_call_id.is_none());
+        assert!(old.tool_phase.is_none());
+        assert!(old.tool_failed.is_none());
+        assert!(old.assistant_phase.is_none());
+        let phased: MacMessage = serde_json::from_str(r#"{"role":"assistant","text":"progress","timestamp":null,"assistant_phase":"commentary"}"#).unwrap();
+        assert_eq!(phased.assistant_phase.as_deref(), Some("commentary"));
+        let current: MacMessage = serde_json::from_str(r#"{"role":"tool","text":"result","tool_call_id":"a","tool_name":"Read","tool_phase":"output","tool_failed":true}"#).unwrap();
+        assert_eq!(current.tool_call_id.as_deref(), Some("a"));
+        assert_eq!(current.tool_phase.as_deref(), Some("output"));
+        assert_eq!(current.tool_failed, Some(true));
+    }
+
+    #[test]
+    fn catalog_source_is_optional_for_older_hosts() {
+        let legacy: super::MacThread =
+            serde_json::from_str(r#"{"id":"old","title":"History","updated_at":null}"#).unwrap();
+        assert_eq!(legacy.source, None);
+        let current: super::MacThread = serde_json::from_str(
+            r#"{"id":"cli","title":"History","updated_at":null,"source":"cli"}"#,
+        )
+        .unwrap();
+        assert_eq!(current.source.as_deref(), Some("cli"));
+    }
+
     use super::*;
     use abp_protocol::{self as wire, RpcResponse};
     use iroh::{endpoint::presets, Endpoint, RelayMode, SecretKey};
@@ -685,6 +1018,162 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn catalog_is_pipelined_once_but_invalid_hello_or_ack_never_succeeds() {
+        for mode in ["success", "incompatible", "unauthorized"] {
+            tokio::time::timeout(std::time::Duration::from_secs(3), async {
+                let host = Endpoint::builder(presets::Minimal).alpns(vec![wire::ALPN.to_vec()]).bind().await.unwrap();
+                let directory = tempfile::tempdir().unwrap();
+                let client = BridgeConnection::with_network(directory.path().join("phone.key").to_string_lossy().into_owned(),
+                    host.id().to_string(), crate::PeerNetworkConfig { relay_url: None, relay_access_key: None,
+                        direct_addresses: host.addr().ip_addrs().map(ToString::to_string).collect() }).unwrap();
+                let listener = host.clone();
+                let server = tokio::spawn(async move {
+                    let conn = listener.accept().await.unwrap().await.unwrap();
+                    let (mut send, mut recv) = conn.accept_bi().await.unwrap();
+                    // Withhold every response until all three frames arrive. A serial
+                    // Hello/Open/Request client deadlocks here, proving the RTT saving.
+                    assert!(matches!(wire::read_frame(&mut recv, 1024).await.unwrap(), Frame::Hello(_)));
+                    assert!(matches!(wire::read_frame(&mut recv, 1024).await.unwrap(), Frame::Open(open) if open.kind == wire::STREAM_CONTROL));
+                    let Frame::Request(request) = wire::read_frame(&mut recv, 1024).await.unwrap() else { panic!("catalog request") };
+                    assert_eq!(request.method, "ListAgentProjects");
+                    assert_eq!(serde_json::from_str::<serde_json::Value>(&request.body_json).unwrap()["agent_id"], "codex");
+                    let mut hello = Hello::new("pipeline-host");
+                    hello.max_frame_bytes = 1024;
+                    if mode == "incompatible" { hello.major += 1; }
+                    wire::write_frame(&mut send, &Frame::Hello(hello), 1024).await.unwrap();
+                    if mode != "incompatible" {
+                        wire::write_frame(&mut send, &Frame::Response(RpcResponse {
+                            error_code: if mode == "unauthorized" { "unauthorized".into() } else { String::new() },
+                            ..Default::default()
+                        }), 1024).await.unwrap();
+                        wire::write_frame(&mut send, &Frame::Response(RpcResponse {
+                            rpc_id: request.rpc_id, body_json: "[]".into(), ..Default::default()
+                        }), 1024).await.unwrap();
+                    }
+                    send.finish().unwrap();
+                    let _ = send.stopped().await;
+                    if mode == "success" {
+                        assert!(wire::read_frame(&mut recv, 1024).await.is_err(), "catalog must be submitted exactly once");
+                    }
+                });
+                assert_eq!(client.connect().await, ConnectionState::Connected);
+                let result = client.list_agent_projects("codex".into()).await;
+                match mode {
+                    "success" => assert!(result.unwrap().is_empty()),
+                    _ => assert_eq!(result.unwrap_err().code(), mode),
+                }
+                if mode == "success" {
+                    // Observe stream EOF while the QUIC connection is still alive:
+                    // closing the connection could hide a queued duplicate request.
+                    server.await.unwrap();
+                    client.disconnect().await;
+                } else {
+                    client.disconnect().await;
+                    server.await.unwrap();
+                }
+                host.close().await;
+            }).await.expect("pipelined catalog must not wait for an early reply");
+        }
+    }
+
+    #[tokio::test]
+    async fn mutations_and_oversize_catalog_wait_for_open_ack() {
+        for (method, body) in [
+            ("StartProcess", "{}".to_owned()),
+            ("ListAgentProjects", "x".repeat(2048)),
+        ] {
+            tokio::time::timeout(std::time::Duration::from_secs(3), async {
+                let host = Endpoint::builder(presets::Minimal)
+                    .alpns(vec![wire::ALPN.to_vec()])
+                    .bind()
+                    .await
+                    .unwrap();
+                let directory = tempfile::tempdir().unwrap();
+                let client = BridgeConnection::with_network(
+                    directory
+                        .path()
+                        .join("phone.key")
+                        .to_string_lossy()
+                        .into_owned(),
+                    host.id().to_string(),
+                    crate::PeerNetworkConfig {
+                        relay_url: None,
+                        relay_access_key: None,
+                        direct_addresses: host.addr().ip_addrs().map(ToString::to_string).collect(),
+                    },
+                )
+                .unwrap();
+                let listener = host.clone();
+                let server = tokio::spawn(async move {
+                    let conn = listener.accept().await.unwrap().await.unwrap();
+                    let (mut send, mut recv) = conn.accept_bi().await.unwrap();
+                    assert!(matches!(
+                        wire::read_frame(&mut recv, wire::MAX_FRAME_BYTES)
+                            .await
+                            .unwrap(),
+                        Frame::Hello(_)
+                    ));
+                    assert!(matches!(
+                        wire::read_frame(&mut recv, wire::MAX_FRAME_BYTES)
+                            .await
+                            .unwrap(),
+                        Frame::Open(_)
+                    ));
+                    // No request bytes may precede the validated Hello/Open ACK.
+                    assert!(tokio::time::timeout(
+                        std::time::Duration::from_millis(50),
+                        wire::read_frame(&mut recv, wire::MAX_FRAME_BYTES)
+                    )
+                    .await
+                    .is_err());
+                    wire::write_frame(
+                        &mut send,
+                        &Frame::Hello(Hello::new("pipeline-host")),
+                        wire::MAX_FRAME_BYTES,
+                    )
+                    .await
+                    .unwrap();
+                    wire::write_frame(
+                        &mut send,
+                        &Frame::Response(RpcResponse::default()),
+                        wire::MAX_FRAME_BYTES,
+                    )
+                    .await
+                    .unwrap();
+                    let Frame::Request(request) =
+                        wire::read_frame(&mut recv, wire::MAX_FRAME_BYTES)
+                            .await
+                            .unwrap()
+                    else {
+                        panic!("request")
+                    };
+                    assert_eq!(request.method, method);
+                    wire::write_frame(
+                        &mut send,
+                        &Frame::Response(RpcResponse {
+                            rpc_id: request.rpc_id,
+                            body_json: "null".into(),
+                            ..Default::default()
+                        }),
+                        wire::MAX_FRAME_BYTES,
+                    )
+                    .await
+                    .unwrap();
+                    send.finish().unwrap();
+                    let _ = send.stopped().await;
+                });
+                assert_eq!(client.connect().await, ConnectionState::Connected);
+                assert_eq!(client.call(method, body, 1000).await.unwrap(), "null");
+                client.disconnect().await;
+                server.await.unwrap();
+                host.close().await;
+            })
+            .await
+            .expect("control stream deadline");
+        }
+    }
+
+    #[tokio::test]
     async fn call_round_trips_through_a_fresh_stream() {
         let (addr, _mac_endpoint, mac_task) = spawn_fake_mac(r#"{"ok":true}"#).await;
         let client = Endpoint::builder(presets::N0)
@@ -759,7 +1248,10 @@ mod tests {
                         if let Frame::Pair(_) = request_frame {
                             wire::write_frame(
                                 &mut send,
-                                &Frame::Response(RpcResponse::default()),
+                                &Frame::Response(RpcResponse {
+                                    body_json: r#"{"state":"pending"}"#.into(),
+                                    ..Default::default()
+                                }),
                                 max,
                             )
                             .await
@@ -909,5 +1401,40 @@ mod tests {
         assert_eq!(chunks.len(), 3);
         assert_eq!(chunks[0].len(), abp_protocol::MAX_IO_BYTES);
         assert_eq!(chunks[2].len(), 3);
+    }
+    struct NoChatCallback;
+    impl AgentIoCallback for NoChatCallback {
+        fn on_stdout(&self, _: Vec<u8>, _: u64, _: u64) {}
+        fn on_stderr(&self, _: Vec<u8>, _: u64, _: u64) {}
+        fn on_gap(&self, _: i32, _: u64, _: u64) {}
+        fn on_exit(&self, _: Option<i32>) {}
+        fn on_error(&self, _: String, _: String) {}
+    }
+    #[tokio::test]
+    async fn chat_capability_gate_rejects_legacy_host_before_agent_io() {
+        let (addr, mac, task) = spawn_fake_mac("[]").await;
+        let dir = tempfile::tempdir().unwrap();
+        let client = BridgeConnection::new(
+            dir.path().join("key").display().to_string(),
+            mac.id().to_string(),
+        );
+        let endpoint = client.endpoint.get().await.unwrap();
+        let lookup = iroh::address_lookup::memory::MemoryLookup::new();
+        lookup.add_endpoint_info(addr);
+        endpoint.address_lookup().unwrap().add(lookup);
+        assert_eq!(client.connect().await, ConnectionState::Connected);
+        let error = client
+            .attach_chat_io(
+                "process".into(),
+                "generation".into(),
+                Box::new(NoChatCallback),
+            )
+            .await
+            .err()
+            .unwrap();
+        assert_eq!(error.code(), "unsupported");
+        task.await.unwrap();
+        client.disconnect().await;
+        mac.close().await;
     }
 }

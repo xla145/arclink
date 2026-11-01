@@ -6,6 +6,7 @@ license.workspace = true
 rust-version.workspace = true
 
 [dependencies]
+bridge-network = { path = "../bridge-network" }
 agent-adapters = { path = "../agent-adapters" }
 abp-protocol = { path = "../abp-protocol" }
 tokio.workspace = true

@@ -72,14 +72,59 @@ impl Store {
             })
             .optional()
             .map_err(storage_error)?;
-        value
+        let mut settings: AppSettings = value
             .map(|v| serde_json::from_str(&v).map_err(storage_error))
-            .unwrap_or_else(|| Ok(AppSettings::default()))
+            .unwrap_or_else(|| Ok(AppSettings::default()))?;
+        // Preserve custom names while upgrading the former product default.
+        if settings.device_name == "Agent Bridge" {
+            settings.device_name = AppSettings::default().device_name;
+        }
+        Ok(settings)
     }
     pub fn save_settings(&self, settings: &AppSettings) -> Result<()> {
         self.conn()?.execute("INSERT INTO metadata(key,value) VALUES('settings',?1) ON CONFLICT(key) DO UPDATE SET value=excluded.value", [serde_json::to_string(settings).map_err(storage_error)?]).map_err(storage_error)?;
         Ok(())
     }
+    /// The QR stores direct IP/port hints. Keep the host sockets stable across
+    /// process restarts so those hints still work without public DNS lookup.
+    pub fn network_bind_addrs(&self) -> Result<Option<Vec<std::net::SocketAddr>>> {
+        let value: Option<String> = self
+            .conn()?
+            .query_row(
+                "SELECT value FROM metadata WHERE key='network_bind_addrs_v1'",
+                [],
+                |row| row.get(0),
+            )
+            .optional()
+            .map_err(storage_error)?;
+        let addresses = value
+            .map(|value| {
+                serde_json::from_str::<Vec<std::net::SocketAddr>>(&value).map_err(storage_error)
+            })
+            .transpose()?;
+        if let Some(addresses) = &addresses {
+            if addresses.is_empty()
+                || addresses.len() > 2
+                || addresses
+                    .iter()
+                    .any(|address| !address.ip().is_unspecified() || address.port() == 0)
+                || addresses.iter().filter(|address| address.is_ipv4()).count() > 1
+                || addresses.iter().filter(|address| address.is_ipv6()).count() > 1
+            {
+                return Err(storage_error("Invalid saved network bind addresses."));
+            }
+        }
+        Ok(addresses)
+    }
+
+    pub fn save_network_bind_addrs(&self, addresses: &[std::net::SocketAddr]) -> Result<()> {
+        self.conn()?.execute(
+            "INSERT INTO metadata(key,value) VALUES('network_bind_addrs_v1',?1) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+            [serde_json::to_string(addresses).map_err(storage_error)?],
+        ).map_err(storage_error)?;
+        Ok(())
+    }
+
     pub fn devices(&self) -> Result<Vec<PairedDevice>> {
         let conn = self.conn()?;
         let mut stmt = conn.prepare("SELECT id,name,paired_at,last_seen,permissions FROM devices WHERE revoked=0 ORDER BY paired_at").map_err(storage_error)?;
@@ -102,6 +147,7 @@ impl Store {
                 paired_at,
                 last_seen,
                 connection: "offline".into(),
+                path_kind: None,
                 permissions: serde_json::from_str(&perms).map_err(storage_error)?,
             })
         })
@@ -114,6 +160,7 @@ impl Store {
             paired_at: now(),
             last_seen: None,
             connection: "offline".into(),
+            path_kind: None,
             permissions,
         };
         self.conn()?.execute("INSERT INTO devices(id,name,paired_at,permissions,revoked) VALUES(?1,?2,?3,?4,0) ON CONFLICT(id) DO UPDATE SET name=excluded.name,paired_at=excluded.paired_at,permissions=excluded.permissions,revoked=0",params![peer,name,device.paired_at,serde_json::to_string(&device.permissions).map_err(storage_error)?]).map_err(storage_error)?;
@@ -155,7 +202,7 @@ impl Store {
                 return Err(BridgeError::new(
                     "unauthorized",
                     "Device is not authorized.",
-                ))
+                ));
             }
         };
         if grant.is_empty() || permissions.iter().any(|p| !grant.iter().any(|g| g == p)) {
@@ -184,9 +231,18 @@ impl Store {
             .map_err(storage_error)?;
         match prior {
             None => Ok(None),
-            Some((old, _, _)) if old != fingerprint => Err(BridgeError::new("conflict", "Operation ID was already used for a different request.")),
-            Some((_, state, result)) if state == "finished" => Ok(Some(serde_json::from_str(&result.ok_or_else(||storage_error("missing result"))?).map_err(storage_error)?)),
-            Some(_) => Err(BridgeError::new("outcome_unknown", "A previous attempt may have executed. Query process state; do not replay automatically.")),
+            Some((old, _, _)) if old != fingerprint => Err(BridgeError::new(
+                "conflict",
+                "Operation ID was already used for a different request.",
+            )),
+            Some((_, state, result)) if state == "finished" => Ok(Some(
+                serde_json::from_str(&result.ok_or_else(|| storage_error("missing result"))?)
+                    .map_err(storage_error)?,
+            )),
+            Some(_) => Err(BridgeError::new(
+                "outcome_unknown",
+                "A previous attempt may have executed. Query process state; do not replay automatically.",
+            )),
         }
     }
     pub fn reserve(&self, peer: &str, id: &str, fingerprint: &str) -> Result<Reservation> {
@@ -215,7 +271,10 @@ impl Store {
                         .map_err(storage_error)?,
                 ));
             }
-            return Err(BridgeError::new("outcome_unknown","A previous attempt may have executed. Query process state; do not repeat with a new operation ID."));
+            return Err(BridgeError::new(
+                "outcome_unknown",
+                "A previous attempt may have executed. Query process state; do not repeat with a new operation ID.",
+            ));
         }
         tx.execute("INSERT INTO operations(peer,id,fingerprint,state,created_at) VALUES(?1,?2,?3,'reserved',?4)",params![peer,id,fingerprint,now()]).map_err(storage_error)?;
         tx.commit().map_err(storage_error)?;
@@ -297,5 +356,69 @@ impl Store {
             .map_err(storage_error)?;
         }
         tx.commit().map_err(storage_error)
+    }
+}
+
+#[cfg(test)]
+mod network_bind_tests {
+    use super::*;
+
+    #[test]
+    fn bind_addresses_survive_store_reopen_without_changing_settings() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("host.sqlite3");
+        let store = Store::open(&path).unwrap();
+        assert!(store.network_bind_addrs().unwrap().is_none());
+        let addresses = [
+            "0.0.0.0:55555".parse().unwrap(),
+            "[::]:55556".parse().unwrap(),
+        ];
+        store.save_network_bind_addrs(&addresses).unwrap();
+        drop(store);
+        let store = Store::open(&path).unwrap();
+        assert_eq!(
+            store.network_bind_addrs().unwrap(),
+            Some(addresses.to_vec())
+        );
+        assert_eq!(
+            store.settings().unwrap().device_name,
+            AppSettings::default().device_name
+        );
+    }
+
+    #[test]
+    fn invalid_saved_bindings_fail_without_overwriting_them() {
+        let directory = tempfile::tempdir().unwrap();
+        let store = Store::open(&directory.path().join("host.sqlite3")).unwrap();
+        for invalid in [
+            "not-json",
+            "[]",
+            r#"["0.0.0.0:0"]"#,
+            r#"["127.0.0.1:55555"]"#,
+            r#"["192.0.2.1:55555"]"#,
+            r#"["0.0.0.0:55555","0.0.0.0:55556"]"#,
+            r#"["[::]:55555","[::]:55556"]"#,
+            r#"["0.0.0.0:55555","[::]:55556","[::]:55557"]"#,
+        ] {
+            store
+                .conn()
+                .unwrap()
+                .execute(
+                    "INSERT OR REPLACE INTO metadata(key,value) VALUES('network_bind_addrs_v1',?1)",
+                    [invalid],
+                )
+                .unwrap();
+            assert!(store.network_bind_addrs().is_err(), "accepted {invalid}");
+            let retained: String = store
+                .conn()
+                .unwrap()
+                .query_row(
+                    "SELECT value FROM metadata WHERE key='network_bind_addrs_v1'",
+                    [],
+                    |row| row.get(0),
+                )
+                .unwrap();
+            assert_eq!(retained, invalid);
+        }
     }
 }

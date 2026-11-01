@@ -14,7 +14,7 @@ fn main() {
         });
     }
     if args.iter().any(|s| s == "--flood") {
-        let _ = std::io::stdout().write_all(&vec![b'x'; 128 * 1024]);
+        let _ = std::io::stdout().write_all(&vec![b'x'; 6 * 1024 * 1024]);
         let _ = std::io::stdout().flush();
     }
     let mut bytes = [0u8; 8192];

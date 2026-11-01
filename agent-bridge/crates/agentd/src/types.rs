@@ -43,6 +43,8 @@ pub struct PairedDevice {
     pub paired_at: String,
     pub last_seen: Option<String>,
     pub connection: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub path_kind: Option<String>,
     pub permissions: Vec<String>,
 }
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
@@ -63,7 +65,7 @@ pub struct AppSettings {
 impl Default for AppSettings {
     fn default() -> Self {
         Self {
-            device_name: "Agent Bridge".into(),
+            device_name: "ArcLink".into(),
         }
     }
 }

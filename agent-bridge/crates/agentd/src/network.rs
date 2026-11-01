@@ -27,20 +27,62 @@ pub struct NetworkServer {
     endpoint: Endpoint,
     task: Option<JoinHandle<()>>,
     daemon: Arc<Daemon>,
+    private_relay: Option<iroh::RelayUrl>,
+    fallback_relays: iroh::RelayMap,
 }
 impl NetworkServer {
     pub async fn start(daemon: Arc<Daemon>, secret: [u8; 32], relay_enabled: bool) -> Result<Self> {
+        Self::start_with_network(
+            daemon,
+            secret,
+            relay_enabled,
+            &bridge_network::PeerNetwork::default(),
+        )
+        .await
+    }
+    pub async fn start_with_network(
+        daemon: Arc<Daemon>,
+        secret: [u8; 32],
+        relay_enabled: bool,
+        network: &bridge_network::PeerNetwork,
+    ) -> Result<Self> {
         daemon.set_network("starting", None, None);
         let mut builder = Endpoint::builder(presets::N0)
+            .dns_resolver(bridge_network::dns_resolver())
             .secret_key(SecretKey::from_bytes(&secret))
             .alpns(vec![wire::ALPN.to_vec()]);
+        if let Some(relay) = network.relay_config() {
+            builder = builder.relay_mode(RelayMode::Custom(iroh::RelayMap::from_iter([relay])));
+        }
         if !relay_enabled {
             builder = builder.relay_mode(RelayMode::Disabled);
+        }
+        // A random port on every launch invalidates the direct addresses saved
+        // by paired phones. Reuse the last successful wildcard socket bindings.
+        // Do not silently fall back to new ports if a saved port is occupied.
+        if let Some(addresses) = daemon.store.network_bind_addrs()? {
+            for address in addresses {
+                builder = builder.bind_addr(address).map_err(|_| {
+                    error(
+                        "network_error",
+                        "The saved encrypted endpoint address is invalid.",
+                    )
+                })?;
+            }
         }
         let endpoint = builder
             .bind()
             .await
-            .map_err(|_| error("network_error", "Could not bind the encrypted endpoint."))?;
+            .map_err(|_| error("network_error", "Could not bind the encrypted endpoint. Check whether another process is using its saved UDP port."))?;
+        // Persist before advertising ready or creating any pairing invitation.
+        // This metadata contains only local bind addresses, never identity keys.
+        if let Err(error) = daemon
+            .store
+            .save_network_bind_addrs(&endpoint.bound_sockets())
+        {
+            endpoint.close().await;
+            return Err(error);
+        }
         daemon.set_network(
             "ready",
             Some(endpoint.id().to_string()),
@@ -76,7 +118,48 @@ impl NetworkServer {
             endpoint,
             task: Some(task),
             daemon,
+            fallback_relays: if relay_enabled {
+                RelayMode::Default.relay_map()
+            } else {
+                iroh::RelayMap::empty()
+            },
+            private_relay: network
+                .hints
+                .relay_url
+                .as_ref()
+                .and_then(|url| url.parse().ok()),
         })
+    }
+    /// Update only relay registration: identities, active QUIC connections and Agents survive.
+    pub async fn apply_network(&mut self, network: &bridge_network::PeerNetwork) {
+        let next = network.relay_config();
+        let next_url = next.as_ref().map(|relay| relay.url.clone());
+        if next.is_some() {
+            for url in self.fallback_relays.urls::<Vec<_>>() {
+                if Some(&url) != next_url.as_ref() {
+                    self.endpoint.remove_relay(&url).await;
+                }
+            }
+        } else {
+            for relay in self.fallback_relays.relays::<Vec<_>>() {
+                self.endpoint.insert_relay(relay.url.clone(), relay).await;
+            }
+        }
+        if let Some(relay) = next {
+            self.endpoint
+                .insert_relay(relay.url.clone(), Arc::new(relay))
+                .await;
+        }
+        if let Some(previous) = &self.private_relay {
+            // A private configuration may use one of the default relay URLs.
+            // Disabling it must retain the freshly restored default entry.
+            if Some(previous) != next_url.as_ref()
+                && !(next_url.is_none() && self.fallback_relays.contains(previous))
+            {
+                self.endpoint.remove_relay(previous).await;
+            }
+        }
+        self.private_relay = next_url;
     }
     pub fn endpoint(&self) -> &Endpoint {
         &self.endpoint
@@ -179,6 +262,7 @@ async fn serve_connection(
             _ = tick.tick() => {
                 if guard.registered && daemon.authorize(&peer, &[]).is_err() { break; }
                 guard.register();
+                if guard.registered { daemon.set_device_path(&peer, bridge_network::selected_path(&connection)); }
                 if !guard.registered && accepted_at.elapsed() > Duration::from_secs(130) { break; }
             }
             _ = connection.closed() => break,
@@ -349,9 +433,23 @@ async fn stream_inner(
                 ));
             }
             let mut io = daemon
-                .attach_io(peer, &open.process_id, &open.generation)
+                .attach_chat_io(
+                    peer,
+                    &open.process_id,
+                    &open.generation,
+                    open.resume.as_ref(),
+                    open.record_framed,
+                )
                 .await?;
-            write(send, success("", "null"), max).await?;
+            write(
+                send,
+                success(
+                    "",
+                    &serde_json::json!({"lease_id": io.lease_id()}).to_string(),
+                ),
+                max,
+            )
+            .await?;
             // A dedicated reader owns framing across select! cancellations; dropping
             // read_exact midway would otherwise lose consumed prefix/payload bytes.
             let (input_tx, mut inputs) = tokio::sync::mpsc::channel(4);
@@ -367,6 +465,11 @@ async fn stream_inner(
             let _reader_guard = AbortTask(reader);
             let mut sequence = 0u64;
             let mut offsets = HashMap::<String, u64>::new();
+            if let Some(resume) = &open.resume {
+                offsets.insert("stdout".into(), resume.stdout_offset);
+                offsets.insert("stderr".into(), resume.stderr_offset);
+            }
+            let mut record = Vec::new();
             loop {
                 tokio::select! {
                     incoming = inputs.recv() => {
@@ -375,7 +478,20 @@ async fn stream_inner(
                             return Err(error("invalid_params", "Invalid stdin frame or size."));
                         }
                         daemon.authorize(peer, &["task", "approval"])?;
-                        io.write(input.data).await?;
+                        if open.record_framed {
+                            // Buffer complete records at this stream boundary, not in
+                            // the child. A disconnected half-image cannot poison the
+                            // next session's JSON-RPC input.
+                            for bytes in input.data.split_inclusive(|b| *b == b'\n') {
+                                if record.len() + bytes.len() > crate::process::RECORD_LIMIT {
+                                    return Err(error("resource_limit", "Agent record exceeds 2 MiB."));
+                                }
+                                record.extend_from_slice(bytes);
+                                if record.last() == Some(&b'\n') {
+                                    io.write_record(std::mem::take(&mut record)).await?;
+                                }
+                            }
+                        } else { io.write(input.data).await?; }
                     }
                     output = io.next() => {
                         let Some(output) = output? else {
@@ -456,7 +572,7 @@ async fn pair(
                     return Err(error(
                         "unauthorized",
                         "Pairing was rejected, cancelled or expired.",
-                    ))
+                    ));
                 }
             }
         }
@@ -512,6 +628,15 @@ struct ThreadMessagesBody {
 }
 async fn rpc(daemon: &Daemon, peer: &str, request: RpcRequest) -> Result<String> {
     match request.method.as_str() {
+        "GetCapabilities" => {
+            daemon.authorize(peer, &["view"])?;
+            Ok(serde_json::json!([
+                "io_resume_offsets_v1",
+                "io_lease_replace_v1",
+                "io_ndjson_records_v1"
+            ])
+            .to_string())
+        }
         "Ping" => {
             daemon.authorize(peer, &["view"])?;
             Ok("null".into())
@@ -523,6 +648,14 @@ async fn rpc(daemon: &Daemon, peer: &str, request: RpcRequest) -> Result<String>
         "ListAgents" => {
             daemon.authorize(peer, &["view"])?;
             json(&daemon.list_agents(false).await?)
+        }
+        "ListAgentModels" => {
+            daemon.authorize(peer, &["view"])?;
+            let args: AgentProjectsBody = body(&request.body_json)?;
+            json(&crate::agent_projects::list_agent_models(
+                &args.agent_id,
+                &dirs::home_dir().unwrap_or_default(),
+            ))
         }
         "ListAgentProjects" => {
             daemon.authorize(peer, &["view"])?;

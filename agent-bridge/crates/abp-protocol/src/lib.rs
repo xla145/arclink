@@ -36,6 +36,19 @@ pub struct StreamOpen {
     pub generation: String,
     #[prost(uint64, tag = "4")]
     pub cursor: u64,
+    #[prost(message, optional, tag = "5")]
+    pub resume: Option<IoResume>,
+    #[prost(bool, tag = "6")]
+    pub record_framed: bool,
+}
+#[derive(Clone, PartialEq, Message)]
+pub struct IoResume {
+    #[prost(uint64, tag = "1")]
+    pub stdout_offset: u64,
+    #[prost(uint64, tag = "2")]
+    pub stderr_offset: u64,
+    #[prost(string, tag = "3")]
+    pub previous_lease_id: String,
 }
 #[derive(Clone, PartialEq, Message)]
 pub struct PairRequest {
@@ -299,5 +312,28 @@ mod tests {
         });
         let bytes = frame.encode(MAX_FRAME_BYTES).unwrap();
         assert_eq!(Frame::decode_payload(&bytes[4..]).unwrap(), frame);
+    }
+    #[test]
+    fn optional_resume_fields_preserve_legacy_wire_and_round_trip() {
+        let legacy = StreamOpen {
+            kind: STREAM_AGENT_IO,
+            process_id: "p".into(),
+            generation: "g".into(),
+            ..Default::default()
+        };
+        assert_eq!(legacy.encode_to_vec(), vec![8, 3, 18, 1, b'p', 26, 1, b'g']);
+        let current = StreamOpen {
+            resume: Some(IoResume {
+                stdout_offset: 37,
+                stderr_offset: 9,
+                previous_lease_id: "lease".into(),
+            }),
+            record_framed: true,
+            ..legacy
+        };
+        assert_eq!(
+            StreamOpen::decode(current.encode_to_vec().as_slice()).unwrap(),
+            current
+        );
     }
 }
