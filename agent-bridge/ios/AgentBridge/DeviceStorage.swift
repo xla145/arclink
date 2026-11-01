@@ -9,6 +9,53 @@ struct DeviceWorkspace: Codable {
     var approvals: [ApprovalItem] = []
     var permission = "完全访问"
     var selectedProjectIDs: [String: String]? = nil
+    // nil keeps existing v2 records compatible; an empty catalog is a successful result.
+    var projectCatalogs: [String: ProjectCatalogCache]? = nil
+}
+
+/// Durable source catalog for the importer/picker, separate from editable workspace rows.
+struct ProjectCatalogCache: Codable {
+    var fetchedAt: Date
+    var projects: [CachedMacProject]
+    var sourceSchema: Int?
+
+    init(fetchedAt: Date, projects: [MacProject]) {
+        self.sourceSchema = 2
+        self.fetchedAt = fetchedAt
+        self.projects = projects.map(CachedMacProject.init)
+    }
+    var values: [MacProject] { projects.map(\.value) }
+    func isFresh(at now: Date) -> Bool {
+        let age = now.timeIntervalSince(fetchedAt)
+        return sourceSchema == 2 && age >= 0 && age < 300
+    }
+}
+
+struct CachedMacProject: Codable {
+    var path: String
+    var lastSeen: String?
+    var name: String?
+    var threads: [CachedMacThread]
+
+    init(_ project: MacProject) {
+        path = project.path; lastSeen = project.lastSeen; name = project.name
+        threads = project.threads.map(CachedMacThread.init)
+    }
+    var value: MacProject {
+        MacProject(path: path, lastSeen: lastSeen, name: name, threads: threads.map(\.value))
+    }
+}
+
+struct CachedMacThread: Codable {
+    var id: String
+    var title: String
+    var updatedAt: String?
+    var source: String?
+
+    init(_ thread: MacThread) {
+        id = thread.id; title = thread.title; updatedAt = thread.updatedAt; source = thread.source
+    }
+    var value: MacThread { MacThread(id: id, title: title, updatedAt: updatedAt, source: source) }
 }
 
 struct PairedMac: Identifiable, Codable {
@@ -16,6 +63,10 @@ struct PairedMac: Identifiable, Codable {
     var name: String
     var endpointID: String?
     var workspace = DeviceWorkspace()
+    var network: SavedPeerNetwork? = nil
+
+    // Older pairing invitations persisted the former product name as the host name.
+    var displayName: String { name == "Agent Bridge" ? "ArcLink" : name }
 }
 
 struct DeviceSnapshot: Codable {
@@ -119,8 +170,12 @@ protocol DeviceTransport: AnyObject {
     func reconnect() async -> ConnectionState
     func disconnect() async
     func ping() async throws
+    func pathKind() async -> String
     func listAgents() async throws -> [AgentInfo]
     func listAgentProjects(agentId: String) async throws -> [MacProject]
+}
+extension DeviceTransport {
+    func pathKind() async -> String { "unknown" }
 }
 extension BridgeConnection: DeviceTransport {}
 
@@ -129,10 +184,10 @@ extension BridgeConnection: DeviceTransport {}
 final class DeviceRuntime {
     let transport: any DeviceTransport
     var state: ConnectionState = .idle
+    var pathKind = "unknown"
     var agents: [AgentInfo] = []
     var generation = UUID()
     var refreshing = false
-    var importedAgentIDs: Set<String> = []
     /// Consecutive health-check RPC failures. One blip does not drop the
     /// link; the connection is redialed only after a second failure.
     var rpcFailures = 0

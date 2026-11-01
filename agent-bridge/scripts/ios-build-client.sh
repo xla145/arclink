@@ -18,6 +18,15 @@ cargo run -p agent-bridge-client --bin uniffi-bindgen --features uniffi/cli -- \
   generate --library "$PWD/target/debug/libagent_bridge_client.dylib" \
   --language swift --out-dir "$GEN" --no-format
 
+# UniFFI emits trailing spaces; normalize deterministically after every generation.
+python3 - <<'PYGEN'
+from pathlib import Path
+for path in Path("ios/AgentBridge/Generated").iterdir():
+    if path.suffix in {".swift", ".h", ".modulemap"}:
+        text = path.read_text()
+        path.write_text("\n".join(line.rstrip() for line in text.splitlines()) + "\n")
+PYGEN
+
 cat > ios/AgentBridge/Bridging-Header.h <<'EOF'
 #import "Generated/agent_bridge_clientFFI.h"
 EOF

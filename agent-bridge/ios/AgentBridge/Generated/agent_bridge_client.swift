@@ -398,7 +398,7 @@ private func uniffiTraitInterfaceCallWithError<T, E>(
         callStatus.pointee.errorBuf = FfiConverterString.lower(String(describing: error))
     }
 }
-// Initial value and increment amount for handles. 
+// Initial value and increment amount for handles.
 // These ensure that SWIFT handles always have the lowest bit set
 fileprivate let UNIFFI_HANDLEMAP_INITIAL: UInt64 = 1
 fileprivate let UNIFFI_HANDLEMAP_DELTA: UInt64 = 2
@@ -614,33 +614,40 @@ fileprivate struct FfiConverterData: FfiConverterRustBuffer {
  * `Connection`, never the bound identity.
  */
 public protocol BridgeConnectionProtocol: AnyObject, Sendable {
-    
+
+    /**
+     * Opens an atomic NDJSON input stream with proven reconnect capabilities.
+     */
+    func attachChatIo(processId: String, generation: String, callback: AgentIoCallback) async throws  -> IoHandle
+
     /**
      * Opens a dedicated `STREAM_AGENT_IO` stream for a process the Mac
      * already knows about and pushes every frame to `callback` until the
      * process exits, the stream errors, or `IoHandle::close()` is called.
      */
     func attachIo(processId: String, generation: String, callback: AgentIoCallback) async throws  -> IoHandle
-    
+
     /**
      * Connects if idle/disconnected; a no-op (besides re-reporting state)
      * when already connected. Use `reconnect()` to force a fresh attempt.
      */
     func connect() async  -> ConnectionState
-    
-    func disconnect() async 
-    
+
+    func disconnect() async
+
     func getProcessStatus(processId: String, generation: String) async throws  -> ProcessInfo
-    
+
     func getSystemInfo() async throws  -> SystemInfo
-    
+
     /**
      * The user/assistant turns of one conversation, read from the Agent's
      * own session records on the Mac. Tool calls, reasoning, and system
      * prompts are filtered out server-side.
      */
     func getThreadMessages(agentId: String, threadId: String) async throws  -> [MacMessage]
-    
+
+    func listAgentModels(agentId: String) async throws  -> [MacModel]
+
     /**
      * Real, on-disk project paths the Agent itself already tracked on the
      * Mac (Codex's `~/.codex/config.toml`, Claude Code's
@@ -648,25 +655,29 @@ public protocol BridgeConnectionProtocol: AnyObject, Sendable {
      * the normal "never ran here" case, not a failure.
      */
     func listAgentProjects(agentId: String) async throws  -> [MacProject]
-    
+
     func listAgents() async throws  -> [AgentInfo]
-    
+
     func listProcesses() async throws  -> [ProcessInfo]
-    
-    func ping() async throws 
-    
+
+    func pathKind() async  -> String
+
+    func ping() async throws
+
     /**
      * Drops the current `Connection` (if any) and dials again on the same
      * bound `Endpoint`/identity.
      */
     func reconnect() async  -> ConnectionState
-    
+
+    func resumeChatIo(processId: String, generation: String, stdoutOffset: UInt64, stderrOffset: UInt64, previousLeaseId: String, callback: AgentIoCallback) async throws  -> IoHandle
+
     func startProcess(operationId: String, agentId: String, cwd: String) async throws  -> ProcessInfo
-    
+
     func state()  -> ConnectionState
-    
+
     func stopProcess(operationId: String, processId: String, generation: String) async throws  -> ProcessInfo
-    
+
 }
 /**
  * A persistent handle to one Mac. Binds its iroh `Endpoint` once (reusing
@@ -734,9 +745,39 @@ public convenience init(keyPath: String, endpointId: String) {
         try! rustCall { uniffi_agent_bridge_client_fn_free_bridgeconnection(handle, $0) }
     }
 
-    
 
-    
+public static func withNetwork(keyPath: String, endpointId: String, network: PeerNetworkConfig)throws  -> BridgeConnection  {
+    return try  FfiConverterTypeBridgeConnection_lift(try rustCallWithError(FfiConverterTypeBridgeError_lift) {
+        uniffiCallStatus in
+    uniffi_agent_bridge_client_fn_constructor_bridgeconnection_with_network(
+        FfiConverterString.lower(keyPath),
+        FfiConverterString.lower(endpointId),
+        FfiConverterTypePeerNetworkConfig_lower(network),uniffiCallStatus
+    )
+})
+}
+
+
+
+    /**
+     * Opens an atomic NDJSON input stream with proven reconnect capabilities.
+     */
+open func attachChatIo(processId: String, generation: String, callback: AgentIoCallback)async throws  -> IoHandle  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_agent_bridge_client_fn_method_bridgeconnection_attach_chat_io(
+                        self.uniffiCloneHandle(),FfiConverterString.lower(processId),FfiConverterString.lower(generation),FfiConverterCallbackInterfaceAgentIoCallback_lower(callback)
+                )
+            },
+            pollFunc: ffi_agent_bridge_client_rust_future_poll_u64,
+            completeFunc: ffi_agent_bridge_client_rust_future_complete_u64,
+            freeFunc: ffi_agent_bridge_client_rust_future_free_u64,
+            liftFunc: FfiConverterTypeIoHandle_lift,
+            errorHandler: FfiConverterTypeBridgeError_lift
+        )
+}
+
     /**
      * Opens a dedicated `STREAM_AGENT_IO` stream for a process the Mac
      * already knows about and pushes every frame to `callback` until the
@@ -757,7 +798,7 @@ open func attachIo(processId: String, generation: String, callback: AgentIoCallb
             errorHandler: FfiConverterTypeBridgeError_lift
         )
 }
-    
+
     /**
      * Connects if idle/disconnected; a no-op (besides re-reporting state)
      * when already connected. Use `reconnect()` to force a fresh attempt.
@@ -775,10 +816,10 @@ open func connect()async  -> ConnectionState  {
             freeFunc: ffi_agent_bridge_client_rust_future_free_rust_buffer,
             liftFunc: FfiConverterTypeConnectionState_lift,
             errorHandler: nil
-            
+
         )
 }
-    
+
 open func disconnect()async   {
     return
         try!  await uniffiRustCallAsync(
@@ -792,10 +833,10 @@ open func disconnect()async   {
             freeFunc: ffi_agent_bridge_client_rust_future_free_void,
             liftFunc: { $0 },
             errorHandler: nil
-            
+
         )
 }
-    
+
 open func getProcessStatus(processId: String, generation: String)async throws  -> ProcessInfo  {
     return
         try  await uniffiRustCallAsync(
@@ -811,7 +852,7 @@ open func getProcessStatus(processId: String, generation: String)async throws  -
             errorHandler: FfiConverterTypeBridgeError_lift
         )
 }
-    
+
 open func getSystemInfo()async throws  -> SystemInfo  {
     return
         try  await uniffiRustCallAsync(
@@ -827,7 +868,7 @@ open func getSystemInfo()async throws  -> SystemInfo  {
             errorHandler: FfiConverterTypeBridgeError_lift
         )
 }
-    
+
     /**
      * The user/assistant turns of one conversation, read from the Agent's
      * own session records on the Mac. Tool calls, reasoning, and system
@@ -848,7 +889,23 @@ open func getThreadMessages(agentId: String, threadId: String)async throws  -> [
             errorHandler: FfiConverterTypeBridgeError_lift
         )
 }
-    
+
+open func listAgentModels(agentId: String)async throws  -> [MacModel]  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_agent_bridge_client_fn_method_bridgeconnection_list_agent_models(
+                        self.uniffiCloneHandle(),FfiConverterString.lower(agentId)
+                )
+            },
+            pollFunc: ffi_agent_bridge_client_rust_future_poll_rust_buffer,
+            completeFunc: ffi_agent_bridge_client_rust_future_complete_rust_buffer,
+            freeFunc: ffi_agent_bridge_client_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterSequenceTypeMacModel.lift,
+            errorHandler: FfiConverterTypeBridgeError_lift
+        )
+}
+
     /**
      * Real, on-disk project paths the Agent itself already tracked on the
      * Mac (Codex's `~/.codex/config.toml`, Claude Code's
@@ -870,7 +927,7 @@ open func listAgentProjects(agentId: String)async throws  -> [MacProject]  {
             errorHandler: FfiConverterTypeBridgeError_lift
         )
 }
-    
+
 open func listAgents()async throws  -> [AgentInfo]  {
     return
         try  await uniffiRustCallAsync(
@@ -886,7 +943,7 @@ open func listAgents()async throws  -> [AgentInfo]  {
             errorHandler: FfiConverterTypeBridgeError_lift
         )
 }
-    
+
 open func listProcesses()async throws  -> [ProcessInfo]  {
     return
         try  await uniffiRustCallAsync(
@@ -902,7 +959,24 @@ open func listProcesses()async throws  -> [ProcessInfo]  {
             errorHandler: FfiConverterTypeBridgeError_lift
         )
 }
-    
+
+open func pathKind()async  -> String  {
+    return
+        try!  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_agent_bridge_client_fn_method_bridgeconnection_path_kind(
+                        self.uniffiCloneHandle()
+                )
+            },
+            pollFunc: ffi_agent_bridge_client_rust_future_poll_rust_buffer,
+            completeFunc: ffi_agent_bridge_client_rust_future_complete_rust_buffer,
+            freeFunc: ffi_agent_bridge_client_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterString.lift,
+            errorHandler: nil
+
+        )
+}
+
 open func ping()async throws   {
     return
         try  await uniffiRustCallAsync(
@@ -918,7 +992,7 @@ open func ping()async throws   {
             errorHandler: FfiConverterTypeBridgeError_lift
         )
 }
-    
+
     /**
      * Drops the current `Connection` (if any) and dials again on the same
      * bound `Endpoint`/identity.
@@ -936,10 +1010,26 @@ open func reconnect()async  -> ConnectionState  {
             freeFunc: ffi_agent_bridge_client_rust_future_free_rust_buffer,
             liftFunc: FfiConverterTypeConnectionState_lift,
             errorHandler: nil
-            
+
         )
 }
-    
+
+open func resumeChatIo(processId: String, generation: String, stdoutOffset: UInt64, stderrOffset: UInt64, previousLeaseId: String, callback: AgentIoCallback)async throws  -> IoHandle  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_agent_bridge_client_fn_method_bridgeconnection_resume_chat_io(
+                        self.uniffiCloneHandle(),FfiConverterString.lower(processId),FfiConverterString.lower(generation),FfiConverterUInt64.lower(stdoutOffset),FfiConverterUInt64.lower(stderrOffset),FfiConverterString.lower(previousLeaseId),FfiConverterCallbackInterfaceAgentIoCallback_lower(callback)
+                )
+            },
+            pollFunc: ffi_agent_bridge_client_rust_future_poll_u64,
+            completeFunc: ffi_agent_bridge_client_rust_future_complete_u64,
+            freeFunc: ffi_agent_bridge_client_rust_future_free_u64,
+            liftFunc: FfiConverterTypeIoHandle_lift,
+            errorHandler: FfiConverterTypeBridgeError_lift
+        )
+}
+
 open func startProcess(operationId: String, agentId: String, cwd: String)async throws  -> ProcessInfo  {
     return
         try  await uniffiRustCallAsync(
@@ -955,7 +1045,7 @@ open func startProcess(operationId: String, agentId: String, cwd: String)async t
             errorHandler: FfiConverterTypeBridgeError_lift
         )
 }
-    
+
 open func state() -> ConnectionState  {
     return try!  FfiConverterTypeConnectionState_lift(try! rustCall() {
         uniffiCallStatus in
@@ -964,7 +1054,7 @@ open func state() -> ConnectionState  {
     )
 })
 }
-    
+
 open func stopProcess(operationId: String, processId: String, generation: String)async throws  -> ProcessInfo  {
     return
         try  await uniffiRustCallAsync(
@@ -980,9 +1070,9 @@ open func stopProcess(operationId: String, processId: String, generation: String
             errorHandler: FfiConverterTypeBridgeError_lift
         )
 }
-    
 
-    
+
+
 }
 
 
@@ -1037,11 +1127,13 @@ public func FfiConverterTypeBridgeConnection_lower(_ value: BridgeConnection) ->
  * explicitly and deterministically.
  */
 public protocol IoHandleProtocol: AnyObject, Sendable {
-    
-    func close() 
-    
-    func writeStdin(data: Data) async throws 
-    
+
+    func close()
+
+    func leaseId()  -> String
+
+    func writeStdin(data: Data) async throws
+
 }
 /**
  * Handle to a live AgentIO stream for one process. Dropping it (Swift
@@ -1098,9 +1190,9 @@ open class IoHandle: IoHandleProtocol, @unchecked Sendable {
         try! rustCall { uniffi_agent_bridge_client_fn_free_iohandle(handle, $0) }
     }
 
-    
 
-    
+
+
 open func close()  {try! rustCall() {
         uniffiCallStatus in
     uniffi_agent_bridge_client_fn_method_iohandle_close(
@@ -1108,7 +1200,16 @@ open func close()  {try! rustCall() {
     )
 }
 }
-    
+
+open func leaseId() -> String  {
+    return try!  FfiConverterString.lift(try! rustCall() {
+        uniffiCallStatus in
+    uniffi_agent_bridge_client_fn_method_iohandle_lease_id(
+            self.uniffiCloneHandle(),uniffiCallStatus
+    )
+})
+}
+
 open func writeStdin(data: Data)async throws   {
     return
         try  await uniffiRustCallAsync(
@@ -1124,9 +1225,9 @@ open func writeStdin(data: Data)async throws   {
             errorHandler: FfiConverterTypeBridgeError_lift
         )
 }
-    
 
-    
+
+
 }
 
 
@@ -1190,9 +1291,9 @@ public struct AgentInfo: Equatable, Hashable {
         self.validation = validation
     }
 
-    
 
-    
+
+
 }
 
 #if compiler(>=6)
@@ -1206,10 +1307,10 @@ public struct FfiConverterTypeAgentInfo: FfiConverterRustBuffer {
     public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> AgentInfo {
         return
             try AgentInfo(
-                id: FfiConverterString.read(from: &buf), 
-                name: FfiConverterString.read(from: &buf), 
-                version: FfiConverterOptionString.read(from: &buf), 
-                status: FfiConverterString.read(from: &buf), 
+                id: FfiConverterString.read(from: &buf),
+                name: FfiConverterString.read(from: &buf),
+                version: FfiConverterOptionString.read(from: &buf),
+                status: FfiConverterString.read(from: &buf),
                 validation: FfiConverterString.read(from: &buf)
         )
     }
@@ -1247,18 +1348,28 @@ public struct MacMessage: Equatable, Hashable {
     public var role: String
     public var text: String
     public var timestamp: String?
+    public var toolCallId: String?
+    public var toolName: String?
+    public var toolPhase: String?
+    public var toolFailed: Bool?
+    public var assistantPhase: String?
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(role: String, text: String, timestamp: String?) {
+    public init(role: String, text: String, timestamp: String?, toolCallId: String?, toolName: String?, toolPhase: String?, toolFailed: Bool?, assistantPhase: String?) {
         self.role = role
         self.text = text
         self.timestamp = timestamp
+        self.toolCallId = toolCallId
+        self.toolName = toolName
+        self.toolPhase = toolPhase
+        self.toolFailed = toolFailed
+        self.assistantPhase = assistantPhase
     }
 
-    
 
-    
+
+
 }
 
 #if compiler(>=6)
@@ -1272,9 +1383,14 @@ public struct FfiConverterTypeMacMessage: FfiConverterRustBuffer {
     public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> MacMessage {
         return
             try MacMessage(
-                role: FfiConverterString.read(from: &buf), 
-                text: FfiConverterString.read(from: &buf), 
-                timestamp: FfiConverterOptionString.read(from: &buf)
+                role: FfiConverterString.read(from: &buf),
+                text: FfiConverterString.read(from: &buf),
+                timestamp: FfiConverterOptionString.read(from: &buf),
+                toolCallId: FfiConverterOptionString.read(from: &buf),
+                toolName: FfiConverterOptionString.read(from: &buf),
+                toolPhase: FfiConverterOptionString.read(from: &buf),
+                toolFailed: FfiConverterOptionBool.read(from: &buf),
+                assistantPhase: FfiConverterOptionString.read(from: &buf)
         )
     }
 
@@ -1282,6 +1398,11 @@ public struct FfiConverterTypeMacMessage: FfiConverterRustBuffer {
         FfiConverterString.write(value.role, into: &buf)
         FfiConverterString.write(value.text, into: &buf)
         FfiConverterOptionString.write(value.timestamp, into: &buf)
+        FfiConverterOptionString.write(value.toolCallId, into: &buf)
+        FfiConverterOptionString.write(value.toolName, into: &buf)
+        FfiConverterOptionString.write(value.toolPhase, into: &buf)
+        FfiConverterOptionBool.write(value.toolFailed, into: &buf)
+        FfiConverterOptionString.write(value.assistantPhase, into: &buf)
     }
 }
 
@@ -1298,6 +1419,60 @@ public func FfiConverterTypeMacMessage_lift(_ buf: RustBuffer) throws -> MacMess
 #endif
 public func FfiConverterTypeMacMessage_lower(_ value: MacMessage) -> RustBuffer {
     return FfiConverterTypeMacMessage.lower(value)
+}
+
+
+public struct MacModel: Equatable, Hashable {
+    public var id: String
+    public var name: String
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(id: String, name: String) {
+        self.id = id
+        self.name = name
+    }
+
+
+
+
+}
+
+#if compiler(>=6)
+extension MacModel: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeMacModel: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> MacModel {
+        return
+            try MacModel(
+                id: FfiConverterString.read(from: &buf),
+                name: FfiConverterString.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: MacModel, into buf: inout [UInt8]) {
+        FfiConverterString.write(value.id, into: &buf)
+        FfiConverterString.write(value.name, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeMacModel_lift(_ buf: RustBuffer) throws -> MacModel {
+    return try FfiConverterTypeMacModel.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeMacModel_lower(_ value: MacModel) -> RustBuffer {
+    return FfiConverterTypeMacModel.lower(value)
 }
 
 
@@ -1320,9 +1495,9 @@ public struct MacProject: Equatable, Hashable {
         self.threads = threads
     }
 
-    
 
-    
+
+
 }
 
 #if compiler(>=6)
@@ -1336,9 +1511,9 @@ public struct FfiConverterTypeMacProject: FfiConverterRustBuffer {
     public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> MacProject {
         return
             try MacProject(
-                path: FfiConverterString.read(from: &buf), 
-                lastSeen: FfiConverterOptionString.read(from: &buf), 
-                name: FfiConverterOptionString.read(from: &buf), 
+                path: FfiConverterString.read(from: &buf),
+                lastSeen: FfiConverterOptionString.read(from: &buf),
+                name: FfiConverterOptionString.read(from: &buf),
                 threads: FfiConverterSequenceTypeMacThread.read(from: &buf)
         )
     }
@@ -1371,18 +1546,20 @@ public struct MacThread: Equatable, Hashable {
     public var id: String
     public var title: String
     public var updatedAt: String?
+    public var source: String?
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(id: String, title: String, updatedAt: String?) {
+    public init(id: String, title: String, updatedAt: String?, source: String?) {
         self.id = id
         self.title = title
         self.updatedAt = updatedAt
+        self.source = source
     }
 
-    
 
-    
+
+
 }
 
 #if compiler(>=6)
@@ -1396,9 +1573,10 @@ public struct FfiConverterTypeMacThread: FfiConverterRustBuffer {
     public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> MacThread {
         return
             try MacThread(
-                id: FfiConverterString.read(from: &buf), 
-                title: FfiConverterString.read(from: &buf), 
-                updatedAt: FfiConverterOptionString.read(from: &buf)
+                id: FfiConverterString.read(from: &buf),
+                title: FfiConverterString.read(from: &buf),
+                updatedAt: FfiConverterOptionString.read(from: &buf),
+                source: FfiConverterOptionString.read(from: &buf)
         )
     }
 
@@ -1406,6 +1584,7 @@ public struct FfiConverterTypeMacThread: FfiConverterRustBuffer {
         FfiConverterString.write(value.id, into: &buf)
         FfiConverterString.write(value.title, into: &buf)
         FfiConverterOptionString.write(value.updatedAt, into: &buf)
+        FfiConverterOptionString.write(value.source, into: &buf)
     }
 }
 
@@ -1440,10 +1619,10 @@ public struct PairOutcome: Equatable, Hashable {
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(ok: Bool, 
+    public init(ok: Bool,
         /**
          * This phone's stable iroh node id (the device id the Mac binds to).
-         */deviceId: String, 
+         */deviceId: String,
         /**
          * Pending = Mac is showing the approval prompt.
          */pending: Bool, errorCode: String, errorMessage: String) {
@@ -1454,9 +1633,9 @@ public struct PairOutcome: Equatable, Hashable {
         self.errorMessage = errorMessage
     }
 
-    
 
-    
+
+
 }
 
 #if compiler(>=6)
@@ -1470,10 +1649,10 @@ public struct FfiConverterTypePairOutcome: FfiConverterRustBuffer {
     public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> PairOutcome {
         return
             try PairOutcome(
-                ok: FfiConverterBool.read(from: &buf), 
-                deviceId: FfiConverterString.read(from: &buf), 
-                pending: FfiConverterBool.read(from: &buf), 
-                errorCode: FfiConverterString.read(from: &buf), 
+                ok: FfiConverterBool.read(from: &buf),
+                deviceId: FfiConverterString.read(from: &buf),
+                pending: FfiConverterBool.read(from: &buf),
+                errorCode: FfiConverterString.read(from: &buf),
                 errorMessage: FfiConverterString.read(from: &buf)
         )
     }
@@ -1503,6 +1682,67 @@ public func FfiConverterTypePairOutcome_lower(_ value: PairOutcome) -> RustBuffe
 }
 
 
+/**
+ * Network input may carry an access key transiently; callers store it only in Keychain.
+ */
+public struct PeerNetworkConfig: Equatable, Hashable {
+    public var relayUrl: String?
+    public var relayAccessKey: String?
+    public var directAddresses: [String]
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(relayUrl: String?, relayAccessKey: String?, directAddresses: [String]) {
+        self.relayUrl = relayUrl
+        self.relayAccessKey = relayAccessKey
+        self.directAddresses = directAddresses
+    }
+
+
+
+
+}
+
+#if compiler(>=6)
+extension PeerNetworkConfig: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypePeerNetworkConfig: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> PeerNetworkConfig {
+        return
+            try PeerNetworkConfig(
+                relayUrl: FfiConverterOptionString.read(from: &buf),
+                relayAccessKey: FfiConverterOptionString.read(from: &buf),
+                directAddresses: FfiConverterSequenceString.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: PeerNetworkConfig, into buf: inout [UInt8]) {
+        FfiConverterOptionString.write(value.relayUrl, into: &buf)
+        FfiConverterOptionString.write(value.relayAccessKey, into: &buf)
+        FfiConverterSequenceString.write(value.directAddresses, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypePeerNetworkConfig_lift(_ buf: RustBuffer) throws -> PeerNetworkConfig {
+    return try FfiConverterTypePeerNetworkConfig.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypePeerNetworkConfig_lower(_ value: PeerNetworkConfig) -> RustBuffer {
+    return FfiConverterTypePeerNetworkConfig.lower(value)
+}
+
+
 public struct ProcessInfo: Equatable, Hashable {
     public var processId: String
     public var generation: String
@@ -1522,9 +1762,9 @@ public struct ProcessInfo: Equatable, Hashable {
         self.exitCode = exitCode
     }
 
-    
 
-    
+
+
 }
 
 #if compiler(>=6)
@@ -1538,11 +1778,11 @@ public struct FfiConverterTypeProcessInfo: FfiConverterRustBuffer {
     public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> ProcessInfo {
         return
             try ProcessInfo(
-                processId: FfiConverterString.read(from: &buf), 
-                generation: FfiConverterString.read(from: &buf), 
-                agentId: FfiConverterString.read(from: &buf), 
-                state: FfiConverterString.read(from: &buf), 
-                pid: FfiConverterOptionUInt32.read(from: &buf), 
+                processId: FfiConverterString.read(from: &buf),
+                generation: FfiConverterString.read(from: &buf),
+                agentId: FfiConverterString.read(from: &buf),
+                state: FfiConverterString.read(from: &buf),
+                pid: FfiConverterOptionUInt32.read(from: &buf),
                 exitCode: FfiConverterOptionInt32.read(from: &buf)
         )
     }
@@ -1590,9 +1830,9 @@ public struct SystemInfo: Equatable, Hashable {
         self.connectedDevices = connectedDevices
     }
 
-    
 
-    
+
+
 }
 
 #if compiler(>=6)
@@ -1606,10 +1846,10 @@ public struct FfiConverterTypeSystemInfo: FfiConverterRustBuffer {
     public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SystemInfo {
         return
             try SystemInfo(
-                running: FfiConverterBool.read(from: &buf), 
-                uptimeSecs: FfiConverterUInt32.read(from: &buf), 
-                networkState: FfiConverterString.read(from: &buf), 
-                activeProcesses: FfiConverterUInt32.read(from: &buf), 
+                running: FfiConverterBool.read(from: &buf),
+                uptimeSecs: FfiConverterUInt32.read(from: &buf),
+                networkState: FfiConverterString.read(from: &buf),
+                activeProcesses: FfiConverterUInt32.read(from: &buf),
                 connectedDevices: FfiConverterUInt32.read(from: &buf)
         )
     }
@@ -1639,23 +1879,23 @@ public func FfiConverterTypeSystemInfo_lower(_ value: SystemInfo) -> RustBuffer 
 }
 
 
-public 
+public
 enum BridgeError: Swift.Error, Equatable, Hashable, Foundation.LocalizedError {
 
-    
-    
+
+
     case Failed(code: String, message: String
     )
 
-    
 
-    
 
-    
+
+
+
     public var errorDescription: String? {
         String(reflecting: self)
     }
-    
+
 }
 
 #if compiler(>=6)
@@ -1672,11 +1912,11 @@ public struct FfiConverterTypeBridgeError: FfiConverterRustBuffer {
         let variant: Int32 = try readInt(&buf)
         switch variant {
 
-        
 
-        
+
+
         case 1: return .Failed(
-            code: try FfiConverterString.read(from: &buf), 
+            code: try FfiConverterString.read(from: &buf),
             message: try FfiConverterString.read(from: &buf)
             )
 
@@ -1687,15 +1927,15 @@ public struct FfiConverterTypeBridgeError: FfiConverterRustBuffer {
     public static func write(_ value: BridgeError, into buf: inout [UInt8]) {
         switch value {
 
-        
 
-        
-        
+
+
+
         case let .Failed(code,message):
             writeInt(&buf, Int32(1))
             FfiConverterString.write(code, into: &buf)
             FfiConverterString.write(message, into: &buf)
-            
+
         }
     }
 }
@@ -1718,7 +1958,7 @@ public func FfiConverterTypeBridgeError_lower(_ value: BridgeError) -> RustBuffe
 
 
 public enum ConnectionState: Equatable, Hashable {
-    
+
     case idle
     case connecting
     case connected
@@ -1745,47 +1985,47 @@ public struct FfiConverterTypeConnectionState: FfiConverterRustBuffer {
     public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> ConnectionState {
         let variant: Int32 = try readInt(&buf)
         switch variant {
-        
+
         case 1: return .idle
-        
+
         case 2: return .connecting
-        
+
         case 3: return .connected
-        
+
         case 4: return .disconnected
-        
+
         case 5: return .failed(code: try FfiConverterString.read(from: &buf), message: try FfiConverterString.read(from: &buf)
         )
-        
+
         default: throw UniffiInternalError.unexpectedEnumCase
         }
     }
 
     public static func write(_ value: ConnectionState, into buf: inout [UInt8]) {
         switch value {
-        
-        
+
+
         case .idle:
             writeInt(&buf, Int32(1))
-        
-        
+
+
         case .connecting:
             writeInt(&buf, Int32(2))
-        
-        
+
+
         case .connected:
             writeInt(&buf, Int32(3))
-        
-        
+
+
         case .disconnected:
             writeInt(&buf, Int32(4))
-        
-        
+
+
         case let .failed(code,message):
             writeInt(&buf, Int32(5))
             FfiConverterString.write(code, into: &buf)
             FfiConverterString.write(message, into: &buf)
-            
+
         }
     }
 }
@@ -1808,23 +2048,96 @@ public func FfiConverterTypeConnectionState_lower(_ value: ConnectionState) -> R
 
 
 
+public enum PairingStage: Equatable, Hashable {
+
+    case connecting
+    case handshaking
+    case awaitingApproval
+
+
+
+
+
+}
+
+#if compiler(>=6)
+extension PairingStage: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypePairingStage: FfiConverterRustBuffer {
+    typealias SwiftType = PairingStage
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> PairingStage {
+        let variant: Int32 = try readInt(&buf)
+        switch variant {
+
+        case 1: return .connecting
+
+        case 2: return .handshaking
+
+        case 3: return .awaitingApproval
+
+        default: throw UniffiInternalError.unexpectedEnumCase
+        }
+    }
+
+    public static func write(_ value: PairingStage, into buf: inout [UInt8]) {
+        switch value {
+
+
+        case .connecting:
+            writeInt(&buf, Int32(1))
+
+
+        case .handshaking:
+            writeInt(&buf, Int32(2))
+
+
+        case .awaitingApproval:
+            writeInt(&buf, Int32(3))
+
+        }
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypePairingStage_lift(_ buf: RustBuffer) throws -> PairingStage {
+    return try FfiConverterTypePairingStage.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypePairingStage_lower(_ value: PairingStage) -> RustBuffer {
+    return FfiConverterTypePairingStage.lower(value)
+}
+
+
+
+
 
 /**
  * Pushed to Swift as AgentIO frames arrive. All methods must return quickly;
  * do real work on the Swift side asynchronously.
  */
 public protocol AgentIoCallback: AnyObject, Sendable {
-    
-    func onStdout(data: Data, cursor: UInt64, offset: UInt64) 
-    
-    func onStderr(data: Data, cursor: UInt64, offset: UInt64) 
-    
-    func onGap(affectedChannel: Int32, offset: UInt64, lostBytes: UInt64) 
-    
-    func onExit(exitCode: Int32?) 
-    
-    func onError(code: String, message: String) 
-    
+
+    func onStdout(data: Data, cursor: UInt64, offset: UInt64)
+
+    func onStderr(data: Data, cursor: UInt64, offset: UInt64)
+
+    func onGap(affectedChannel: Int32, offset: UInt64, lostBytes: UInt64)
+
+    func onExit(exitCode: Int32?)
+
+    func onError(code: String, message: String)
+
 }
 
 
@@ -1870,7 +2183,7 @@ fileprivate struct UniffiCallbackInterfaceAgentIoCallback {
                 )
             }
 
-            
+
             let writeReturn = { () }
             uniffiTraitInterfaceCall(
                 callStatus: uniffiCallStatus,
@@ -1898,7 +2211,7 @@ fileprivate struct UniffiCallbackInterfaceAgentIoCallback {
                 )
             }
 
-            
+
             let writeReturn = { () }
             uniffiTraitInterfaceCall(
                 callStatus: uniffiCallStatus,
@@ -1926,7 +2239,7 @@ fileprivate struct UniffiCallbackInterfaceAgentIoCallback {
                 )
             }
 
-            
+
             let writeReturn = { () }
             uniffiTraitInterfaceCall(
                 callStatus: uniffiCallStatus,
@@ -1950,7 +2263,7 @@ fileprivate struct UniffiCallbackInterfaceAgentIoCallback {
                 )
             }
 
-            
+
             let writeReturn = { () }
             uniffiTraitInterfaceCall(
                 callStatus: uniffiCallStatus,
@@ -1976,7 +2289,7 @@ fileprivate struct UniffiCallbackInterfaceAgentIoCallback {
                 )
             }
 
-            
+
             let writeReturn = { () }
             uniffiTraitInterfaceCall(
                 callStatus: uniffiCallStatus,
@@ -2063,6 +2376,141 @@ public func FfiConverterCallbackInterfaceAgentIoCallback_lower(_ v: AgentIoCallb
     return FfiConverterCallbackInterfaceAgentIoCallback.lower(v)
 }
 
+
+
+
+public protocol PairingProgressCallback: AnyObject, Sendable {
+
+    func onStage(stage: PairingStage)
+
+}
+
+
+// Put the implementation in a struct so we don't pollute the top-level namespace
+fileprivate struct UniffiCallbackInterfacePairingProgressCallback {
+
+    // Create the VTable using a series of closures.
+    // Swift automatically converts these into C callback functions.
+    //
+    // Store the vtable directly.
+    static let vtable: UniffiVTableCallbackInterfacePairingProgressCallback = UniffiVTableCallbackInterfacePairingProgressCallback(
+        uniffiFree: { (uniffiHandle: UInt64) -> () in
+            do {
+                try FfiConverterCallbackInterfacePairingProgressCallback.handleMap.remove(handle: uniffiHandle)
+            } catch {
+                print("Uniffi callback interface PairingProgressCallback: handle missing in uniffiFree")
+            }
+        },
+        uniffiClone: { (uniffiHandle: UInt64) -> UInt64 in
+            do {
+                return try FfiConverterCallbackInterfacePairingProgressCallback.handleMap.clone(handle: uniffiHandle)
+            } catch {
+                fatalError("Uniffi callback interface PairingProgressCallback: handle missing in uniffiClone")
+            }
+        },
+        onStage: { (
+            uniffiHandle: UInt64,
+            stage: RustBuffer,
+            uniffiOutReturn: UnsafeMutableRawPointer,
+            uniffiCallStatus: UnsafeMutablePointer<RustCallStatus>
+        ) in
+            let makeCall = {
+                () throws -> () in
+                guard let uniffiObj = try? FfiConverterCallbackInterfacePairingProgressCallback.handleMap.get(handle: uniffiHandle) else {
+                    throw UniffiInternalError.unexpectedStaleHandle
+                }
+                return uniffiObj.onStage(
+                     stage: try FfiConverterTypePairingStage_lift(stage)
+                )
+            }
+
+
+            let writeReturn = { () }
+            uniffiTraitInterfaceCall(
+                callStatus: uniffiCallStatus,
+                makeCall: makeCall,
+                writeReturn: writeReturn
+            )
+        }
+    )
+
+    // Rust stores this pointer for future callback invocations, so it must live
+    // for the process lifetime (not just for the init function call).
+    //
+    // `nonisolated(unsafe)` is needed under Swift 6 strict concurrency.
+    // This is safe because the pointee is initialized once during static init
+    // and never mutated by either side of the FFI.  Its fields are C function pointers.
+    nonisolated(unsafe) static let vtablePtr: UnsafePointer<UniffiVTableCallbackInterfacePairingProgressCallback> = {
+        let ptr = UnsafeMutablePointer<UniffiVTableCallbackInterfacePairingProgressCallback>.allocate(capacity: 1)
+        ptr.initialize(to: vtable)
+        return UnsafePointer(ptr)
+    }()
+}
+
+private func uniffiCallbackInitPairingProgressCallback() {
+    uniffi_agent_bridge_client_fn_init_callback_vtable_pairingprogresscallback(UniffiCallbackInterfacePairingProgressCallback.vtablePtr)
+}
+
+// FfiConverter protocol for callback interfaces
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+fileprivate struct FfiConverterCallbackInterfacePairingProgressCallback {
+    fileprivate static let handleMap = UniffiHandleMap<PairingProgressCallback>()
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+extension FfiConverterCallbackInterfacePairingProgressCallback : FfiConverter {
+    typealias SwiftType = PairingProgressCallback
+    typealias FfiType = UInt64
+
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    public static func lift(_ handle: UInt64) throws -> SwiftType {
+        try handleMap.get(handle: handle)
+    }
+
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+        let handle: UInt64 = try readInt(&buf)
+        return try lift(handle)
+    }
+
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    public static func lower(_ v: SwiftType) -> UInt64 {
+        return handleMap.insert(obj: v)
+    }
+
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    public static func write(_ v: SwiftType, into buf: inout [UInt8]) {
+        writeInt(&buf, lower(v))
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterCallbackInterfacePairingProgressCallback_lift(_ handle: UInt64) throws -> PairingProgressCallback {
+    return try FfiConverterCallbackInterfacePairingProgressCallback.lift(handle)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterCallbackInterfacePairingProgressCallback_lower(_ v: PairingProgressCallback) -> UInt64 {
+    return FfiConverterCallbackInterfacePairingProgressCallback.lower(v)
+}
+
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
@@ -2114,6 +2562,30 @@ fileprivate struct FfiConverterOptionInt32: FfiConverterRustBuffer {
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
+fileprivate struct FfiConverterOptionBool: FfiConverterRustBuffer {
+    typealias SwiftType = Bool?
+
+    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
+        guard let value = value else {
+            writeInt(&buf, Int8(0))
+            return
+        }
+        writeInt(&buf, Int8(1))
+        FfiConverterBool.write(value, into: &buf)
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+        switch try readInt(&buf) as Int8 {
+        case 0: return nil
+        case 1: return try FfiConverterBool.read(from: &buf)
+        default: throw UniffiInternalError.unexpectedOptionalTag
+        }
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
 fileprivate struct FfiConverterOptionString: FfiConverterRustBuffer {
     typealias SwiftType = String?
 
@@ -2132,6 +2604,31 @@ fileprivate struct FfiConverterOptionString: FfiConverterRustBuffer {
         case 1: return try FfiConverterString.read(from: &buf)
         default: throw UniffiInternalError.unexpectedOptionalTag
         }
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+fileprivate struct FfiConverterSequenceString: FfiConverterRustBuffer {
+    typealias SwiftType = [String]
+
+    public static func write(_ value: [String], into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        for item in value {
+            FfiConverterString.write(item, into: &buf)
+        }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [String] {
+        let len: Int32 = try readInt(&buf)
+        var seq = [String]()
+        seq.reserveCapacity(Int(len))
+        for _ in 0 ..< len {
+            seq.append(try FfiConverterString.read(from: &buf))
+        }
+        return seq
     }
 }
 
@@ -2180,6 +2677,31 @@ fileprivate struct FfiConverterSequenceTypeMacMessage: FfiConverterRustBuffer {
         seq.reserveCapacity(Int(len))
         for _ in 0 ..< len {
             seq.append(try FfiConverterTypeMacMessage.read(from: &buf))
+        }
+        return seq
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+fileprivate struct FfiConverterSequenceTypeMacModel: FfiConverterRustBuffer {
+    typealias SwiftType = [MacModel]
+
+    public static func write(_ value: [MacModel], into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        for item in value {
+            FfiConverterTypeMacModel.write(item, into: &buf)
+        }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [MacModel] {
+        let len: Int32 = try readInt(&buf)
+        var seq = [MacModel]()
+        seq.reserveCapacity(Int(len))
+        for _ in 0 ..< len {
+            seq.append(try FfiConverterTypeMacModel.read(from: &buf))
         }
         return seq
     }
@@ -2323,8 +2845,49 @@ public func pairOverIroh(endpointId: String, sessionId: String, token: String, d
             freeFunc: ffi_agent_bridge_client_rust_future_free_rust_buffer,
             liftFunc: FfiConverterTypePairOutcome_lift,
             errorHandler: nil
-            
+
         )
+}
+public func pairOverIrohWithNetwork(endpointId: String, sessionId: String, token: String, deviceName: String, keyPath: String, network: PeerNetworkConfig)async  -> PairOutcome  {
+    return
+        try!  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_agent_bridge_client_fn_func_pair_over_iroh_with_network(FfiConverterString.lower(endpointId),FfiConverterString.lower(sessionId),FfiConverterString.lower(token),FfiConverterString.lower(deviceName),FfiConverterString.lower(keyPath),FfiConverterTypePeerNetworkConfig_lower(network)
+                )
+            },
+            pollFunc: ffi_agent_bridge_client_rust_future_poll_rust_buffer,
+            completeFunc: ffi_agent_bridge_client_rust_future_complete_rust_buffer,
+            freeFunc: ffi_agent_bridge_client_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterTypePairOutcome_lift,
+            errorHandler: nil
+
+        )
+}
+/**
+ * Progress reflects authenticated protocol milestones, never a UI timer.
+ */
+public func pairOverIrohWithProgress(endpointId: String, sessionId: String, token: String, deviceName: String, keyPath: String, network: PeerNetworkConfig, progress: PairingProgressCallback)async  -> PairOutcome  {
+    return
+        try!  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_agent_bridge_client_fn_func_pair_over_iroh_with_progress(FfiConverterString.lower(endpointId),FfiConverterString.lower(sessionId),FfiConverterString.lower(token),FfiConverterString.lower(deviceName),FfiConverterString.lower(keyPath),FfiConverterTypePeerNetworkConfig_lower(network),FfiConverterCallbackInterfacePairingProgressCallback_lower(progress)
+                )
+            },
+            pollFunc: ffi_agent_bridge_client_rust_future_poll_rust_buffer,
+            completeFunc: ffi_agent_bridge_client_rust_future_complete_rust_buffer,
+            freeFunc: ffi_agent_bridge_client_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterTypePairOutcome_lift,
+            errorHandler: nil
+
+        )
+}
+public func validatePeerNetwork(network: PeerNetworkConfig)throws  -> PeerNetworkConfig  {
+    return try  FfiConverterTypePeerNetworkConfig_lift(try rustCallWithError(FfiConverterTypeBridgeError_lift) {
+        uniffiCallStatus in
+    uniffi_agent_bridge_client_fn_func_validate_peer_network(
+        FfiConverterTypePeerNetworkConfig_lower(network),uniffiCallStatus
+    )
+})
 }
 
 private enum InitializationResult {
@@ -2345,6 +2908,18 @@ private let initializationResult: InitializationResult = {
     if (uniffi_agent_bridge_client_checksum_func_pair_over_iroh() != 56291) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_agent_bridge_client_checksum_func_pair_over_iroh_with_network() != 62907) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_agent_bridge_client_checksum_func_pair_over_iroh_with_progress() != 56243) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_agent_bridge_client_checksum_func_validate_peer_network() != 13390) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_agent_bridge_client_checksum_method_bridgeconnection_attach_chat_io() != 35631) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_agent_bridge_client_checksum_method_bridgeconnection_attach_io() != 10474) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -2363,6 +2938,9 @@ private let initializationResult: InitializationResult = {
     if (uniffi_agent_bridge_client_checksum_method_bridgeconnection_get_thread_messages() != 60103) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_agent_bridge_client_checksum_method_bridgeconnection_list_agent_models() != 25243) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_agent_bridge_client_checksum_method_bridgeconnection_list_agent_projects() != 37788) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -2372,10 +2950,16 @@ private let initializationResult: InitializationResult = {
     if (uniffi_agent_bridge_client_checksum_method_bridgeconnection_list_processes() != 44728) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_agent_bridge_client_checksum_method_bridgeconnection_path_kind() != 11829) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_agent_bridge_client_checksum_method_bridgeconnection_ping() != 60328) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_agent_bridge_client_checksum_method_bridgeconnection_reconnect() != 36766) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_agent_bridge_client_checksum_method_bridgeconnection_resume_chat_io() != 58815) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_agent_bridge_client_checksum_method_bridgeconnection_start_process() != 19257) {
@@ -2390,10 +2974,19 @@ private let initializationResult: InitializationResult = {
     if (uniffi_agent_bridge_client_checksum_method_iohandle_close() != 64419) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_agent_bridge_client_checksum_method_iohandle_lease_id() != 54403) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_agent_bridge_client_checksum_method_iohandle_write_stdin() != 21179) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_agent_bridge_client_checksum_constructor_bridgeconnection_new() != 16954) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_agent_bridge_client_checksum_constructor_bridgeconnection_with_network() != 15591) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_agent_bridge_client_checksum_method_pairingprogresscallback_on_stage() != 51438) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_agent_bridge_client_checksum_method_agentiocallback_on_stdout() != 40655) {
@@ -2413,6 +3006,7 @@ private let initializationResult: InitializationResult = {
     }
 
     uniffiCallbackInitAgentIoCallback()
+    uniffiCallbackInitPairingProgressCallback()
     return InitializationResult.ok
 }()
 

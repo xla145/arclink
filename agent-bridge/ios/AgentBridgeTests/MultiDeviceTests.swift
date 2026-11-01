@@ -10,6 +10,21 @@ final class MultiDeviceTests: XCTestCase {
         return DeviceStorage(directory: directory)
     }
 
+    func testLegacyBrandDisplayPreservesPairingAndCustomNames() throws {
+        let storage = try storage()
+        var state = snapshot()
+        state.devices[0].name = "Agent Bridge"
+        try storage.save(state)
+        let store = AppStore(storage: storage, autoConnect: false)
+        XCTAssertEqual(store.hostName, "ArcLink")
+        XCTAssertEqual(store.devices[0].displayName, "ArcLink")
+        XCTAssertEqual(store.devices[0].endpointID, "endpoint-a")
+        XCTAssertEqual(store.projects.first?.name, "A project")
+        store.selectDevice("b")
+        XCTAssertEqual(store.hostName, "Mac B")
+        XCTAssertEqual(try storage.load().devices[0].name, "Agent Bridge")
+    }
+
     private func snapshot() -> DeviceSnapshot {
         let a = PairedMac(id: "a", name: "Mac A", endpointID: "endpoint-a", workspace: DeviceWorkspace(
             projects: [ProjectItem(id: "same", name: "A project", path: "/a", agent: .claude)],
@@ -96,6 +111,26 @@ final class MultiDeviceTests: XCTestCase {
         XCTAssertEqual(store.selectedDeviceID, "b")
         XCTAssertFalse(store.isOnline("a"))
         XCTAssertTrue(store.online)
+    }
+
+    func testAutomaticRetryKeepsConnectionFailureVisibleUntilSuccess() async throws {
+        let storage = try storage()
+        try storage.save(snapshot())
+        let a = FakeTransport(), b = FakeTransport()
+        a.connectionState = .failed(code: "timeout", message: "fixture timeout")
+        let store = AppStore(storage: storage, autoConnect: false, connectionFactory: { $0 == "endpoint-a" ? a : b })
+        await store.refreshMacStatus()
+        let failure = store.connectionLabel(for: "a")
+        XCTAssertTrue(failure.contains("超时"))
+        a.delayConnect = true
+        let retry = Task { await store.refreshMacStatus() }
+        while a.pendingConnect == nil { await Task.yield() }
+        XCTAssertEqual(store.connectionLabel(for: "a"), failure)
+        XCTAssertFalse(store.isOnline("a"))
+        a.completeConnect()
+        await retry.value
+        XCTAssertTrue(store.isOnline("a"))
+        XCTAssertEqual(store.connectionLabel(for: "a"), "在线")
     }
 
     func testBackgroundInvalidatesInFlightRefresh() async throws {
@@ -188,12 +223,13 @@ final class MultiDeviceTests: XCTestCase {
 @MainActor
 private final class FakeTransport: DeviceTransport {
     var disconnects = 0
+    var connectionState: ConnectionState = .connected
     var delayConnect = false
     var pendingConnect: CheckedContinuation<ConnectionState, Never>?
     var projectsByAgent: [String: [MacProject]] = [:]
     func connect() async -> ConnectionState {
         if delayConnect { return await withCheckedContinuation { pendingConnect = $0 } }
-        return .connected
+        return connectionState
     }
     func reconnect() async -> ConnectionState { await connect() }
     func completeConnect() { pendingConnect?.resume(returning: .connected); pendingConnect = nil }

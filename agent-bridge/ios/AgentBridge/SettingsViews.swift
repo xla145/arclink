@@ -4,6 +4,7 @@ struct SettingsView: View {
     @Environment(AppStore.self) private var store
     @Binding var path: NavigationPath
     @State private var clearHistory = false
+    @State private var choosingDevice = false
     @AppStorage("appearance") private var appearance = "自动"
     @AppStorage("retention") private var retention = "7 天"
     @AppStorage("language") private var language = "简体中文"
@@ -13,7 +14,7 @@ struct SettingsView: View {
         List {
             Section("Mac") {
                 Button {
-                    path.append(Route.devices)
+                    choosingDevice = true
                 } label: {
                     HStack {
                         Label("Mac", systemImage: "desktopcomputer")
@@ -43,7 +44,7 @@ struct SettingsView: View {
                 Toggle("在 Mac 上完成", isOn: $store.notifyOnMac)
                 Toggle("执行失败", isOn: $store.notifyFailed)
             } header: { Text("通知") } footer: {
-                Text("控制本机提示显示；暂未接入系统推送。")
+                Text("通知偏好保存在本机；暂未接入系统推送。")
             }
             Section("ArcLink") {
                 Picker("外观", selection: $appearance) {
@@ -69,6 +70,7 @@ struct SettingsView: View {
         }
         .navigationTitle("设置")
         .navigationBarTitleDisplayMode(.inline)
+        .sheet(isPresented: $choosingDevice) { DevicePickerSheet() }
         .onAppear { store.prune(retention: retention) }
         .onChange(of: retention) { _, value in store.prune(retention: value) }
         .onChange(of: store.permission) { _, _ in store.save() }
@@ -84,28 +86,48 @@ struct SettingsView: View {
     }
 }
 
+/// A device chooser has its own presentation lifetime; changing workspace
+/// never replaces a pushed route while its scanner is being dismissed.
+struct DevicePickerSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    @State private var path = NavigationPath()
+
+    var body: some View {
+        NavigationStack(path: $path) {
+            DeviceListView(path: $path, onSelection: { dismiss() })
+                .toolbar {
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("完成") { dismiss() }
+                    }
+                }
+        }
+    }
+}
+
 struct DeviceListView: View {
     @Environment(AppStore.self) private var store
     @Binding var path: NavigationPath
-    var onScan: (String?) -> Void
+    var onSelection: (() -> Void)? = nil
+    @State private var showQR = false
     @State private var removeID: String?
+    @State private var repairingDeviceID: String?
+    @State private var scanSucceeded = false
 
     var body: some View {
         List {
             Section {
                 ForEach(store.devices) { device in
                     Button {
-                        navigationTrace("[NavDebug] tap device=\(device.id) selected=\(store.selectedDeviceID ?? "nil") count=\(path.count)")
+                        store.selectDevice(device.id)
                         if store.selectedDeviceID == device.id {
                             path = NavigationPath()
-                        } else {
-                            store.selectDevice(device.id)
+                            onSelection?()
                         }
                     } label: {
                         HStack(spacing: 12) {
                             Image(systemName: "desktopcomputer").foregroundStyle(.secondary)
                             VStack(alignment: .leading, spacing: 4) {
-                                Text(device.name).foregroundStyle(.primary)
+                                Text(device.displayName).foregroundStyle(.primary)
                                 Text(store.connectionLabel(for: device.id))
                                     .font(.caption).foregroundStyle(.secondary)
                                 if let endpoint = device.endpointID {
@@ -127,17 +149,17 @@ struct DeviceListView: View {
                     .swipeActions {
                         Button("移除", role: .destructive) { removeID = device.id }
                     }
-                    if device.endpointID == nil {
-                        Button("重新扫码连接 \(device.name)") {
-                            onScan(device.id)
-                        }
+                    Button("重新扫码连接 \(device.displayName)") {
+                            repairingDeviceID = device.id
+                            showQR = true
                     }
                 }
             } header: { Text("已配对设备 · \(store.devices.count)") } footer: {
+                Text("扫码即可同时设置直连和中继，优先直连，不可用时自动使用中继。重新扫码会更新连接信息，保留项目和会话。")
                 Text("多台电脑可同时连接。点选设备切换项目和会话，其他连接会保留。")
             }
             Section {
-                Button { onScan(nil) } label: {
+                Button { repairingDeviceID = nil; showQR = true } label: {
                     Label("添加设备", systemImage: "plus")
                 }
                 .accessibilityIdentifier("add-device")
@@ -168,6 +190,19 @@ struct DeviceListView: View {
             Button("取消", role: .cancel) { removeID = nil }
         }
 
+        .fullScreenCover(isPresented: $showQR, onDismiss: {
+            if scanSucceeded {
+                path = NavigationPath()
+                onSelection?()
+            }
+            scanSucceeded = false
+        }) {
+            QRScanScreen { code in
+                let success = await store.pair(from: code, repairingDeviceID: repairingDeviceID)
+                scanSucceeded = success
+                return success
+            }
+        }
     }
 
     private static func agentStatusLabel(_ status: String) -> String {

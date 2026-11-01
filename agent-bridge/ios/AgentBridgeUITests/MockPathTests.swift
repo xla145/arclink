@@ -14,6 +14,192 @@ final class MockPathTests: XCTestCase {
     func testLightPaths() throws { try runPaths(theme: "浅色") }
     func testDarkPaths() throws { try runPaths(theme: "深色") }
 
+    func testStepsHeaderExpandsAcrossEntireRow() throws {
+        try launchFixture(theme: "浅色")
+        XCTAssertTrue(app.buttons["project-p1"].waitForExistence(timeout: 10))
+        app.buttons["project-p1"].tap()
+        app.buttons["session-s-rich"].tap()
+        let steps = disclosure("工具步骤 · 2 项")
+        reveal(steps, swipeUp: false)
+        let summary = app.staticTexts["先检查数据请求，再保留错误重试入口。"]
+        XCTAssertFalse(summary.exists)
+        // Exercise the title and the empty middle, rather than only the chevron.
+        steps.coordinate(withNormalizedOffset: CGVector(dx: 0.15, dy: 0.5)).tap()
+        XCTAssertTrue(summary.waitForExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts["Read: src/Dashboard.tsx"].exists)
+        shot("浅色", "steps-expanded")
+        steps.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+        XCTAssertFalse(summary.exists)
+        steps.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)).tap()
+        XCTAssertTrue(summary.waitForExistence(timeout: 3))
+    }
+
+    func testReadableUserQuestionReplies() throws { try exerciseUserQuestionReplies(theme: "浅色") }
+    func testDarkReadableUserQuestionReplies() throws { try exerciseUserQuestionReplies(theme: "深色") }
+
+    private func exerciseUserQuestionReplies(theme: String) throws {
+        let raw = """
+        补充一点：
+        <send_user_message_question_reply>[{"questionItemId":"internal-question-1","question":"失败发生在哪一步？","answer":"进入某个项目查看对话"},{"questionItemId":"internal-question-2","question":"Codex 还是 Claude？","answer":"Codex"}]</send_user_message_question_reply>
+        请继续排查。
+        """
+        try launchFixture(theme: theme, history: [
+            ["role": "user", "text": raw], ["role": "assistant", "text": "收到，我会检查项目对话加载。", "assistantPhase": "final_answer"]
+        ])
+        XCTAssertTrue(app.buttons["project-p1"].waitForExistence(timeout: 10))
+        app.buttons["project-p1"].tap()
+        app.buttons["session-s-desktop"].tap()
+        let firstQuestion = app.staticTexts["失败发生在哪一步？"]
+        XCTAssertTrue(firstQuestion.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["补充信息"].exists)
+        let firstAnswer = app.staticTexts["进入某个项目查看对话"]
+        let secondQuestion = app.staticTexts["Codex 还是 Claude？"]
+        let secondAnswer = app.staticTexts["Codex"]
+        XCTAssertTrue(firstAnswer.exists && secondQuestion.exists && secondAnswer.exists)
+        XCTAssertLessThan(firstQuestion.frame.minY, firstAnswer.frame.minY)
+        XCTAssertLessThan(firstAnswer.frame.minY, secondQuestion.frame.minY)
+        XCTAssertLessThan(secondQuestion.frame.minY, secondAnswer.frame.minY)
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "补充一点：")).firstMatch.exists)
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "请继续排查。")).firstMatch.exists)
+        XCTAssertFalse(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "send_user_message_question_reply")).firstMatch.exists)
+        XCTAssertFalse(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "internal-question")).firstMatch.exists)
+        XCTAssertFalse(app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "工具步骤")).firstMatch.exists)
+        shot(theme, "user-question-replies")
+    }
+
+    func testImportedAssistantFragmentsShareOneReplyCard() throws { try exerciseMergedReply(theme: "浅色") }
+    func testDarkMergedReplySummary() throws { try exerciseMergedReply(theme: "深色") }
+    func testLargeTextMergedReplySummary() throws { try exerciseMergedReply(theme: "浅色", largeText: true) }
+
+    private func exerciseMergedReply(theme: String, largeText: Bool = false) throws {
+        try launchFixture(theme: theme, history: [
+            ["role": "user", "text": "检查项目", "timestamp": "2026-11-01T12:00:00Z"],
+            ["role": "assistant", "text": "开始检查。", "timestamp": "2026-11-01T12:00:01Z"],
+            ["role": "tool", "text": "工具结果", "toolFailed": "false", "timestamp": "2026-11-01T12:00:02Z"],
+            ["role": "assistant", "text": "检查完成。", "timestamp": "2026-11-01T12:00:03Z"]
+        ], largeText: largeText)
+        XCTAssertTrue(app.buttons["project-p1"].waitForExistence(timeout: 10))
+        app.buttons["project-p1"].tap()
+        app.buttons["session-s-desktop"].tap()
+        XCTAssertTrue(app.buttons["复制回复的 Markdown"].waitForExistence(timeout: 5))
+        XCTAssertEqual(app.buttons.matching(identifier: "复制回复的 Markdown").count, 1)
+        XCTAssertFalse(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "开始检查。")).firstMatch.exists)
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "检查完成。")).firstMatch.exists)
+        let process = disclosure("工具步骤 · 2 项")
+        XCTAssertTrue(process.exists)
+        if !largeText {
+            app.buttons["复制回复的 Markdown"].tap()
+            // The host test command checks the simulator pasteboard after this
+            // tap; reading it from another iOS app requires a blocking OS prompt.
+            XCTAssertTrue(app.staticTexts["toast"].waitForExistence(timeout: 3))
+            process.tap()
+            let commentary = app.buttons["history-commentary-1"]
+            let tool = app.buttons["history-step-2"]
+            XCTAssertTrue(commentary.exists && tool.exists)
+            XCTAssertLessThan(commentary.frame.minY, tool.frame.minY)
+            process.tap()
+        }
+        XCTAssertTrue(app.descendants(matching: .any)["turn-metrics"].exists)
+        if largeText {
+            shot(theme, "merged-turn-large-header")
+            reveal(app.descendants(matching: .any)["turn-metrics"], swipeUp: true)
+            // The combined accessibility element can be hittable while its lower
+            // values are below the viewport. Capture the footer at the end too.
+            for _ in 0..<2 {
+                app.coordinate(withNormalizedOffset: CGVector(dx: 0.98, dy: 0.7))
+                    .press(forDuration: 0.01, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.98, dy: 0.25)))
+            }
+        }
+        shot(theme, largeText ? "merged-turn-large-text" : "merged-turn-metrics")
+    }
+
+    func testImportedStepsShowSummariesThenCorrelatedInputAndOutput() throws {
+        try exerciseImportedSteps(theme: "浅色")
+    }
+
+    func testDarkImportedStepDetails() throws {
+        try exerciseImportedSteps(theme: "深色")
+    }
+
+    private func exerciseImportedSteps(theme: String) throws {
+        try launchFixture(theme: theme, history: [
+            ["role": "user", "text": "检查项目"],
+            ["role": "summary", "text": "先检查项目，再读取文件。"],
+            ["role": "tool", "text": "检查项目\nINPUT_DETAIL_A", "toolCallId": "a", "toolName": "检查命令", "toolPhase": "input"],
+            ["role": "tool", "text": "读取文件\nINPUT_DETAIL_B", "toolCallId": "b", "toolName": "读取文件", "toolPhase": "input"],
+            ["role": "tool", "text": "OUTPUT_DETAIL_B", "toolCallId": "b", "toolPhase": "output"],
+            ["role": "tool", "text": "OUTPUT_DETAIL_A", "toolCallId": "a", "toolPhase": "output"],
+            ["role": "assistant", "text": "检查完成。"]
+        ])
+        XCTAssertTrue(app.buttons["project-p1"].waitForExistence(timeout: 10))
+        app.buttons["project-p1"].tap()
+        app.buttons["session-s-desktop"].tap()
+        let steps = disclosure("工具步骤 · 3 项")
+        XCTAssertTrue(steps.waitForExistence(timeout: 5))
+        reveal(steps, swipeUp: false)
+        steps.tap()
+        let first = app.buttons["history-step-2"]
+        XCTAssertTrue(first.waitForExistence(timeout: 3))
+        XCTAssertTrue(app.buttons["history-step-3"].exists)
+        XCTAssertFalse(app.staticTexts["OUTPUT_DETAIL_A"].exists)
+        XCTAssertFalse(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "INPUT_DETAIL_A")).firstMatch.exists)
+        shot(theme, "imported-step-summaries")
+        first.tap()
+        XCTAssertTrue(app.navigationBars["检查命令"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts["输入"].exists)
+        XCTAssertTrue(app.staticTexts["输出"].exists)
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "INPUT_DETAIL_A")).firstMatch.exists)
+        XCTAssertTrue(app.staticTexts["OUTPUT_DETAIL_A"].exists)
+        XCTAssertFalse(app.staticTexts["OUTPUT_DETAIL_B"].exists)
+        shot(theme, "imported-step-details")
+        app.buttons["完成"].tap()
+        app.buttons["history-step-3"].tap()
+        XCTAssertTrue(app.navigationBars["读取文件"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts["OUTPUT_DETAIL_B"].exists)
+        XCTAssertFalse(app.staticTexts["OUTPUT_DETAIL_A"].exists)
+        app.buttons["完成"].tap()
+        disclosure("工具步骤 · 3 项").tap()
+        XCTAssertFalse(app.buttons["history-step-2"].exists)
+    }
+
+    func testNewConversationFormSendsTextAndImage() throws { try exerciseNewConversationForm(theme: "浅色") }
+    func testDarkNewConversationForm() throws { try exerciseNewConversationForm(theme: "深色") }
+
+    private func exerciseNewConversationForm(theme: String) throws {
+        UIPasteboard.general.image = try XCTUnwrap(UIImage(data: XCTUnwrap(Data(base64Encoded: Self.fixturePNG))))
+        defer { UIPasteboard.general.items = [] }
+        try launchFixture(theme: theme)
+        app.buttons["chat-fab"].tap()
+        XCTAssertTrue(app.navigationBars["开启对话"].waitForExistence(timeout: 3))
+        XCTAssertFalse(app.buttons["start-conversation"].isEnabled)
+        app.buttons["current-project-picker"].tap()
+        app.buttons["service"].tap()
+        app.buttons["new-chat-permission"].tap()
+        app.buttons["只读"].tap()
+        app.buttons["new-chat-model"].tap()
+        XCTAssertFalse(app.buttons["输入模型 ID…"].exists)
+        app.buttons["跟随 Mac 设置"].tap()
+        XCTAssertFalse(app.textFields["new-chat-custom-model"].exists)
+        let messageField = app.textFields["new-chat-message"]
+        let input = messageField.exists ? messageField : app.textViews["new-chat-message"]
+        reveal(input, swipeUp: true)
+        input.coordinate(withNormalizedOffset: CGVector(dx: 0.15, dy: 0.15)).tap()
+        input.typeText("Check service screenshot")
+        if app.keyboards.firstMatch.exists { app.buttons["完成"].tap() }
+        let paste = app.buttons["粘贴图片"]
+        reveal(paste, swipeUp: true)
+        paste.tap()
+        XCTAssertTrue(app.buttons["移除图片 1"].waitForExistence(timeout: 5))
+        if app.keyboards.firstMatch.exists { app.buttons["完成"].tap() }
+        reveal(app.buttons["current-project-picker"], swipeUp: false)
+        shot(theme, "new-conversation-form")
+        app.buttons["start-conversation"].tap()
+        XCTAssertTrue(app.navigationBars["Check service screenshot"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Check service screenshot"].firstMatch.exists)
+        XCTAssertTrue(app.buttons["查看图片 1"].exists)
+        shot(theme, "new-conversation-started")
+    }
+
     /// Uses the system pasteboard and the production PasteButton; there is
     /// no test-only attachment action in the application.
     func testImagePasteAndSend() throws {
@@ -128,16 +314,18 @@ final class MockPathTests: XCTestCase {
         back() // Project list: entering an empty composer created no session.
         XCTAssertEqual(app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "session-")).count, 3)
 
-        // Markdown uses native blocks, code copying and collapsed supplied
-        // thinking/tool summaries. It must not hide the original response.
+        // Markdown uses native blocks, code copying and a single collapsed
+        // "工具步骤 · N 项" group for supplied thinking/tool summaries. It must not
+        // hide the original response.
         app.buttons["session-s-rich"].tap()
         reveal(app.staticTexts["Dashboard 调整方案"], swipeUp: false)
         XCTAssertTrue(app.staticTexts["Dashboard 调整方案"].exists)
-        let summary = disclosure("思考摘要")
-        reveal(summary, swipeUp: false)
+        let steps = disclosure("工具步骤 · 2 项")
+        reveal(steps, swipeUp: false)
         XCTAssertFalse(app.staticTexts["先检查数据请求，再保留错误重试入口。"].exists)
-        summary.tap()
+        steps.tap()
         XCTAssertTrue(app.staticTexts["先检查数据请求，再保留错误重试入口。"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts["Read: src/Dashboard.tsx"].exists)
         shot(theme, "chat-thinking")
         let copyCode = app.buttons["复制代码"]
         reveal(copyCode, swipeUp: true)
@@ -147,11 +335,6 @@ final class MockPathTests: XCTestCase {
         XCTAssertTrue(app.staticTexts["数据请求"].exists)
         XCTAssertTrue(app.staticTexts["待写入"].exists)
         shot(theme, "chat-markdown")
-        let tools = disclosure("工具结果")
-        reveal(tools, swipeUp: true)
-        XCTAssertFalse(app.staticTexts["Read: src/Dashboard.tsx"].exists)
-        tools.tap()
-        XCTAssertTrue(app.staticTexts["Read: src/Dashboard.tsx"].waitForExistence(timeout: 3))
         let copyReply = app.buttons["复制回复的 Markdown"]
         reveal(copyReply, swipeUp: true)
         copyReply.tap()
@@ -173,14 +356,11 @@ final class MockPathTests: XCTestCase {
         // The chooser can switch projects within the selected Agent. Merely
         // opening/backing out creates nothing; first send belongs to p2.
         app.buttons["chat-fab"].tap()
-        XCTAssertTrue(app.navigationBars["选择对话"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.navigationBars["开启对话"].waitForExistence(timeout: 3))
         app.buttons["current-project-picker"].tap()
         app.buttons["service"].tap()
-        app.buttons["新建 CLI 对话"].tap()
-        XCTAssertTrue(input.waitForExistence(timeout: 3))
-        XCTAssertFalse(app.buttons["发送"].isEnabled)
-        XCTAssertTrue(app.staticTexts["service"].exists)
-        back()
+        XCTAssertFalse(app.buttons["start-conversation"].isEnabled)
+        app.buttons["取消"].tap()
         app.buttons["project-p2"].tap()
         XCTAssertTrue(app.staticTexts["还没有对话"].waitForExistence(timeout: 3))
         XCTAssertEqual(app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "session-")).count, 0)
@@ -262,7 +442,7 @@ final class MockPathTests: XCTestCase {
         add(attachment)
     }
 
-    private func launchFixture(theme: String) throws {
+    private func launchFixture(theme: String, history: [[String: String]]? = nil, largeText: Bool = false) throws {
         let now = Date().timeIntervalSinceReferenceDate
         func project(_ id: String, _ name: String, _ path: String, _ agent: String) -> [String: Any] {
             ["id": id, "name": name, "path": path, "agent": agent, "createdAt": now]
@@ -303,7 +483,11 @@ final class MockPathTests: XCTestCase {
         let state: [String: Any] = ["version": 2, "selectedDeviceID": "mac", "devices": [["id": "mac", "name": "UI 测试 Mac", "workspace": workspace]], "notifyApproval": true, "notifyDone": true, "notifyOnMac": false, "notifyFailed": true]
         app.launchEnvironment = ["ARCLINK_UI_TEST_ID": UUID().uuidString,
                                  "ARCLINK_UI_TEST_STATE": String(decoding: try JSONSerialization.data(withJSONObject: state), as: UTF8.self)]
+        if let history {
+            app.launchEnvironment["ARCLINK_UI_TEST_MAC_MESSAGES"] = String(decoding: try JSONSerialization.data(withJSONObject: history), as: UTF8.self)
+        }
         app.launchArguments = ["-appearance", theme]
+        if largeText { app.launchArguments += ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"] }
         app.launch()
     }
 }

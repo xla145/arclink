@@ -11,6 +11,7 @@ struct ProjectDetailView: View {
         case all = "全部"
         case cli = "CLI"
         case desktop = "桌面"
+        case unknown = "未知"
     }
 
     private var project: ProjectItem? { store.project(projectId) }
@@ -19,7 +20,7 @@ struct ProjectDetailView: View {
     }
     private var rows: [SessionItem] {
         allRows.filter { session in
-            let sourceMatches = source == .all || (source == .desktop ? session.source == .desktop : session.source == .cli)
+            let sourceMatches = source == .all || session.source.rawValue == source.rawValue
             let search = query.trimmingCharacters(in: .whitespacesAndNewlines)
             return sourceMatches && (search.isEmpty || session.title.localizedCaseInsensitiveContains(search)
                 || store.messages.contains { $0.sessionId == session.id && $0.text.localizedCaseInsensitiveContains(search) })
@@ -50,7 +51,7 @@ struct ProjectDetailView: View {
                     .accessibilityIdentifier("conversation-source-filter")
                     searchField
                     sessionList
-                    Text("按创建时间排序 · 桌面历史仅供查看")
+                    Text("按最近更新时间排序 · 导入历史仅供查看")
                         .font(.caption2).foregroundStyle(.secondary)
                         .frame(maxWidth: .infinity).padding(.top, 2)
                 } else {
@@ -79,6 +80,12 @@ struct ProjectDetailView: View {
             }
         }
         .onAppear { store.selectProject(projectId) }
+        .task(id: projectId) {
+            if let project { await store.refreshConversationList(agent: project.agent, force: false) }
+        }
+        .refreshable {
+            if let project { await store.refreshConversationList(agent: project.agent) }
+        }
     }
 
     private var searchField: some View {
@@ -123,7 +130,7 @@ struct ProjectDetailView: View {
 
     private func sessionRow(_ session: SessionItem) -> some View {
         HStack(alignment: .top, spacing: 10) {
-            Image(systemName: session.source == .desktop ? "desktopcomputer" : "terminal")
+            Image(systemName: session.source.symbolName)
                 .font(.subheadline).foregroundStyle(.secondary)
                 .frame(width: 30, height: 30)
                 .background(Color(.tertiarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 8))
@@ -135,7 +142,7 @@ struct ProjectDetailView: View {
                 }
                 Text(snippet(session)).font(.caption2).foregroundStyle(.secondary).lineLimit(1)
                 HStack(spacing: 8) {
-                    Text(session.source == .desktop ? "桌面" : "CLI")
+                    Text(session.source.rawValue)
                         .font(.system(size: 9, weight: .medium))
                         .padding(.horizontal, 5).padding(.vertical, 2)
                         .background(Color(.tertiarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 4))
@@ -156,7 +163,7 @@ struct ProjectDetailView: View {
     }
 
     private func count(_ filter: SourceFilter) -> Int {
-        allRows.filter { filter == .all || (filter == .desktop ? $0.source == .desktop : $0.source == .cli) }.count
+        allRows.filter { filter == .all || $0.source.rawValue == filter.rawValue }.count
     }
 
     private func snippet(_ session: SessionItem) -> String {
@@ -262,7 +269,8 @@ struct AddProjectView: View {
                 agent = store.selectedAgent.installed ? store.selectedAgent : .claude
             }
         }
-        .task(id: agent) { await loadMacProjects() }
+        .task(id: "\(store.selectedDeviceID ?? "")/\(agent.agentId)") { await loadMacProjects() }
+        .refreshable { await loadMacProjects(force: true) }
         .confirmationDialog("删除这个项目？会话记录会一起去掉。", isPresented: $confirmDelete, titleVisibility: .visible) {
             Button("删除项目", role: .destructive) {
                 if let editingId {
@@ -277,10 +285,13 @@ struct AddProjectView: View {
     /// protocol error): the import section just stays hidden, matching the
     /// existing empty-state convention rather than interrupting someone
     /// mid-form with an error they didn't ask for.
-    private func loadMacProjects() async {
-        macProjects = nil
-        guard store.connectionState == .connected, let bridge = store.macBridge else { return }
-        macProjects = try? await bridge.listAgentProjects(agentId: agent.agentId)
+    private func loadMacProjects(force: Bool = false) async {
+        guard !editing, let deviceID = store.selectedDeviceID else { macProjects = nil; return }
+        let requestedAgent = agent
+        macProjects = store.cachedMacProjects(deviceID: deviceID, agent: requestedAgent)
+        let result = await store.loadMacProjects(deviceID: deviceID, agent: requestedAgent, force: force)
+        guard !Task.isCancelled, store.selectedDeviceID == deviceID, agent == requestedAgent else { return }
+        macProjects = result
     }
 
     private func importOne(_ project: MacProject) {

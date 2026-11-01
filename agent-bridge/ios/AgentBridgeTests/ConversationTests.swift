@@ -17,6 +17,24 @@ final class ConversationTests: XCTestCase {
         return AppStore(storage: storage, autoConnect: false)
     }
 
+    func testNewConversationSettingsPersistAndLockAfterFirstMessage() throws {
+        let store = try makeStore()
+        let options = ChatSessionOptions(model: "fixture-model", executionPolicy: .readOnly)
+        let id = store.createSession(projectId: "codex-a", title: "First", options: options)
+        XCTAssertFalse(id.isEmpty)
+        XCTAssertTrue(store.canConfigureUnsentSession(id))
+        let row = try XCTUnwrap(store.sessions.first { $0.id == id })
+        let decoded = try JSONDecoder().decode(SessionItem.self, from: JSONEncoder().encode(row))
+        XCTAssertEqual(decoded.chatOptions, options)
+        let revised = ChatSessionOptions(model: nil, executionPolicy: .workspace)
+        XCTAssertTrue(store.configureUnsentSession(id, projectID: "codex-a", options: revised))
+        XCTAssertEqual(store.sessions.first { $0.id == id }?.chatOptions, revised)
+        store.send(sessionId: id, text: "Start", image: nil)
+        XCTAssertFalse(store.canConfigureUnsentSession(id))
+        XCTAssertFalse(store.configureUnsentSession(id, projectID: "claude-a", options: options))
+        XCTAssertEqual(store.sessions.first { $0.id == id }?.projectId, "codex-a")
+    }
+
     func testLegacySessionSourceAndSingleImageStillDecode() throws {
         let json = #"{"id":"s","projectId":"p","title":"old","status":"已完成","detail":"Codex 对话"}"#
         let row = try JSONDecoder().decode(SessionItem.self, from: Data(json.utf8))
@@ -55,6 +73,22 @@ final class ConversationTests: XCTestCase {
         XCTAssertEqual(store.createSession(projectId: "claude-a", title: "No"), "")
         store.send(sessionId: "missing", text: "Do not append", images: [])
         XCTAssertTrue(store.messages.isEmpty)
+    }
+
+    func testImportedCLIHistoryCannotBeMadeWritableByStopOrApproval() throws {
+        let store = try makeStore()
+        store.sessions = [SessionItem(id: "history", projectId: "claude-a", title: "CLI history",
+                                     status: .done, detail: "Claude 对话", source: .cli)]
+        store.approvals = [ApprovalItem(id: "stale", sessionId: "history", title: "Old approval",
+                                       kind: "工具调用", target: "/a", detail: "Old", pending: true, approved: nil)]
+        store.stopSession(id: "history")
+        store.resolve("stale", approved: true)
+        store.send(sessionId: "history", text: "Must not send", images: [])
+        XCTAssertTrue(try XCTUnwrap(store.sessions.first).isReadOnly)
+        XCTAssertEqual(store.sessions.first?.detail, "Claude 对话")
+        XCTAssertEqual(store.sessions.first?.status, .done)
+        XCTAssertTrue(store.messages.isEmpty)
+        XCTAssertTrue(try XCTUnwrap(store.approvals.first).pending)
     }
 
     func testMultiImageOnlySendRoundTripsAndEnforcesLimit() throws {

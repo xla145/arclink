@@ -88,7 +88,7 @@ struct ApprovalDetailView: View {
                         .padding(14).frame(maxWidth: .infinity, alignment: .leading)
                         .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 12))
                     }
-                    Text("本地模拟审批 · 决定仅保存在手机，不会执行 Mac 操作。")
+                    Text(store.isRemoteChatSession(sessionId: item.sessionId) ? "审批决定将发送给 Mac 上的 Codex。" : "本地模拟审批 · 决定仅保存在手机，不会执行 Mac 操作。")
                         .font(.caption).foregroundStyle(.secondary)
                     LabeledContent("审批 ID", value: item.id)
                     LabeledContent("状态", value: item.pending ? "待处理" : (item.approved == true ? "已批准" : "已拒绝"))
@@ -130,7 +130,8 @@ struct TerminalView: View {
     /// Agent version it has verified transport support for — matching the
     /// same gate `agentd::start_process` itself enforces server-side.
     private var canRunReal: Bool {
-        guard store.connectionState == .connected, let project else { return false }
+        guard !store.isRemoteChatSession(sessionId: sessionId),
+              store.connectionState == .connected, let project else { return false }
         return store.macAgents.first { $0.id == project.agent.agentId }?.validation == "verified"
     }
 
@@ -160,7 +161,7 @@ struct TerminalView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 10) {
-                if session?.realProcessId != nil {
+                if session?.realProcessId != nil && !store.isRemoteChatSession(sessionId: sessionId) {
                     if case .failed(let message) = terminal.runState {
                         Text("# \(message)").foregroundStyle(.red)
                     }
@@ -190,7 +191,7 @@ struct TerminalView: View {
         .toolbarBackground(Color(red: 0.09, green: 0.11, blue: 0.13), for: .navigationBar)
         .toolbarColorScheme(.dark, for: .navigationBar)
         .toolbar {
-            if canRunReal || session?.realProcessId != nil {
+            if !store.isRemoteChatSession(sessionId: sessionId) && (canRunReal || session?.realProcessId != nil) {
                 ToolbarItem(placement: .topBarTrailing) {
                     runControlButton
                 }
@@ -214,6 +215,7 @@ struct TerminalView: View {
     }
 
     private func attachIfNeeded() async {
+        guard !store.isRemoteChatSession(sessionId: sessionId) else { return }
         guard let bridge = store.macBridge, let session,
               let processId = session.realProcessId, let generation = session.realGeneration
         else { return }
@@ -221,6 +223,7 @@ struct TerminalView: View {
     }
 
     private func startReal() async {
+        guard !store.isRemoteChatSession(sessionId: sessionId) else { return }
         guard let deviceID = store.selectedDeviceID, let bridge = store.macBridge, let session, let project else { return }
         guard let info = await terminal.start(
             bridge: bridge, sessionId: session.id, agentId: project.agent.agentId, cwd: project.path
@@ -235,6 +238,7 @@ struct TerminalView: View {
     }
 
     private func stopReal() async {
+        guard !store.isRemoteChatSession(sessionId: sessionId) else { return }
         guard let bridge = store.macBridge, let session,
               let processId = session.realProcessId, let generation = session.realGeneration
         else { return }

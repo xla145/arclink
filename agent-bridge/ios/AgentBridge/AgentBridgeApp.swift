@@ -24,14 +24,13 @@ struct RootView: View {
     @Environment(AppStore.self) private var store
     @State private var path = NavigationPath()
     @AppStorage("appearance") private var appearance = "自动"
-    @State private var deviceScanner: DeviceScannerRequest?
-    @State private var scanSucceeded = false
 
     var body: some View {
         NavigationStack(path: $path) {
-            ZStack {
+            Group {
                 if store.paired {
                     HomeView(path: $path)
+                        .id(store.selectedDeviceID)
                 } else {
                     UnpairedView()
                 }
@@ -53,31 +52,12 @@ struct RootView: View {
                 case .settings:
                     SettingsView(path: $path)
                 case .devices:
-                    DeviceListView(path: $path) { repairingID in
-                        deviceScanner = DeviceScannerRequest(repairingDeviceID: repairingID)
-                    }
+                    DeviceListView(path: $path)
                 }
             }
         }
-        .onChange(of: store.selectedDeviceID) { old, new in
-            navigationTrace("[NavDebug] device \(old ?? "nil")->\(new ?? "nil") count=\(path.count)")
-            path = NavigationPath()
-            navigationTrace("[NavDebug] cleared count=\(path.count)")
-        }
-        .onChange(of: path) { old, new in navigationTrace("[NavDebug] path \(old.count)->\(new.count)") }
-        // Present on the shared navigation host, so dismissing the scanner
-        // cannot leave a pushed device page holding an obsolete presenter.
-        .fullScreenCover(item: $deviceScanner, onDismiss: {
-            navigationTrace("[NavDebug] cover dismissed")
-            if scanSucceeded { path = NavigationPath() }
-            scanSucceeded = false
-        }) { request in
-            QRScanScreen { code in
-                let success = await store.pair(from: code, repairingDeviceID: request.repairingDeviceID)
-                scanSucceeded = success
-                return success
-            }
-        }
+        .onChange(of: store.selectedDeviceID) { _, _ in path = NavigationPath() }
+        .onChange(of: store.pairingSuccessID) { _, _ in path = NavigationPath() }
         .alert("无法读取设备记录", isPresented: Binding(get: { store.storageError != nil }, set: { if !$0 { store.storageError = nil } })) {
             Button("知道了", role: .cancel) {}
         } message: { Text(store.storageError ?? "") }
@@ -90,11 +70,6 @@ struct RootView: View {
         .animation(.easeOut(duration: 0.2), value: store.toast)
         .preferredColorScheme(appearance == "深色" ? .dark : (appearance == "浅色" ? .light : nil))
     }
-}
-
-private struct DeviceScannerRequest: Identifiable {
-    let id = UUID()
-    var repairingDeviceID: String?
 }
 
 struct UnpairedView: View {
@@ -190,15 +165,4 @@ private struct UsageStepsCard: View {
             .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
         }
     }
-}
-
-private func unusedNavigationMarker() {}
-func navigationTrace(_ value: String) {
-    let url = FileManager.default.temporaryDirectory.appendingPathComponent("navigation-diagnostic.txt")
-    let data = Data(("\(Date().timeIntervalSince1970) " + value + "\n").utf8)
-    if let handle = try? FileHandle(forWritingTo: url) {
-        _ = try? handle.seekToEnd()
-        try? handle.write(contentsOf: data)
-        try? handle.close()
-    } else { try? data.write(to: url) }
 }

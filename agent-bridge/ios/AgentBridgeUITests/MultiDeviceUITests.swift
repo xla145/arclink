@@ -4,7 +4,9 @@ final class MultiDeviceUITests: XCTestCase {
     func testLightDeviceSwitching() throws { try exercise(theme: "浅色") }
     func testDarkDeviceSwitching() throws { try exercise(theme: "深色") }
 
-    private func exercise(theme: String) throws {
+    func testSwitchAfterRelaunchWithoutScanner() throws { try exercise(theme: "浅色", includeScanner: false) }
+
+    private func exercise(theme: String, includeScanner: Bool = true) throws {
         continueAfterFailure = false
         let app = XCUIApplication(bundleIdentifier: "dev.agentbridge.ios")
         let id = UUID().uuidString
@@ -40,22 +42,26 @@ final class MultiDeviceUITests: XCTestCase {
         app.terminate(); app.launch()
         XCTAssertTrue(app.staticTexts["B 的测试项目"].waitForExistence(timeout: 10))
         app.buttons["device-switcher"].tap()
-        app.buttons["add-device"].tap()
-        let close = app.buttons["关闭扫描"]
-        XCTAssertTrue(close.waitForExistence(timeout: 3))
-        close.tap()
-        // First launch can present the system camera alert. XCTest's default
-        // interruption handler consumes that tap while granting permission.
-        if !close.waitForNonExistence(timeout: 2) { close.tap() }
-        XCTAssertTrue(close.waitForNonExistence(timeout: 3))
-        XCTAssertTrue(app.buttons["device-b"].waitForExistence(timeout: 3))
-        app.buttons["device-a"].tap()
-        let switched = app.staticTexts["A 的测试项目"].waitForExistence(timeout: 5)
-        if !switched {
-            shot("\(theme)-return-a-diagnostic", app)
-            print(app.debugDescription)
+        if includeScanner {
+            app.buttons["add-device"].tap()
+            let close = app.buttons["关闭扫描"]
+            XCTAssertTrue(close.waitForExistence(timeout: 3))
+            close.tap()
+            // First launch can present the system camera alert. XCTest's default
+            // interruption handler consumes that tap while granting permission.
+            if !close.waitForNonExistence(timeout: 2) { close.tap() }
+            XCTAssertTrue(close.waitForNonExistence(timeout: 3))
+            XCTAssertTrue(app.buttons["device-b"].waitForExistence(timeout: 3))
         }
-        XCTAssertTrue(switched)
+        app.buttons["device-a"].tap()
+        let project = app.buttons["project-shared-project"]
+        XCTAssertTrue(project.waitForExistence(timeout: 5))
+        let selectedProject = NSPredicate(format: "label CONTAINS %@", "A 的测试项目")
+        expectation(for: selectedProject, evaluatedWith: project)
+        waitForExpectations(timeout: 5)
+        XCTAssertTrue(project.isHittable)
+        project.tap()
+        XCTAssertTrue(app.navigationBars["A 的测试项目"].waitForExistence(timeout: 3))
         app.terminate()
     }
 

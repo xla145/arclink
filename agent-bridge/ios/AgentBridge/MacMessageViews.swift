@@ -117,8 +117,183 @@ struct MessageDisclosure: View {
                 .font(.caption.weight(.medium))
                 .foregroundStyle(.secondary)
         }
+        .disclosureGroupStyle(MessageDisclosureStyle())
         .padding(12)
         .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 12))
+    }
+}
+
+/// A public transcript step; missing historical input/output stays explicit.
+struct MessageStep: Identifiable {
+    let id: String
+    var title: String
+    var summary: String
+    var input: String?
+    var output: String?
+    var isSummary = false
+    var isCommentary = false
+    var images: [Data] = []
+    var isExecution: Bool { !isSummary && !isCommentary }
+
+    static func preview(_ text: String) -> String {
+        let line = text.prefix(512).split(whereSeparator: \.isNewline).first.map(String.init) ?? ""
+        return String(line.prefix(120)) + (line.count > 120 ? "…" : "")
+    }
+
+    private static func toolPreview(_ text: String, title: String) -> String {
+        // A native tool input is a named fenced block. Show a short supplied
+        // argument/command excerpt rather than repeating the tool name.
+        let lines = text.prefix(2048).split(whereSeparator: \.isNewline)
+        let excerpt = lines.first { line in
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            return trimmed != title && !trimmed.hasPrefix("```")
+                && !trimmed.hasPrefix("~~~") && trimmed != "{" && trimmed != "}"
+        }
+        return preview(excerpt.map(String.init) ?? text)
+    }
+
+    /// Correlate by native call ID, never by adjacency: parallel outputs can
+    /// arrive in a different order, even across intervening assistant prose.
+    static func history(_ messages: [MacMessage]) -> [Int: MessageStep] {
+        var result: [Int: MessageStep] = [:]
+        var start = 0
+        for end in messages.indices where messages[end].role == "user" {
+            result.merge(historyChunk(Array(messages[start..<end]), offset: start)) { _, new in new }
+            start = end
+        }
+        result.merge(historyChunk(Array(messages[start...]), offset: start)) { _, new in new }
+        return result
+    }
+
+    private static func historyChunk(_ messages: [MacMessage], offset: Int) -> [Int: MessageStep] {
+        var inputs = Set<String>()
+        var outputs: [String: String] = [:]
+        for message in messages where message.role == "tool" {
+            guard let id = message.toolCallId, !id.isEmpty else { continue }
+            if message.toolPhase == "input" { inputs.insert(id) }
+            if message.toolPhase == "output" {
+                let previous = outputs[id]
+                outputs[id] = previous.map { $0 + "\n\n" + message.text } ?? message.text
+            }
+        }
+        var result: [Int: MessageStep] = [:]
+        for (localIndex, message) in messages.enumerated() {
+            let index = offset + localIndex
+            let id = "history-step-\(index)"
+            if ["summary", "reasoning_summary"].contains(message.role) {
+                result[index] = MessageStep(id: id, title: "思考摘要", summary: preview(message.text), output: message.text, isSummary: true)
+            } else if ["tool", "tool_result"].contains(message.role) {
+                if message.toolPhase == "output", let call = message.toolCallId, inputs.contains(call) { continue }
+                let isInput = message.toolPhase == "input"
+                let title = message.toolName ?? (isInput ? "工具调用" : "工具结果")
+                result[index] = MessageStep(id: id, title: title, summary: toolPreview(message.text, title: title),
+                    input: isInput ? message.text : nil,
+                    output: isInput ? message.toolCallId.flatMap { outputs[$0] } : message.text)
+            }
+        }
+        return result
+    }
+}
+
+/// First expand to lightweight summaries, then open a single step's details.
+struct AgentStepsDisclosure: View {
+    var steps: [MessageStep]
+    @State private var expanded = false
+    @State private var selectedStep: MessageStep?
+
+    var body: some View {
+        DisclosureGroup(isExpanded: $expanded) {
+            VStack(alignment: .leading, spacing: 0) {
+                ForEach(steps) { step in
+                    Button { selectedStep = step } label: {
+                        HStack(spacing: 10) {
+                            Image(systemName: step.isExecution ? "terminal" : "sparkle")
+                                .font(.caption).frame(width: 18).accessibilityHidden(true)
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(step.title).font(.caption.weight(.semibold))
+                                Text(step.summary).font(.caption).lineLimit(2)
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            Image(systemName: "chevron.right").font(.caption2)
+                                .accessibilityHidden(true)
+                        }
+                        .foregroundStyle(.secondary)
+                        .padding(.vertical, 10)
+                        .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier(step.id)
+                    .accessibilityHint("查看步骤输入和输出")
+                    if step.id != steps.last?.id { Divider() }
+                }
+            }
+            .padding(.top, 4)
+        } label: {
+            Label("工具步骤 · \(steps.count) 项", systemImage: "chevron.left.forwardslash.chevron.right")
+                .font(.caption.weight(.medium)).foregroundStyle(.secondary)
+        }
+        .disclosureGroupStyle(MessageDisclosureStyle())
+        .padding(.horizontal, 10)
+        .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 12))
+        .sheet(item: $selectedStep) { step in
+            NavigationStack {
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 20) {
+                        if !step.isExecution {
+                            detailSection(step.isSummary ? "摘要" : "过程说明", text: step.output, missing: "没有内容记录")
+                            ForEach(Array(step.images.enumerated()), id: \.offset) { _, data in
+                                MessageInlineImage(source: "data:image/png;base64," + data.base64EncodedString(), caption: "过程图片")
+                            }
+                        } else {
+                            detailSection("输入", text: step.input, missing: "历史记录未提供输入")
+                            detailSection("输出", text: step.output, missing: "历史记录未提供输出")
+                        }
+                    }
+                    .padding(16)
+                }
+                .navigationTitle(step.title)
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar { ToolbarItem(placement: .confirmationAction) { Button("完成") { selectedStep = nil } } }
+            }
+        }
+    }
+
+    private func detailSection(_ title: String, text: String?, missing: String) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(title).font(.headline)
+            if let text { MacMessageText(text: text).font(.subheadline) }
+            else { Text(missing).font(.subheadline).foregroundStyle(.secondary) }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+/// Use an explicit full-width header and create the detail tree only after a
+/// tap. Imported turns can contain many large tool outputs, unlike local rows.
+private struct MessageDisclosureStyle: DisclosureGroupStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Button {
+                configuration.isExpanded.toggle()
+            } label: {
+                HStack(spacing: 8) {
+                    configuration.label
+                    Spacer(minLength: 8)
+                    Image(systemName: configuration.isExpanded ? "chevron.down" : "chevron.right")
+                        .font(.caption.weight(.semibold))
+                        .accessibilityHidden(true)
+                }
+                .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityValue(configuration.isExpanded ? "已展开" : "已收起")
+            .accessibilityHint(configuration.isExpanded ? "收起详情" : "展开详情")
+            if configuration.isExpanded {
+                configuration.content
+            }
+        }
     }
 }
 
@@ -186,6 +361,16 @@ private struct MessageInlineImage: View {
     private var label: String { caption.isEmpty ? "图片" : caption }
     private var remoteURL: URL? { MessageMarkdown.imageURL(source) }
 
+    /// Captions that are just generic labels (image, screenshot, file names)
+    /// add noise when the image is already visible — suppress them.
+    private static func isGenericCaption(_ text: String) -> Bool {
+        let lower = text.lowercased().trimmingCharacters(in: .whitespaces)
+        if ["image", "img", "图片", "screenshot", "photo", "picture"].contains(lower) { return true }
+        if lower.hasPrefix("http://") || lower.hasPrefix("https://") || lower.hasPrefix("data:") { return true }
+        let ext = ["png", "jpg", "jpeg", "gif", "webp", "svg", "avif", "bmp"]
+        return ext.contains(where: { lower.hasSuffix(".\($0)") })
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             if let image {
@@ -212,7 +397,9 @@ private struct MessageInlineImage: View {
                 Label("无法显示图片：不支持的地址或图片格式", systemImage: "photo.badge.exclamationmark")
                     .font(.caption).foregroundStyle(.secondary)
             }
-            if !caption.isEmpty { Text(caption).font(.caption2).foregroundStyle(.secondary) }
+            if !caption.isEmpty, image == nil || !Self.isGenericCaption(caption) {
+                Text(caption).font(.caption2).foregroundStyle(.secondary)
+            }
         }
         .task(id: "\(source)-\(attempt)") { await load() }
         .sheet(item: $preview) { item in

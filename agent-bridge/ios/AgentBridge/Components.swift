@@ -58,6 +58,17 @@ struct QRScanScreen: View {
                 })
                 .ignoresSafeArea()
                 QRViewfinderOverlay()
+                if let phase = store.pairingPhase {
+                    VStack(spacing: 12) {
+                        ProgressView().tint(.white)
+                        Text(phase).multilineTextAlignment(.center)
+                    }
+                    .foregroundStyle(.white)
+                    .padding(24)
+                    .background(.black.opacity(0.8), in: RoundedRectangle(cornerRadius: 16))
+                    .padding(32)
+                    .accessibilityIdentifier("pairingProgress")
+                }
                 if let focusPoint {
                     FocusRing()
                         .position(focusPoint)
@@ -98,7 +109,7 @@ struct QRScanScreen: View {
         }
         .safeAreaInset(edge: .bottom) {
             if !denied {
-                Text("将二维码放入框内，自动识别；点按画面可对焦")
+                Text("将二维码放入框内，自动识别；点按画面可对焦。配对码也会导入 Mac 的私有中继访问权限。")
                     .font(.subheadline.weight(.medium))
                     .foregroundStyle(.white)
                     .padding(.bottom, 28)
@@ -189,10 +200,17 @@ private struct QRViewfinderOverlay: View {
             }
         }
         .allowsHitTesting(false)
-        .onAppear {
-            withAnimation(.easeInOut(duration: 1.7).repeatForever(autoreverses: true)) {
-                sweepDown = true
+        .task {
+            // Each sweep has a finite transaction. A repeating transaction
+            // can outlive this scanner and keep later navigation animating.
+            while !Task.isCancelled {
+                withAnimation(.easeInOut(duration: 1.7)) { sweepDown.toggle() }
+                do { try await Task.sleep(for: .seconds(1.7)) }
+                catch { break }
             }
+        }
+        .onDisappear {
+            withAnimation(nil) { sweepDown = false }
         }
     }
 }
@@ -253,6 +271,11 @@ struct AVCaptureQRScanner: UIViewRepresentable {
         context.coordinator.onFocusTap = onFocusTap
     }
 
+    static func dismantleUIView(_ view: PreviewView, coordinator: Coordinator) {
+        view.previewLayer.session = nil
+        coordinator.stop()
+    }
+
     func makeCoordinator() -> Coordinator {
         let coordinator = Coordinator(onCode: onCode)
         coordinator.onFocusTap = onFocusTap
@@ -266,6 +289,7 @@ struct AVCaptureQRScanner: UIViewRepresentable {
         weak var previewView: PreviewView?
         private var handled = false
         private var device: AVCaptureDevice?
+        private let sessionQueue = DispatchQueue(label: "dev.agentbridge.qr-camera")
 
         init(onCode: @escaping (String) async -> Bool) {
             self.onCode = onCode
@@ -297,10 +321,22 @@ struct AVCaptureQRScanner: UIViewRepresentable {
                 }
                 session.commitConfiguration()
             }
-            DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            sessionQueue.async { [weak self] in
                 guard let self else { return }
                 configuration()
                 self.session.startRunning()
+            }
+        }
+
+        func stop() {
+            sessionQueue.async { [self] in
+                if session.isRunning { session.stopRunning() }
+                for output in session.outputs {
+                    (output as? AVCaptureMetadataOutput)?.setMetadataObjectsDelegate(nil, queue: nil)
+                    session.removeOutput(output)
+                }
+                for input in session.inputs { session.removeInput(input) }
+                device = nil
             }
         }
 
@@ -308,7 +344,7 @@ struct AVCaptureQRScanner: UIViewRepresentable {
         /// missing/unsupported torch (front camera, simulator) is a quiet
         /// no-op — `QRScanScreen` only shows the button when `hasTorch`.
         func setTorch(on: Bool) {
-            DispatchQueue.global(qos: .userInitiated).async { [device] in
+            sessionQueue.async { [device] in
                 guard let device, device.hasTorch, device.isTorchModeSupported(on ? .on : .off) else { return }
                 do {
                     try device.lockForConfiguration()
@@ -337,7 +373,7 @@ struct AVCaptureQRScanner: UIViewRepresentable {
         /// at a different distance/position would stay out of focus and
         /// never decode.
         private func focus(at devicePoint: CGPoint) {
-            DispatchQueue.global(qos: .userInitiated).async { [device] in
+            sessionQueue.async { [device] in
                 guard let device else { return }
                 do {
                     try device.lockForConfiguration()
