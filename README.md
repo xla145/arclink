@@ -1,16 +1,23 @@
-# mac-dev
+# ArcLink 弧连
 
-Agent Bridge 的工作仓库。桌面端负责发现本机 Agent、授权设备和转发进程输入输出。iOS 端目前是 SwiftUI 壳，会话和审批只记在手机本机，还没有连上桌面 daemon。
+ArcLink 连接手机与 Mac 上的本地 AI Agent。桌面客户端提供设备配对、Agent 发现与运行、会话转发；iOS 客户端用于连接和操作已配对的主机。
+
+- 官网：https://arclink.classktv.com
+- 源码：https://github.com/xla145/arclink
+- [安装包与版本记录](https://github.com/xla145/arclink/releases)
+- [自动构建、发布与在线更新说明](agent-bridge/desktop/RELEASING.md)
+
+macOS 客户端支持 Apple Silicon 与 Intel，最低 macOS 13。首个 GitHub Release 发布后可通过官网或 Releases 下载；客户端支持启动检查更新和手动下载安装。当前不使用 Apple 开发者签名或公证。
 
 ## 目录
 
-| 路径 | 内容 |
-| --- | --- |
-| `agent-bridge/` | 桌面宿主和 iOS 工程，说明见 `agent-bridge/README.md` |
-| `agent-bridge/desktop/` | Tauri 2 + React 面板 |
-| `agent-bridge/ios/` | SwiftUI 客户端，说明见 `agent-bridge/ios/README.md` |
-| `agent-bridge/crates/` | ABP 协议、Agent 适配、daemon 和测试 |
-| `doc/` | 方案和客户端设计文档 |
+| 路径                    | 内容                                                 |
+| ----------------------- | ---------------------------------------------------- |
+| `agent-bridge/`         | 桌面宿主和 iOS 工程，说明见 `agent-bridge/README.md` |
+| `agent-bridge/desktop/` | Tauri 2 + React 面板                                 |
+| `agent-bridge/ios/`     | SwiftUI 客户端，说明见 `agent-bridge/ios/README.md`  |
+| `agent-bridge/crates/`  | ABP 协议、Agent 适配、daemon 和测试                  |
+| `doc/`                  | 方案和客户端设计文档                                 |
 
 ## 桌面端
 

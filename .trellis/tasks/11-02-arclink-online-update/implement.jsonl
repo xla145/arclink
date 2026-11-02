@@ -1,0 +1,2 @@
+{"file": ".trellis/spec/frontend/agent-bridge-desktop.md", "reason": "Desktop bridge, shutdown lifecycle and verification contracts"}
+{"file": ".trellis/spec/backend/agent-bridge-host.md", "reason": "Owned daemon shutdown and process lifecycle"}

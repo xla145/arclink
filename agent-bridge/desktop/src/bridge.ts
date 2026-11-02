@@ -1,6 +1,7 @@
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import type {
+  UpdateStatus,
   NetworkSettings,
   NetworkUpdate,
   AppSettings,
@@ -66,6 +67,13 @@ async function call<T>(
 }
 
 export const bridge = {
+  updateStatus: () => call<UpdateStatus>("get_update_status"),
+  checkUpdate: (startup = false) =>
+    call<UpdateStatus>("check_for_update", { startup }),
+  downloadUpdate: (version: string) =>
+    call<UpdateStatus>("download_update", { version }),
+  installUpdate: (version: string, confirmed: boolean) =>
+    call<UpdateStatus>("install_update", { version, confirmed }),
   snapshot: () => call<Snapshot>("get_snapshot"),
   refreshAgents: () => call<void>("refresh_agents"),
   startPairing: () => call<PairSession>("start_pairing"),

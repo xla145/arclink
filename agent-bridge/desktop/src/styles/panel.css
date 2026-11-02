@@ -821,3 +821,14 @@ a {
   margin-right: 8px;
   padding: 0;
 }
+
+.update-panel progress {
+  width: 100%;
+  accent-color: var(--accent);
+}
+.update-notes {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 120px;
+  overflow-y: auto;
+}

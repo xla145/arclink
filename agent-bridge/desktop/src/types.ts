@@ -98,3 +98,23 @@ export interface NetworkUpdate {
   relay_url: string;
   access_key: string | null;
 }
+
+export interface UpdateStatus {
+  revision: string;
+  current_version: string;
+  phase:
+    | "idle"
+    | "checking"
+    | "current"
+    | "available"
+    | "downloading"
+    | "ready"
+    | "installing"
+    | "error";
+  version: string | null;
+  notes: string | null;
+  downloaded: number;
+  total: number | null;
+  error: BridgeError | null;
+  restart_required: boolean;
+}

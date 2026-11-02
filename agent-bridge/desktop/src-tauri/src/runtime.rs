@@ -188,9 +188,26 @@ pub async fn request_shutdown(app: AppHandle, confirmed: bool) -> Result<()> {
             .map_err(|_| native_error("无法打开退出确认，请从设置重试。"))?;
         return Ok(());
     }
+    stop_owned_host(&app).await?;
+    state.exit_allowed.store(true, Ordering::SeqCst);
+    app.exit(0);
+    Ok(())
+}
+
+// Keep shutdown ownership until install/restart completes, so Quit cannot race
+// replacement of the app bundle. Failed cleanup permits a later explicit retry.
+pub async fn stop_for_update(app: &AppHandle) -> Result<()> {
+    stop_owned_host(app).await
+}
+
+async fn stop_owned_host(app: &AppHandle) -> Result<()> {
+    let state = app.state::<AppState>();
     let lifecycle = state.lifecycle.lock().await;
     if state.shutdown_inflight.swap(true, Ordering::SeqCst) {
-        return Ok(());
+        return Err(BridgeError::new(
+            "shutdown_busy",
+            "应用正在退出或安装更新，请稍候。",
+        ));
     }
     state.stopping.store(true, Ordering::SeqCst);
     let daemon = state.daemon.read().await.clone();
@@ -206,8 +223,6 @@ pub async fn request_shutdown(app: AppHandle, confirmed: bool) -> Result<()> {
         // iroh can stall in close(); don't leave Quit hanging on it.
         let _ = tokio::time::timeout(std::time::Duration::from_secs(3), network.shutdown()).await;
     }
-    state.exit_allowed.store(true, Ordering::SeqCst);
     log::info!("Owned host stopped");
-    app.exit(0);
     Ok(())
 }

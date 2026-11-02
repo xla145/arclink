@@ -2,6 +2,7 @@ mod commands;
 mod network_settings;
 mod runtime;
 mod tray;
+mod updater;
 
 use runtime::{initialize, request_shutdown, AppState};
 use tauri::{Manager, RunEvent};
@@ -23,8 +24,14 @@ pub fn run() {
                 .rotation_strategy(tauri_plugin_log::RotationStrategy::KeepOne)
                 .build(),
         )
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .manage(updater::UpdateState::default())
         .manage(AppState::default())
         .invoke_handler(tauri::generate_handler![
+            updater::get_update_status,
+            updater::check_for_update,
+            updater::download_update,
+            updater::install_update,
             commands::get_network_settings,
             commands::update_network_settings,
             commands::get_snapshot,

@@ -2,6 +2,8 @@ import arclinkIcon from "./assets/arclink-icon.svg";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { bridge, normalizeError, type Bridge } from "./bridge";
 import { useSnapshot } from "./hooks/useSnapshot";
+import { useUpdate } from "./hooks/useUpdate";
+import { UpdatePanel } from "./components/UpdatePanel";
 import { useUptime } from "./hooks/useUptime";
 import type { BridgeError, PairedDevice } from "./types";
 import { Icon } from "./components/Icons";
@@ -33,6 +35,9 @@ export function App({
   const [busy, setBusy] = useState<string | null>(null);
   const [revoke, setRevoke] = useState<PairedDevice | null>(null);
   const [exit, setExit] = useState(false);
+  const [confirmUpdate, setConfirmUpdate] = useState(false);
+  const update = useUpdate(api, preview);
+  const cancelUpdate = useCallback(() => setConfirmUpdate(false), []);
   const openSettings = useCallback(() => setSettings(true), []);
   const confirmExit = useCallback(() => setExit(true), []);
   const {
@@ -70,14 +75,14 @@ export function App({
   }
   useEffect(() => {
     const keydown = (event: KeyboardEvent) => {
-      if (event.key !== "Escape" || revoke || exit) return;
+      if (event.key !== "Escape" || revoke || exit || confirmUpdate) return;
       if (pairing) void pairingRef.current?.cancel();
       else if (settings) setSettings(false);
       else void api.hide().catch((cause) => setError(normalizeError(cause)));
     };
     window.addEventListener("keydown", keydown);
     return () => window.removeEventListener("keydown", keydown);
-  }, [api, pairing, settings, revoke, exit]);
+  }, [api, pairing, settings, revoke, exit, confirmUpdate]);
   const network = snapshot?.status.network;
   const running = snapshot?.status.running ?? false;
   const networkError =
@@ -183,6 +188,32 @@ export function App({
         )}
       </header>
       <div className="scroll-content">
+        {!pairing &&
+          !settings &&
+          ["available", "ready"].includes(update.status?.phase ?? "") && (
+            <section className="panel">
+              <button className="text-button" onClick={() => setSettings(true)}>
+                新版本 {update.status?.version} 可用 · 查看更新
+              </button>
+            </section>
+          )}
+        {settings && !pairing && (
+          <section className="panel">
+            <UpdatePanel
+              status={update.status}
+              error={update.error}
+              disabled={preview}
+              onCheck={() => void update.run(() => api.checkUpdate())}
+              onDownload={() => {
+                if (update.status?.version)
+                  void update.run(() =>
+                    api.downloadUpdate(update.status!.version!),
+                  );
+              }}
+              onInstall={() => setConfirmUpdate(true)}
+            />
+          </section>
+        )}
         {!pairing && shownError && (
           <section className="panel">
             <ErrorBanner
@@ -424,6 +455,36 @@ export function App({
           {error && (
             <p role="alert" className="danger-text">
               {error.message}
+            </p>
+          )}
+        </ConfirmDialog>
+      )}
+      {confirmUpdate && (
+        <ConfirmDialog
+          title="安装更新并重启"
+          confirm="停止任务并重启"
+          busy={update.status?.phase === "installing"}
+          onCancel={cancelUpdate}
+          onConfirm={() => {
+            if (update.status?.version)
+              void update.run(() =>
+                api.installUpdate(update.status!.version!, true),
+              );
+          }}
+        >
+          <p>安装 ArcLink {update.status?.version} 并重启应用？</p>
+          <p>
+            {processes.length
+              ? `当前 ${processes.length} 个 Agent 进程将被停止。`
+              : "重启前将停止本机服务。"}
+          </p>
+          <p>
+            所有已连接设备将断开，确认时及随后启动的 Agent
+            任务也会停止。请先保存工作。
+          </p>
+          {(update.error ?? update.status?.error) && (
+            <p role="alert" className="danger-text">
+              {(update.error ?? update.status?.error)?.message}
             </p>
           )}
         </ConfirmDialog>

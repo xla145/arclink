@@ -95,6 +95,10 @@ export function previewBridge(state: string): Bridge {
     throw { code: "preview", message: "这是界面预览，操作不会修改本机服务。" };
   };
   return {
+    updateStatus: unavailable,
+    checkUpdate: unavailable,
+    downloadUpdate: unavailable,
+    installUpdate: unavailable,
     snapshot: async () => snapshot,
     subscribe: async () => () => {},
     refreshAgents: unavailable,
