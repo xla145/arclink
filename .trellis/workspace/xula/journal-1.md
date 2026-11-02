@@ -67,3 +67,25 @@ Implemented the approved Rust daemon/client delivery: bounded ABP, SQLite author
 ### Next Steps
 
 - iOS/UniFFI, release packaging, physical-device/Relay and Keychain validation; authority archive/pagination remain documented follow-ups.
+
+
+## Session 3: ArcLink 官网与 HTTPS 发布
+<!-- trellis-session: v=2 fp=12939cd7470a1ef8 -->
+
+**Date**: 2026-11-02
+**Task**: ArcLink 官网与 HTTPS 发布
+**Branch**: `feature/agent-bridge-desktop`
+
+### Summary
+
+完成独立响应式官网、Mac 实际安装包下载与 iOS 待开放状态；部署 https://arclink.classktv.com，验证 HTTPS、HTTP 跳转、证书模拟续期、移动布局及公网下载哈希。既有服务器站点保持正常。仅提交官网及相关规范任务文档，保留其他并行变更。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `2cc81b0` | feat(官网): 新增 ArcLink 介绍下载页与部署配置 |
+
+### Status
+
+[OK] **Completed**
