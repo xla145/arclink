@@ -12,4 +12,6 @@ Ownership: implementation agent owns desktop source, native dependencies/config 
 - Independent desktop review: no confirmed blocker; frontend 25 tests/build, native 6 tests/check/Clippy passed. Existing unrelated Clippy warnings retained.
 - CI review fixed incomplete release pagination and empty signature acceptance; 8 release assembly tests passed. Actionlint passed except its outdated runner-label catalog (macos-15-intel validated as current runner).
 - Public visibility and rename to xla145/arclink confirmed through GitHub API. Both updater signing Secrets configured and names verified; private values never logged.
-- Real cloud build pending branch push. Native two-version update smoke has not been performed.
+- Real GitHub Actions run https://github.com/xla145/arclink/actions/runs/41443649793 succeeded for arm64 and x64; publishing was correctly skipped for this branch push.
+- Downloaded both cloud artifact sets and independently verified Ed25519 archive signatures, trusted version signatures, app bundle version/identifier, actual Mach-O CPU architecture, and tamper rejection. Assembled the real dual-architecture manifest and verified all SHA-256 entries.
+- Native two-version installation/restart smoke has not been performed; first release tag has not been published. These remain release rollout checks, not passed tests.
