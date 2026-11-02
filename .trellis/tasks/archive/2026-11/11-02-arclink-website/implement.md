@@ -8,7 +8,7 @@
 - [x] Inspect 390 px and 1440 px browser screenshots, navigation, keyboard focus, unavailable iOS state and console output; resolve any failures.
 - [x] Dispatch Trellis check for independent review, resolve findings and record verified outcomes.
 - [x] Update relevant frontend website spec.
-- [ ] Obtain scoped commit approval, then finish bookkeeping.
+- [x] Scoped commit approved and created as 2cc81b0; task bookkeeping completed.
 
 ## Verification commands
 Exact preparation/server commands will be documented alongside the implementation. Use `python3 -m http.server` for preview and browser automation for layout and interactions. Compare prepared and original DMG checksums. No native client rebuild is required.
