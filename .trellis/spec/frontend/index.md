@@ -14,6 +14,7 @@ This directory contains guidelines for frontend development. Fill in each file w
 
 | Guide | Description | Status |
 |-------|-------------|--------|
+| [ArcLink Website](./arclink-website.md) | Static landing page, generated downloads and deployment | Current |
 | [Agent Bridge iOS](./agent-bridge-ios.md) | SwiftUI mock state, image presentation and simulator acceptance | Current |
 | [Agent Bridge Desktop](./agent-bridge-desktop.md) | Current Tauri/React bridge, tray lifecycle, state and verification | Current |
 | [Agent Bridge macOS](./agent-bridge-macos.md) | Historical Swift menu-bar and stdio administration contract | Superseded |
