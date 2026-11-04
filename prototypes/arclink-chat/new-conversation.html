@@ -1,0 +1,141 @@
+<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>ArcLink · 新建对话</title><style>
+*{box-sizing:border-box}body{margin:0;background:#e8eae6;font-family:-apple-system,BlinkMacSystemFont,sans-serif;color:#252a29}button,select,textarea{font:inherit}button,select{cursor:pointer}button:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px solid #286347;outline-offset:3px}.workspace{min-height:100vh;display:flex;gap:90px;align-items:center;justify-content:center;padding:32px}.intro{width:300px}.brand{font-size:23px;font-weight:650;color:#286347}.intro h1{font-size:38px;line-height:1.3;letter-spacing:-1px}.intro p{font-size:13px;line-height:1.9;color:#646d66}.intro label{display:block;font-size:12px;margin-top:30px}.intro select,.theme{width:100%;min-height:44px;background:transparent;border:1px solid #b8c4b8;border-radius:10px;padding:10px;margin-top:10px;color:inherit}.phone{--bg:#fafbf8;--surface:#f0f2ed;--text:#252a29;--muted:#646d66;--line:#dee4da;--accent:#286347;--on:#fff;--soft:#e6eee3;background:var(--bg);color:var(--text);width:414px;height:870px;max-height:calc(100vh - 64px);min-height:610px;border:7px solid #28312b;border-radius:46px;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 25px 60px #25352820}.dark{--bg:#171d19;--surface:#222a24;--text:#e4e9e1;--muted:#a4afa3;--line:#39443a;--accent:#9ecaa8;--on:#15251b;--soft:#2c3c2f}.status{display:flex;justify-content:space-between;padding:16px 26px 10px;font-size:12px}.header{display:flex;align-items:center;padding:5px 15px 10px;border-bottom:1px solid var(--line)}.header h2{font-size:16px;text-align:center;flex:1}.header button{background:none;border:0;color:var(--accent);min-height:44px}.spacer{width:44px}.body{padding:22px;flex:1;overflow:auto;scrollbar-width:thin;scrollbar-color:#a6b6a4 transparent}.body h1{font-size:25px;letter-spacing:-1px;margin:0 0 8px}.sub,.help{font-size:11px;line-height:1.8;color:var(--muted)}.sub{margin:0 0 24px}.label{display:block;font-size:12px;font-weight:600;margin:20px 0 9px}.panel{border:1px solid var(--line);border-radius:16px;background:var(--surface);padding:10px 14px}.panel select{width:100%;min-height:44px;background:transparent;border:0;color:var(--text);font-size:13px}.panel option{background:var(--bg)}.path{font-size:11px;color:var(--muted);margin:0 0 4px;overflow-wrap:anywhere}.context{font-size:11px;color:var(--muted);margin-top:9px}.input{border-radius:22px}.input textarea{width:100%;height:100px;resize:vertical;background:none;border:0;color:var(--text);font-size:14px;line-height:1.7;padding:5px 0}.input textarea::placeholder{color:var(--muted)}.add{background:none;border:0;min-height:44px;color:var(--accent);font-size:12px;padding:0}.row{display:flex;align-items:center;gap:12px}.row label{font-size:12px;white-space:nowrap}.row select{text-align:right}.row+.row{border-top:1px solid var(--line)}.settings{padding-top:2px;padding-bottom:2px}.notice{background:var(--soft);padding:12px;border-radius:12px;font-size:12px;line-height:1.7;margin-bottom:15px}.footer{padding:12px 16px 8px;border-top:1px solid var(--line)}.start{width:100%;border:0;min-height:49px;border-radius:15px;background:var(--accent);color:var(--on);font-size:14px;font-weight:600}.start:disabled{opacity:.35;cursor:default}.caption{text-align:center;font-size:10px;color:var(--muted);margin:9px 0}.home{height:4px;width:120px;background:var(--text);border-radius:4px;margin:13px auto 0}.file{font-size:11px;color:var(--accent);overflow-wrap:anywhere}a{color:#286347} [hidden]{display:none!important}@media(max-width:700px){.workspace{display:block;padding:0}.intro{width:auto;padding:15px 18px}.brand{font-size:17px}.intro h1,.intro p,.intro label{display:none}.controls{display:flex;gap:8px}.intro select,.theme{width:50%;font-size:11px}.phone{width:100%;height:calc(100dvh - 108px);min-height:460px;max-height:none;border:0;border-radius:0}.status{display:none}.footer{padding-bottom:max(8px,env(safe-area-inset-bottom))}}
+
+svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round;vertical-align:middle}.header{border-bottom:0;padding-top:7px}.header h2{font-size:14px;font-weight:500;color:var(--muted)}.body{padding:30px 24px 20px}.body>.context{font-size:11px;margin:0 0 23px;letter-spacing:.2px}.context-separator{margin:0 7px;opacity:.5}.body h1{font-size:29px;font-weight:600;letter-spacing:-1.2px;margin-bottom:10px}.sub{font-size:13px;margin-bottom:25px}.project-chip{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--line);border-radius:11px;padding:0 10px;min-height:44px;color:var(--accent);background:var(--surface)}.project-chip svg{width:17px}.project-chip select{border:0;background:none;color:var(--text);font-size:13px;min-height:42px;max-width:230px}.project-chip option,.settings-content option{background:var(--bg);color:var(--text)}.path{margin:7px 0 23px;font-size:10px}.history-note{font-size:11px;color:var(--muted);line-height:1.7;margin:-8px 0 15px}.message-area{background:var(--surface);border:1px solid var(--line);border-radius:22px;padding:17px 16px 8px}.message-area textarea{width:100%;min-height:150px;resize:vertical;background:none;border:0;color:var(--text);font-size:17px;line-height:1.7}.message-area textarea::placeholder{color:var(--muted)}.message-bottom{display:flex;justify-content:space-between;align-items:center}.add{display:flex;align-items:center;gap:6px;min-height:44px}.image-count{font-size:10px;color:var(--muted)}.preferences{margin-top:16px}.preferences summary{min-height:48px;display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12px;list-style:none}.preferences summary::-webkit-details-marker{display:none}.preferences summary>span:first-child{color:var(--text)}.preferences summary>span:nth-child(2){margin-left:auto;color:var(--muted);font-size:10px}.preferences summary svg{width:14px;color:var(--muted)}.preferences[open] summary svg{transform:rotate(90deg)}.settings-content{border-top:1px solid var(--line);padding:6px 0}.settings-content select{background:none;color:var(--text);border:0;min-height:44px;flex:1;font-size:12px;min-width:0}.settings-content .row{min-height:48px}.footer{padding:16px 24px 12px;border-top:0}.start{display:flex;align-items:center;justify-content:center;gap:12px;border-radius:14px;min-height:50px}.start:disabled{background:var(--soft);color:var(--muted);opacity:1}.caption{font-size:10px;margin:13px 0}.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}.permission-notice{font-size:11px;line-height:1.7;color:var(--text);padding:10px;background:var(--soft);border-radius:10px}.attachment-list{display:flex;flex-wrap:wrap;gap:8px}.preview{position:relative;width:58px;height:58px;margin-bottom:10px}.preview img{width:58px;height:58px;object-fit:cover;border-radius:9px}.preview button{position:absolute;right:-8px;top:-10px;border:0;border-radius:50%;width:28px;height:28px;background:var(--text);color:var(--bg)}.intro .brand{letter-spacing:-.5px}.intro p{max-width:270px}@media(max-width:700px){.body{padding-top:20px}.message-area textarea{min-height:115px}.phone{min-height:460px}.intro{padding-bottom:12px}.footer{padding-bottom:max(8px,env(safe-area-inset-bottom))}}@media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important;animation:none!important;transition:none!important}}
+
+/* ── Interaction enhancements ── */
+
+@keyframes fadeSlideUp {
+  from { opacity: 0; transform: translateY(14px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(.92); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+/* Touch / pointer feedback */
+button, .project-chip, .preferences summary {
+  transition: transform .15s ease, background .2s ease, opacity .2s ease;
+}
+#cancel:active, .add:active { transform: scale(.9); }
+.start:active:not(:disabled) { transform: scale(.94); }
+.theme:active { transform: scale(.96); }
+.project-chip:active { transform: scale(.97); }
+
+/* Message area focus glow */
+.message-area { transition: border-color .2s ease, box-shadow .2s ease; }
+.message-area:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 15%, transparent);
+}
+
+/* Start button state transition */
+.start {
+  transition: transform .15s ease, background .3s ease, color .3s ease, opacity .3s ease;
+}
+.start:disabled {
+  background: var(--soft); color: var(--muted); opacity: 1;
+}
+
+/* Feedback notice entrance */
+.notice { animation: fadeSlideUp .3s ease both; }
+
+/* Image preview entrance */
+.preview { animation: scaleIn .25s cubic-bezier(.32,.72,0,1) both; }
+
+/* Page transition overlay */
+.page-transition {
+  position: fixed; inset: 0; z-index: 99;
+  background: var(--bg);
+  opacity: 0;
+  transition: opacity .35s ease;
+  pointer-events: none;
+}
+.page-transition.active {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* Preferences accordion smooth */
+.settings-content {
+  animation: fadeSlideUp .25s ease both;
+}
+
+/* Scene switch animation for body content */
+.body > * {
+  transition: opacity .2s ease;
+}
+
+.body{display:flex;flex-direction:column;padding-top:24px}.project-chip{align-self:flex-start;background:transparent;border:0;padding:0 4px;order:0;margin-bottom:18px}.project-chip select{font-weight:600}.history-note{order:1}.message-area{order:2;padding:17px 15px 10px;display:flex;flex-direction:column;min-height:240px}.message-area textarea{min-height:160px;resize:none;flex:1}.message-bottom{margin-top:14px;gap:10px}.message-bottom .start{margin-left:auto;width:44px;height:44px;min-height:44px;border-radius:50%;flex-shrink:0}.add span{display:none}.add{width:44px;justify-content:center;color:var(--muted)}.add svg{width:23px;height:23px}.preferences{order:3;margin-top:7px}.preferences summary{justify-content:flex-end}.preferences summary>span:nth-child(2){margin-left:0;font-size:11px}.preferences summary svg{width:12px}.settings-content{border:1px solid var(--line);border-radius:14px;padding:7px 13px;background:var(--surface)}.permission-notice{order:4}.notice{order:5}.footer{padding-top:0}.phone{height:760px;min-height:540px}.header{padding-top:10px}.header h2{font-size:15px;color:var(--text)}.attachment-list{flex-shrink:0}.preview button{width:44px;height:44px;right:-16px;top:-16px;background:transparent;color:var(--text);text-shadow:0 0 4px var(--bg);font-size:22px}.intro h1{font-size:38px}.body:after{content:'Codex · MacBook Pro';order:6;font-size:10px;color:var(--muted);text-align:center;margin-top:auto;padding-top:26px}.message-area:focus-within{border-color:var(--accent)}@media(max-width:700px){.phone{height:calc(100dvh - 108px);min-height:420px}.body{padding:18px 20px}.message-area{min-height:220px}.message-area textarea{min-height:140px}.body:after{padding-top:18px}}
+</style><div class="workspace"><aside class="intro"><div class="brand">↗ ArcLink 弧连</div><h1>选好项目，<br>直接开聊。</h1><p>输入就是第一步。<br>设置按需展开，发送即开始。</p><label for="entry">切换入口来源</label><div class="controls"><select id="entry"><option value="home">首页 · 开启对话</option><option value="project">项目右上角 · 新建对话</option><option value="history">只读历史 · 新建 CLI 对话</option><option value="empty">无历史项目 · 开始</option></select><button class="theme" id="theme">◐ 切换深色外观</button></div><p id="origin">首页入口：预选当前项目，可切换。</p><p>设计预览 · 示例数据<br>所有新建入口统一样式与流程。<br>已有会话的“继续”仍进入原会话。</p><p><a href="index.html">查看对话详情原型 ↗</a></p></aside><main class="phone" id="phone"><div class="status"><span>9:41</span><span>▴ ▰ ▰</span></div><header class="header"><button id="cancel">取消</button><h2>新建对话</h2><span class="spacer"></span></header><section class="body"><label class="project-chip" for="project"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7V5h7l2 2h9v13H3Z"/></svg><select id="project" aria-label="选择项目"><option>mac-dev</option><option>arclink-web</option><option>example-app</option></select></label><span id="path" hidden>~/Projects/mac-dev</span><div id="history" class="history-note" hidden>新建独立对话，原历史保持不变。</div><div class="message-area"><label class="sr-only" for="message">描述任务</label><textarea id="message" placeholder="想让 Codex 做什么？"></textarea><div class="attachment-list" id="attachment"></div><div class="message-bottom"><button id="add" class="add" aria-label="添加参考图片"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span>参考图片</span></button><span class="image-count" id="imageCount" hidden>最多 4 张</span><button class="start" id="start" aria-label="发送并创建对话" disabled><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5m-6 6 6-6 6 6"/></svg></button></div><input type="file" accept="image/*" id="file" multiple hidden></div><details class="preferences"><summary><span class="sr-only">对话设置</span><span id="settingsSummary">默认设置</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 5 7 7-7 7"/></svg></summary><div class="settings-content"><div class="row"><label for="model">模型</label><select id="model"><option>跟随 Mac 设置</option></select></div><div class="row"><label for="policy">执行权限</label><select id="policy"><option value="workspace">项目内读写</option><option value="readonly">只读</option><option value="full">全访问</option></select></div><p class="help" id="policyHelp">项目内可读写，额外权限会请求审批。</p></div></details><p id="permissionNotice" class="permission-notice" hidden>全访问：可访问项目外文件并执行命令，无需逐项审批。</p><div class="notice" id="feedback" role="status" hidden></div></section><footer class="footer"><div class="home"></div></footer></main></div>
+
+<!-- Page transition overlay -->
+<div class="page-transition" id="pageTransition"></div>
+
+<script>
+const $=s=>document.querySelector(s);let files=[];
+function sync(){$('#start').disabled=!$('#message').value.trim()&&!files.length}
+function feedback(t){const el=$('#feedback');el.hidden=false;el.textContent=t;el.scrollIntoView({block:'nearest',behavior:'smooth'})}
+function renderFiles(){
+  const list=$('#attachment');list.replaceChildren();
+  files.forEach((f,i)=>{
+    const box=document.createElement('div');box.className='preview';
+    const img=document.createElement('img');img.src=f.url;img.alt=f.file.name;
+    const remove=document.createElement('button');remove.textContent='×';
+    remove.setAttribute('aria-label','移除图片 '+f.file.name);
+    remove.onclick=()=>{URL.revokeObjectURL(f.url);files.splice(i,1);renderFiles()};
+    box.append(img,remove);list.append(box)});
+  $('#imageCount').textContent=files.length?files.length+' / 4 张':'最多 4 张';
+  $('#add').disabled=files.length>=4;sync();
+}
+
+$('#theme').onclick=()=>{let d=$('#phone').classList.toggle('dark');$('#theme').textContent=d?'◐ 切换浅色外观':'◐ 切换深色外观'};
+
+$('#entry').onchange=()=>{
+  $('#history').hidden=$('#entry').value!=='history';
+  $('#origin').textContent={
+    home:'首页入口：预选当前项目，可切换。',
+    project:'项目右上角：预选所在项目，使用相同表单。',
+    history:'只读历史：预选原项目，创建独立会话。',
+    empty:'无历史项目：预选该项目，填写首条消息。'
+  }[$('#entry').value];
+  $('#feedback').hidden=true;
+};
+
+$('#project').onchange=()=>$('#path').textContent='~/Projects/'+$('#project').value;
+
+$('#policy').onchange=()=>{
+  const value=$('#policy').value;
+  $('#policyHelp').textContent={workspace:'项目内可读写，额外权限会请求审批。',readonly:'只读取文件，不修改项目。',full:'可访问项目外文件并执行命令，无需逐项审批。'}[value];
+  $('#settingsSummary').textContent=value==='workspace'?'默认设置':$('#policy').selectedOptions[0].text;
+  $('#permissionNotice').hidden=value!=='full';
+};
+
+$('#message').oninput=sync;
+$('#add').onclick=()=>$('#file').click();
+$('#file').onchange=()=>{
+  for(const f of [...$('#file').files].slice(0,4-files.length)){
+    if(!f.type.startsWith('image/'))continue;
+    files.push({file:f,url:URL.createObjectURL(f)});
+  }
+  $('#file').value='';renderFiles();
+};
+
+$('#cancel').onclick=()=>feedback('演示：返回原入口，不创建空对话。');
+
+$('#start').onclick=()=>{
+  if($('#start').disabled)return;
+  const draft=$('#message').value;
+  sessionStorage.setItem('arclink-prototype-draft',draft);
+  feedback('已发送（演示）。正在进入对话…');
+  $('#start').disabled=true;
+
+  // Animated page transition
+  const overlay=$('#pageTransition');
+  setTimeout(()=>{
+    overlay.classList.add('active');
+    setTimeout(()=>{location.href='index.html?from=new'},380);
+  },300);
+};
+</script></html>

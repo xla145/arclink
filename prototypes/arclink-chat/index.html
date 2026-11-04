@@ -1,0 +1,308 @@
+<!doctype html>
+<html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>ArcLink · 对话详情原型</title>
+<style>
+:root{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#252a29;background:#e8eae6;font-synthesis:none;--bg:#fafbf8;--card:#f0f2ed;--text:#252a29;--muted:#646d66;--line:#e2e6de;--green:#286347;--soft:#e6eee3}*{box-sizing:border-box}body{margin:0}button,textarea,select{font:inherit}button{cursor:pointer;color:inherit}button:focus-visible,summary:focus-visible,textarea:focus-visible,select:focus-visible{outline:2px solid var(--green);outline-offset:3px}button{border:0;background:none;min-height:44px}svg{width:21px;height:21px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;vertical-align:middle}.workspace{min-height:100vh;display:grid;grid-template-columns:310px 414px;gap:100px;justify-content:center;align-items:center;padding:45px 25px}.intro .brand{display:flex;align-items:center;gap:12px;font-size:20px;font-weight:650;letter-spacing:-.7px}.brandmark{width:35px;height:35px;background:#286347;color:white;border-radius:11px;display:grid;place-items:center}.eyebrow{font-size:11px;letter-spacing:2px;font-weight:600;color:#667367;margin-top:70px}.intro h1{font-size:42px;line-height:1.25;letter-spacing:-2px;margin:17px 0}.intro p{color:#626b63;font-size:14px;line-height:1.9}.controls{margin-top:35px;border-top:1px solid #ccd2c9;padding-top:24px}.controls label{display:block;font-size:12px;color:#566057;margin-bottom:10px}.controls select{width:100%;height:44px;border:1px solid #bac4b8;border-radius:10px;background:transparent;padding:0 12px;color:#28342a}.theme{border:1px solid #bac4b8;border-radius:10px;margin-top:10px;width:100%;text-align:left;padding:0 12px}.note{font-size:11px!important;margin-top:30px}.phone{height:852px;width:414px;max-height:calc(100vh - 70px);min-height:600px;background:var(--bg);color:var(--text);border:7px solid #28312b;border-radius:49px;box-shadow:0 28px 65px #25352820,0 4px 12px #25352815;overflow:hidden;position:relative;display:flex;flex-direction:column}.status{height:48px;flex-shrink:0;display:flex;align-items:center;justify-content:space-between;padding:7px 27px 0;font-size:13px;font-weight:650}.island{width:109px;height:26px;background:#28312b;border-radius:20px;position:absolute;left:50%;transform:translateX(-50%);top:10px}.status svg{width:17px;height:17px}.header{padding:8px 12px 14px;display:flex;align-items:center;border-bottom:1px solid var(--line);gap:4px}.icon{width:44px;flex-shrink:0;border-radius:12px}.icon:hover{background:var(--card)}.heading{flex:1;min-width:0}.heading h2{font-size:16px;margin:0 0 6px;letter-spacing:-.3px}.meta{display:flex;gap:5px;align-items:center;font-size:11px;color:var(--muted)}.dot{width:5px;height:5px;border-radius:50%;background:var(--green);display:inline-block}.messages{overflow:auto;flex:1;padding:22px 21px 28px;scroll-behavior:smooth}.date{text-align:center;font-size:10px;color:var(--muted);margin-bottom:23px;letter-spacing:.4px}.user{background:var(--soft);border-radius:18px 18px 5px 18px;margin-left:37px;padding:13px 15px;font-size:14px;line-height:1.7}.sent{text-align:right;font-size:10px;color:var(--muted);margin:8px 1px 25px}.agent{display:flex;align-items:center;gap:8px;font-size:11px;letter-spacing:1px;font-weight:650;margin-bottom:13px}.agent .symbol{background:var(--text);color:var(--bg);width:24px;height:24px;border-radius:8px;display:grid;place-items:center;font-size:16px}.copytext{font-size:14px;line-height:1.9;margin:0 0 16px}.steps{border:1px solid var(--line);border-radius:12px;margin:17px 0 22px;background:var(--card);font-size:12px}.steps summary{cursor:pointer;min-height:46px;display:flex;align-items:center;gap:9px;padding:9px 12px;list-style:none;color:var(--muted)}.steps summary::-webkit-details-marker{display:none}.steps summary:after{content:'›';margin-left:auto;font-size:20px}.steps[open] summary:after{transform:rotate(90deg)}.steps ul{list-style:none;margin:0;padding:0 15px 12px;color:var(--muted);line-height:2.4}.steps svg{width:16px;height:16px;color:var(--green)}h3{font-size:18px;letter-spacing:-.5px;margin:22px 0 12px}.changes{padding-left:20px;font-size:14px;line-height:1.8}.changes li{padding-left:4px;margin:9px 0}.changes span{color:var(--muted)}.file{width:100%;border:1px solid var(--line);background:var(--card);border-radius:12px;padding:12px;display:flex;align-items:center;gap:10px;text-align:left}.file span{flex:1;font-size:12px}.file small{display:block;font-size:10px;color:var(--muted);margin-top:5px}.diff{font-size:10px!important;flex:0!important;color:var(--green);white-space:nowrap}.actions{display:flex;align-items:center;margin-top:8px;gap:4px;color:var(--muted)}.actions button{font-size:11px;padding:0 7px}.actions svg{width:15px;height:15px;margin-right:4px}.actions .duration{margin-left:auto;font-size:10px}.composer{border-top:1px solid var(--line);padding:12px 15px 0;background:var(--bg)}.inputbox{border:1px solid var(--line);border-radius:20px;background:var(--card);padding:12px 12px 6px}.inputbox textarea{resize:none;width:100%;height:41px;max-height:100px;border:0;background:transparent;outline:none;color:var(--text);font-size:14px;line-height:1.5}.inputbox textarea::placeholder{color:var(--muted)}.inputtools{display:flex;align-items:center;gap:3px}.model{font-size:11px;color:var(--muted)}.send{margin-left:auto;background:var(--green);color:white;width:44px;border-radius:50%}.send:disabled{opacity:.4;cursor:default}.home{width:122px;height:4px;border-radius:3px;background:var(--text);margin:13px auto 8px}.footnote{text-align:center;font-size:9px;color:var(--muted);margin:8px 0 0}.banner{font-size:12px;background:var(--soft);padding:10px 17px;line-height:1.6}.approval{border:1px solid #b9cbb4;background:var(--card);padding:15px;border-radius:15px;margin-top:18px}.approval h4{margin:0 0 12px;font-size:14px}.approval code{font-size:12px}.approval p{font-size:11px;color:var(--muted)}.approval .buttons{display:flex;gap:8px;margin-top:12px}.approval button{border:1px solid var(--line);border-radius:9px;flex:1;font-size:12px}.approval button:last-child{background:var(--green);color:white}.approval button:disabled{opacity:.6}.dark{--bg:#171d19;--card:#222a24;--text:#e4e9e1;--muted:#a4afa3;--line:#39443a;--green:#9ecaa8;--soft:#2c3c2f}.dark .send,.dark .approval button:last-child{color:#15251b}.overlay{position:absolute;inset:0;background:#0006;z-index:5;display:flex;align-items:flex-end}.sheet{background:var(--bg);width:100%;padding:23px 23px 30px;border-radius:25px 25px 0 0;max-height:80%;overflow:auto}.sheet h3{margin:0}.sheet header{display:flex;align-items:center;justify-content:space-between}.sheet p{font-size:13px;color:var(--muted);line-height:1.8}.sheet pre{overflow:auto;font-size:11px;line-height:1.8;padding:14px;background:var(--card);border-radius:12px}.toast{position:absolute;bottom:190px;left:50%;transform:translateX(-50%);background:var(--text);color:var(--bg);padding:10px 17px;border-radius:12px;font-size:12px;white-space:nowrap;z-index:8}[hidden]{display:none!important}.attachment{font-size:11px;color:var(--green);padding:5px}.readOnly{text-align:center;padding:16px 0;font-size:12px;color:var(--muted)}@media(max-width:800px){.workspace{gap:30px;grid-template-columns:240px 390px}.phone{width:390px}.intro h1{font-size:34px}}@media(max-width:680px){.workspace{display:block;padding:0}.intro{padding:16px 18px}.intro .brand{font-size:16px}.intro .eyebrow,.intro h1,.intro p{display:none}.controls{margin:12px 0 0;padding:0;border:0;display:flex;gap:8px}.controls label{display:none}.controls select,.theme{width:50%;margin:0;font-size:12px}.phone{width:100%;height:calc(100dvh - 123px);min-height:450px;max-height:none;border:0;border-radius:0;box-shadow:none}.status{display:none}.header{padding-top:14px}.home{margin-bottom:max(8px,env(safe-area-inset-bottom))}.messages{padding-left:20px;padding-right:20px}}@media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important;animation:none!important;transition:none!important}}
+
+/* Quiet, theme-aware scrollbars for conversation and detail panels. */
+.phone{--scroll-thumb:#bac6b9;--scroll-hover:#829781}
+.phone.dark{--scroll-thumb:#4b5e4e;--scroll-hover:#7c987f}
+.messages,.sheet,.sheet pre,.inputbox textarea{scrollbar-width:thin;scrollbar-color:var(--scroll-thumb) transparent}
+.messages::-webkit-scrollbar,.sheet::-webkit-scrollbar,.sheet pre::-webkit-scrollbar,.inputbox textarea::-webkit-scrollbar{width:5px;height:5px}
+.messages::-webkit-scrollbar-track,.sheet::-webkit-scrollbar-track,.sheet pre::-webkit-scrollbar-track,.inputbox textarea::-webkit-scrollbar-track{background:transparent;margin-block:12px}
+.messages::-webkit-scrollbar-thumb,.sheet::-webkit-scrollbar-thumb,.sheet pre::-webkit-scrollbar-thumb,.inputbox textarea::-webkit-scrollbar-thumb{background:var(--scroll-thumb);border-radius:999px}
+.messages::-webkit-scrollbar-thumb:hover,.sheet::-webkit-scrollbar-thumb:hover,.sheet pre::-webkit-scrollbar-thumb:hover,.inputbox textarea::-webkit-scrollbar-thumb:hover{background:var(--scroll-hover)}
+.messages::-webkit-scrollbar-corner,.sheet pre::-webkit-scrollbar-corner{background:transparent}
+@media(forced-colors:active){.messages,.sheet,.sheet pre,.inputbox textarea{scrollbar-color:auto}}
+
+.steps .step-list{padding:0 8px 8px}.step-list li+li{border-top:1px solid var(--line)}.step-list button{width:100%;display:flex;align-items:center;gap:10px;text-align:left;padding:10px 6px;border-radius:8px;line-height:1.5}.step-list button:hover{background:var(--soft)}.step-list button>span:first-child{color:var(--green)}.step-list button>span:nth-child(2){flex:1;color:var(--text)}.step-list small{display:block;font-size:10px;color:var(--muted);margin-top:4px}.step-detail h4{font-size:13px;margin:22px 0 8px}.step-detail .step-state{display:inline-block;padding:4px 9px;border-radius:6px;background:var(--soft);color:var(--green);font-size:11px}.step-detail pre{white-space:pre-wrap;overflow-wrap:anywhere;max-height:220px;overflow:auto}.step-detail .detail-label{font-size:10px;letter-spacing:1px;color:var(--muted);margin-bottom:12px}
+
+/* ── Interaction enhancements ── */
+
+/* Keyframes */
+@keyframes fadeSlideUp {
+  from { opacity: 0; transform: translateY(14px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes streamPulse {
+  0%, 80%, 100% { opacity: .3; transform: scale(.8); }
+  40%           { opacity: 1;  transform: scale(1); }
+}
+@keyframes cursorBlink {
+  50% { opacity: 0; }
+}
+
+/* Touch / pointer feedback */
+.icon, .file, .send, .approval button, .steps summary, .step-list button, .theme {
+  transition: transform .15s ease, background .2s ease, opacity .2s ease;
+}
+.icon:active             { transform: scale(.86); }
+.file:active             { transform: scale(.97); }
+.send:active:not(:disabled) { transform: scale(.88); }
+.approval button:active:not(:disabled) { transform: scale(.95); }
+.steps summary:active    { background: var(--soft); border-radius: 12px; }
+.step-list button:active { background: var(--soft) !important; }
+.theme:active            { transform: scale(.96); }
+
+/* Sheet / overlay – animated via class, not hidden */
+.overlay {
+  background: transparent;
+  transition: background .3s ease;
+  pointer-events: none;
+}
+.overlay.visible {
+  background: #0006;
+  pointer-events: auto;
+}
+.sheet {
+  transform: translateY(100%);
+  transition: transform .38s cubic-bezier(.32,.72,0,1);
+}
+.overlay.visible .sheet {
+  transform: translateY(0);
+}
+
+/* Toast – slide + fade */
+.toast {
+  transition: opacity .25s ease, transform .25s ease;
+  opacity: 0;
+  transform: translate(-50%, 10px);
+  pointer-events: none;
+}
+.toast.show {
+  opacity: 1;
+  transform: translate(-50%, 0);
+  pointer-events: auto;
+}
+
+/* Banner – animate in/out */
+.banner {
+  transition: max-height .3s ease, opacity .3s ease, padding .3s ease;
+  max-height: 0; opacity: 0; padding: 0 17px; overflow: hidden;
+}
+.banner.visible {
+  max-height: 80px; opacity: 1; padding: 10px 17px;
+}
+
+/* Message entrance */
+.msg-enter { animation: fadeSlideUp .35s cubic-bezier(.32,.72,0,1) both; }
+
+/* Streaming cursor */
+.typing-cursor {
+  display: inline-block; width: 2px; height: 1.1em;
+  background: var(--green); margin-left: 2px; vertical-align: text-bottom;
+  animation: cursorBlink 1s step-end infinite;
+}
+
+/* Streaming dots indicator */
+.streaming-dots {
+  display: inline-flex; align-items: center; gap: 4px;
+  margin-left: 8px; vertical-align: middle;
+}
+.streaming-dots span {
+  width: 5px; height: 5px; border-radius: 50%;
+  background: var(--green);
+  animation: streamPulse 1.4s infinite;
+}
+.streaming-dots span:nth-child(2) { animation-delay: .2s; }
+.streaming-dots span:nth-child(3) { animation-delay: .4s; }
+
+/* Result / approval entrance */
+#result:not([hidden]), #approval:not([hidden]) {
+  animation: fadeSlideUp .35s ease both;
+}
+
+/* Composer focus ring glow */
+.inputbox { transition: border-color .2s ease, box-shadow .2s ease; }
+.inputbox:focus-within {
+  border-color: var(--green);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--green) 15%, transparent);
+}
+</style>
+<svg style="display:none" aria-hidden="true"><defs><symbol id="back" viewBox="0 0 24 24"><path d="m14 6-6 6 6 6"/></symbol><symbol id="more" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></symbol><symbol id="plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol><symbol id="up" viewBox="0 0 24 24"><path d="M12 19V5m-6 6 6-6 6 6"/></symbol><symbol id="check" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></symbol><symbol id="file" viewBox="0 0 24 24"><path d="M14 3H5v18h14V8zm0 0v5h5M8 13h8M8 17h5"/></symbol><symbol id="copy" viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="13" rx="2"/><path d="M15 8V3H3v13h5"/></symbol></defs></svg>
+<div class="workspace"><aside class="intro"><div class="brand"><span class="brandmark">↗</span> ArcLink <span style="font-weight:400;color:#69736b;font-size:14px">弧连</span></div><div class="eyebrow">CONVERSATION / 01</div><h1>让想法继续，<br>无论身在何处。</h1><p>连接你的 Mac，与 AI 一起推进工作。<br>清晰的对话，恰到好处的掌控。</p><div class="controls"><label for="scene">预览场景</label><select id="scene"><option value="done">回复完成</option><option value="running">正在执行</option><option value="approval">等待审批</option><option value="offline">连接中断</option><option value="readonly">只读历史</option></select><button class="theme" id="theme">◐　切换深色外观</button></div><p class="note">交互原型 · 示例数据<br>可展开执行步骤、查看文件、发送消息与处理审批。</p></aside>
+<main class="phone" id="phone"><div class="status"><span>9:41</span><span class="island"></span><span>▴ ▰ ▰</span></div><header class="header"><button class="icon" id="backBtn" aria-label="返回对话列表"><svg><use href="#back"/></svg></button><div class="heading"><h2>优化登录页面</h2><div class="meta"><span class="dot"></span> mac-dev <span> / </span> MacBook Pro</div></div><button class="icon" id="moreBtn" aria-label="会话详情"><svg><use href="#more"/></svg></button></header><div class="banner" id="banner" role="status" hidden></div><section class="messages" id="messages" aria-label="对话消息"><div class="date">今天 · 14:32</div><div class="user">帮我优化登录页面的布局和错误提示，让它更简洁、好用。</div><div class="sent">14:32 · 已送达</div><div class="agent"><span class="symbol">⌘</span> CODEX</div><p class="copytext">我会先检查页面结构，梳理输入和反馈的体验，再调整细节。</p><details class="steps"><summary><svg><use href="#check"/></svg><span id="stepTitle">已完成 3 个步骤</span><span style="margin-left:auto;font-size:10px">12 秒</span></summary><ul class="step-list"><li><button data-step="0"><span>✓</span><span>读取 LoginView.swift<small>读取文件 · 1 秒</small></span><span>›</span></button></li><li><button data-step="1"><span>✓</span><span>调整表单布局与错误提示<small>修改文件 · 8 秒</small></span><span>›</span></button></li><li><button data-step="2"><span>✓</span><span>检查输入与提交状态<small>执行检查 · 3 秒</small></span><span>›</span></button></li></ul></details><div id="result"><h3>更清晰，也更从容。</h3><p class="copytext">登录页已调整完成，保留熟悉的操作方式，让每一步都更明确。</p><ol class="changes"><li><b>标签始终可见</b><br><span>输入时，也能知道正在填写什么。</span></li><li><b>错误就近提示</b><br><span>直接定位问题，不必来回寻找。</span></li><li><b>保留已填内容</b><br><span>提交失败后，修改即可再次尝试。</span></li></ol><button class="file" id="fileBtn"><svg><use href="#file"/></svg><span>LoginView.swift<small>1 个文件已修改</small></span><span class="diff">+24 −12</span><span>›</span></button><div class="actions"><button id="copyBtn"><svg><use href="#copy"/></svg>复制</button><span class="duration">已完成 · 12 秒</span></div></div><div id="approval" class="approval" hidden><h4>需要你的确认</h4><code>npm install</code><p>安装项目依赖<br>目录：~/Projects/example</p><details><summary>查看完整参数</summary><p>工具：shell<br>命令：npm install<br>范围：当前项目目录</p></details><div class="buttons"><button data-answer="已拒绝执行">拒绝</button><button data-answer="已允许本次执行">允许本次</button></div><p id="approvalStatus" role="status"></p></div></section><footer class="composer"><form class="inputbox" id="form"><div id="attachment" class="attachment" hidden></div><textarea id="draft" aria-label="消息内容" placeholder="继续描述你的需求…" rows="2"></textarea><div class="inputtools"><button type="button" class="icon" id="attachBtn" aria-label="添加图片"><svg><use href="#plus"/></svg></button><span class="model">Codex <span style="opacity:.6">· 默认</span></span><button class="send" id="send" aria-label="发送消息" disabled><svg><use href="#up"/></svg></button></div></form><input id="upload" type="file" accept="image/*" hidden><div id="readOnly" class="readOnly" hidden>此对话为只读历史</div><p class="footnote">原型预览 · 消息与操作均为本地演示</p><div class="home"></div></footer><div class="overlay" id="overlay" hidden><section class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle"><header><h3 id="sheetTitle"></h3><button class="icon" id="close" aria-label="关闭弹窗">✕</button></header><div id="sheetBody"></div></section></div><div class="toast" id="toast" role="status" hidden></div></main></div>
+<script>
+const $=s=>document.querySelector(s);let running=false,timer,toastTimer,returnFocus,attached=false,streamAbort=null;const messages=$('#messages');
+
+/* ── Toast (animated) ── */
+function toast(t){
+  const el=$('#toast');
+  el.textContent=t; el.hidden=false;
+  clearTimeout(toastTimer);
+  requestAnimationFrame(()=>el.classList.add('show'));
+  toastTimer=setTimeout(()=>{
+    el.classList.remove('show');
+    setTimeout(()=>el.hidden=true,280);
+  },2300);
+}
+
+/* ── Sheet / Overlay (animated) ── */
+function sheet(title,html){
+  returnFocus=document.activeElement;
+  $('#sheetTitle').textContent=title;
+  $('#sheetBody').innerHTML=html;
+  const ov=$('#overlay'); ov.hidden=false;
+  requestAnimationFrame(()=>requestAnimationFrame(()=>ov.classList.add('visible')));
+  $('#close').focus();
+}
+function close(){
+  const ov=$('#overlay'); ov.classList.remove('visible');
+  ov.addEventListener('transitionend',function once(){ov.hidden=true;ov.removeEventListener('transitionend',once)});
+  returnFocus?.focus();
+}
+$('#close').onclick=close;
+$('#overlay').onclick=e=>{if(e.target===$('#overlay'))close()};
+document.addEventListener('keydown',e=>{
+  if($('#overlay').classList.contains('visible')){
+    if(e.key==='Escape')close();
+    if(e.key==='Tab'){
+      const nodes=[...$('#overlay').querySelectorAll('button,[tabindex="0"]')];
+      const first=nodes[0],last=nodes[nodes.length-1];
+      if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus()}
+      else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus()}
+    }
+  }
+});
+
+/* ── Banner (animated) ── */
+function showBanner(text){
+  const b=$('#banner'); b.textContent=text; b.hidden=false;
+  requestAnimationFrame(()=>b.classList.add('visible'));
+}
+function hideBanner(){
+  const b=$('#banner'); b.classList.remove('visible');
+  b.addEventListener('transitionend',function once(){b.hidden=true;b.removeEventListener('transitionend',once)});
+}
+
+/* ── Streaming typing effect ── */
+function streamText(el,text,speed=28){
+  if(streamAbort) streamAbort.abort=true;
+  const ctrl={abort:false}; streamAbort=ctrl;
+  el.textContent='';
+  const cursor=document.createElement('span');
+  cursor.className='typing-cursor';
+  el.appendChild(cursor);
+  let i=0;
+  return new Promise(resolve=>{
+    function tick(){
+      if(ctrl.abort){resolve();return}
+      if(i<text.length){
+        el.insertBefore(document.createTextNode(text[i]),cursor);
+        i++;
+        messages.scrollTop=messages.scrollHeight;
+        setTimeout(tick,speed+Math.random()*20);
+      } else {
+        cursor.remove();
+        resolve();
+      }
+    }
+    tick();
+  });
+}
+
+/* ── Theme ── */
+$('#theme').onclick=()=>{const dark=$('#phone').classList.toggle('dark');$('#theme').textContent=dark?'◐　切换浅色外观':'◐　切换深色外观'};
+
+/* ── Header buttons ── */
+$('#moreBtn').onclick=()=>sheet('会话详情','<p>项目　mac-dev<br>设备　MacBook Pro<br>助手　Codex<br>来源　ArcLink 创建<br>状态　原型演示</p>');
+$('#backBtn').onclick=()=>sheet('对话列表','<p>今天</p><p><b>优化登录页面</b><br>mac-dev · 刚刚</p><p>当前原型仅展示此会话。</p>');
+$('#fileBtn').onclick=()=>sheet('文件变更','<p>LoginView.swift · 示例变更预览</p><pre>  VStack(alignment: .leading) {\n+   Text("邮箱地址")\n    TextField("", text: $email)\n+   if let error {\n+     Text(error)\n+       .foregroundStyle(.red)\n+   }\n  }</pre>');
+$('#copyBtn').onclick=async()=>{try{await navigator.clipboard.writeText($('#result').innerText);toast('回复已复制')}catch{toast('浏览器未允许复制，请手动选择正文')}};
+
+/* ── Composer sync ── */
+function sync(){const scene=$('#scene').value;$('#send').disabled=!running&&(scene==='offline'||scene==='readonly'||scene==='approval'||(!$('#draft').value.trim()&&!attached))}
+$('#draft').oninput=sync;
+$('#attachBtn').onclick=()=>$('#upload').click();
+$('#upload').onchange=()=>{const f=$('#upload').files[0];attached=!!f;$('#attachment').hidden=!f;$('#attachment').textContent=f?'已添加图片：'+f.name:'';sync()};
+
+/* ── Scene switcher (animated) ── */
+$('#scene').onchange=()=>{
+  const s=$('#scene').value;
+  running=s==='running';
+  if(streamAbort) streamAbort.abort=true;
+
+  $('#result').hidden=running||s==='approval';
+  $('#approval').hidden=s!=='approval';
+  $('#form').hidden=s==='readonly';
+  $('#readOnly').hidden=s!=='readonly';
+
+  // Banner animated
+  if(['offline','approval'].includes(s)){
+    showBanner(s==='offline'?'连接已中断 · 草稿已保留，等待设备重新连接':'有一项操作需要你的确认');
+  } else { hideBanner(); }
+
+  // Step title with streaming dots
+  if(running){
+    $('#stepTitle').innerHTML='正在检查页面结构… <span class="streaming-dots"><span></span><span></span><span></span></span>';
+  } else {
+    $('#stepTitle').textContent=s==='approval'?'等待操作授权':'已完成 3 个步骤';
+  }
+
+  // Send button
+  $('#send').innerHTML=running?'■':'<svg><use href="#up"/></svg>';
+  $('#send').setAttribute('aria-label',running?'停止生成':'发送消息');
+  $('#draft').placeholder=running?'可先编辑下一条消息…':'继续描述你的需求…';
+
+  // Streaming text in running scene
+  if(running){
+    const copyEl=document.querySelector('.copytext');
+    streamText(copyEl,'我会先检查页面结构，梳理输入和反馈的体验，再调整细节。');
+  }
+
+  // Approval reset
+  $('#approvalStatus').textContent='';
+  document.querySelectorAll('[data-answer]').forEach(b=>b.disabled=false);
+  sync();
+  if(s==='approval') messages.scrollTop=messages.scrollHeight;
+};
+
+/* ── Approval buttons ── */
+document.querySelectorAll('[data-answer]').forEach(b=>b.onclick=()=>{
+  $('#approvalStatus').textContent=b.dataset.answer+'（演示）';
+  document.querySelectorAll('[data-answer]').forEach(x=>x.disabled=true);
+  hideBanner();
+  toast('审批结果已记录（演示）');
+});
+
+/* ── Form submit (animated messages) ── */
+$('#form').onsubmit=e=>{
+  e.preventDefault();
+  if(running){$('#scene').value='done';$('#scene').onchange();toast('已停止生成（演示）');return}
+  if($('#send').disabled)return;
+  const msg=document.createElement('div');
+  msg.className='user msg-enter';
+  msg.style.marginTop='22px';
+  msg.textContent=$('#draft').value.trim()+(attached?' [图片附件]':'');
+  messages.append(msg);
+
+  // Simulated response with delay
+  setTimeout(()=>{
+    const response=document.createElement('p');
+    response.className='copytext msg-enter';
+    response.style.marginTop='22px';
+    messages.append(response);
+    streamText(response,'已收到。这是交互演示，正式版本会由连接的 Mac 继续处理你的请求。',22);
+  },400);
+
+  $('#draft').value='';attached=false;$('#upload').value='';$('#attachment').hidden=true;
+  sync();messages.scrollTop=messages.scrollHeight;
+};
+
+const stepDetails=[
+{title:'读取 LoginView.swift',tool:'read_file',duration:'1 秒',input:{path:'Sources/Views/LoginView.swift',start_line:1,end_line:120},output:'读取成功 · 120 行\n\nstruct LoginView: View {\n    @State private var email = ""\n    @State private var password = ""\n\n    var body: some View {\n        VStack {\n            TextField("邮箱地址", text: $email)\n            SecureField("密码", text: $password)\n            Button("登录", action: submit)\n        }\n    }\n}\n\n（以上为示例文件节选）'},
+{title:'调整表单布局与错误提示',tool:'apply_patch',duration:'8 秒',input:{path:'Sources/Views/LoginView.swift',patch:'@@ 表单布局 @@\n+ Text("邮箱地址")\n  TextField("", text: $email)\n+ if let error {\n+     Text(error).foregroundStyle(.red)\n+ }\n@@ 提交失败 @@\n- email = ""\n- password = ""'},output:'修改成功\n\n文件：Sources/Views/LoginView.swift\n新增：24 行\n删除：12 行\n\n• 增加常驻字段标签\n• 字段下方展示错误提示\n• 提交失败后保留输入内容'},
+{title:'检查输入与提交状态',tool:'shell',duration:'3 秒',input:{command:'swift test --filter LoginViewTests',cwd:'~/Projects/example',timeout_ms:30000},output:'Test Suite LoginViewTests started\n✓ testLabelsRemainVisible\n✓ testInlineValidationError\n✓ testRetainsInputOnFailure\n\nExecuted 3 tests, with 0 failures.\nExit code: 0\n\n（原型示例输出，未执行真实测试）'}
+];
+function escaped(value){const el=document.createElement('span');el.textContent=value;return el.innerHTML}
+document.querySelectorAll('[data-step]').forEach(button=>button.onclick=()=>{const step=stepDetails[Number(button.dataset.step)];sheet(step.title,'<div class="step-detail"><p class="detail-label">执行步骤 '+(Number(button.dataset.step)+1)+' / 3 · 示例数据</p><span class="step-state">✓ 已完成 · '+step.duration+'</span><p>工具：<code>'+escaped(step.tool)+'</code></p><h4>输入</h4><pre tabindex="0" aria-label="步骤输入">'+escaped(JSON.stringify(step.input,null,2))+'</pre><h4>输出</h4><pre tabindex="0" aria-label="步骤输出">'+escaped(step.output)+'</pre></div>')});
+
+if(new URLSearchParams(location.search).get('from')==='new'){
+ const first=sessionStorage.getItem('arclink-prototype-draft')||'请查看参考图片';
+ const user=document.querySelector('.user');user.textContent=first;
+ document.querySelector('.heading h2').textContent=first.slice(0,18);
+ document.querySelector('.steps').hidden=true;
+ document.querySelector('#result').hidden=true;
+ document.querySelector('.copytext').textContent='已收到你的需求。这是页面跳转演示，正式版本将在此显示助手的回复。';
+ document.querySelector('#backBtn').onclick=()=>location.href='new-conversation.html';
+}
+</script></html>
