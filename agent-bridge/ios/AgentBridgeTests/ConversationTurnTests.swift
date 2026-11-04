@@ -3,6 +3,61 @@ import XCTest
 
 @MainActor
 final class ConversationTurnTests: XCTestCase {
+    func testReadingEarlierContentDoesNotFollowGrowthAndCanReturnToLatest() {
+        var state = ChatScrollFollowState()
+        state.observe(ChatScrollPosition(top: -900, bottom: 600), viewport: 600)
+        XCTAssertTrue(state.followsLatest)
+        // VoiceOver or other non-touch scroll toward older messages.
+        state.observe(ChatScrollPosition(top: -300, bottom: 1200), viewport: 600)
+        XCTAssertFalse(state.followsLatest)
+        // Output appended below the reader must not restore following.
+        state.observe(ChatScrollPosition(top: -300, bottom: 1800), viewport: 600)
+        XCTAssertFalse(state.followsLatest)
+        state.observe(ChatScrollPosition(top: -1500, bottom: 600), viewport: 600)
+        XCTAssertTrue(state.followsLatest)
+        state.observe(ChatScrollPosition(top: -1500, bottom: 700), viewport: 600)
+        XCTAssertTrue(state.followsLatest, "Content growth alone keeps following intent")
+    }
+
+    func testLiveStepIdentityResolvesLatestInputOutputAndOutcome() throws {
+        var message = ChatMessage(id: "native-row", sessionId: "s", isUser: false, text: "", imageData: nil, time: "")
+        message.executionStep = ChatExecutionStep(id: "call", completed: false, title: "执行命令", input: "swift test")
+        let selected = try XCTUnwrap(ConversationTurn.live([message]).first?.steps.first)
+        XCTAssertEqual(selected.statusLabel, "执行中")
+        XCTAssertNil(selected.output)
+        message.executionStep?.completed = true
+        message.executionStep?.failed = true
+        message.executionStep?.output = "Test failed: expected value"
+        let latest = try XCTUnwrap(ConversationTurn.live([message]).first?.steps.first { $0.id == selected.id })
+        XCTAssertEqual(latest.input, "swift test")
+        XCTAssertEqual(latest.output, "Test failed: expected value")
+        XCTAssertEqual(latest.statusLabel, "执行失败")
+        XCTAssertEqual(selected.statusLabel, "执行中", "A captured snapshot is stale; the detail must resolve identity again")
+    }
+
+    func testHistoricalStepOutcomesPairByCallIDWithoutInferringMissingSuccess() throws {
+        let records = [
+            history("user", "first"),
+            MacMessage(role: "tool", text: "input A", timestamp: nil, toolCallId: "a", toolName: "tool A", toolPhase: "input", toolFailed: nil, assistantPhase: nil),
+            MacMessage(role: "tool", text: "input B", timestamp: nil, toolCallId: "b", toolName: "tool B", toolPhase: "input", toolFailed: nil, assistantPhase: nil),
+            MacMessage(role: "tool", text: "output B", timestamp: nil, toolCallId: "b", toolName: nil, toolPhase: "output", toolFailed: false, assistantPhase: nil),
+            MacMessage(role: "tool", text: "output A", timestamp: nil, toolCallId: "a", toolName: nil, toolPhase: "output", toolFailed: true, assistantPhase: nil),
+            history("user", "second"),
+            MacMessage(role: "tool", text: "new input A", timestamp: nil, toolCallId: "a", toolName: nil, toolPhase: "input", toolFailed: nil, assistantPhase: nil),
+            history("tool", "success in prose is not evidence")
+        ]
+        let steps = MessageStep.history(records)
+        XCTAssertEqual(steps[1]?.failed, true)
+        XCTAssertEqual(steps[2]?.failed, false)
+        XCTAssertEqual(steps[1]?.completed, true)
+        XCTAssertNil(steps[6]?.output)
+        XCTAssertNil(steps[6]?.failed)
+        XCTAssertNil(steps[6]?.completed)
+        XCTAssertEqual(steps[6]?.statusLabel, "状态未知")
+        XCTAssertEqual(steps[7]?.statusLabel, "状态未知")
+        XCTAssertNil(steps[3], "Paired output must not create a duplicate step")
+    }
+
     func testAuthoritativePhasesKeepFinalPartsAndOriginalStepOrder() {
         var commentary = history("assistant", "start")
         commentary.assistantPhase = "commentary"

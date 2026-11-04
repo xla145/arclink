@@ -4,6 +4,7 @@ import SwiftUI
 struct ChatView: View {
     @Environment(AppStore.self) private var store
     @Environment(\.dynamicTypeSize) private var typeSize
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     var projectId: String
     var sessionId: String?
     @Binding var path: NavigationPath
@@ -21,6 +22,11 @@ struct ChatView: View {
     @State private var more = false
     @State private var submitting = false
     @FocusState private var composing: Bool
+    @State private var scrollState = ChatScrollFollowState()
+    private var followsLatest: Bool { scrollState.followsLatest }
+    @State private var bottomPosition: CGFloat = 0
+    @State private var viewportHeight: CGFloat = 0
+    @State private var scrollRequest = 0
 
     private var resolvedId: String? { liveId ?? sessionId }
     private var sessionRow: SessionItem? { store.sessions.first { $0.id == resolvedId && $0.projectId == projectId } }
@@ -36,11 +42,16 @@ struct ChatView: View {
         ScrollViewReader { proxy in
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 22) {
-                    contextHeader
+                    if typeSize.isAccessibilitySize {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text(sessionRow?.title ?? "新对话").font(.title2.bold())
+                            contextHeader
+                        }.accessibilityAddTraits(.isHeader)
+                    }
                     if isMacThread {
                         history
                     } else if thread.isEmpty {
-                        ContentUnavailableView("开始新的对话", systemImage: "bubble.left.and.bubble.right", description: Text(remoteChat ? "描述你的需求，消息会发送到 Mac 上的 Codex。\n第一条消息发送后才会创建对话。" : "描述你的需求，或添加图片。\n第一条消息发送后才会创建对话。"))
+                        ContentUnavailableView("开始新的对话", systemImage: "bubble.left.and.bubble.right", description: Text(remoteChat ? "描述你的需求，消息会发送到 Mac 上的 \(project?.agent.rawValue ?? "Agent")。\n第一条消息发送后才会创建对话。" : "描述你的需求，或添加图片。\n第一条消息发送后才会创建对话。"))
                         Button("查看项目结构") { draft = "查看项目结构"; composing = true }
                             .buttonStyle(.bordered).frame(maxWidth: .infinity)
                             .disabled(!canCompose)
@@ -51,58 +62,94 @@ struct ChatView: View {
                                        images: message.images, steps: message.steps, summary: message.summary)
                         }
                         ForEach(requests) { request in
-                            Button { composing = false; path.append(Route.approval(request.id)) } label: {
-                                HStack(spacing: 10) {
-                                    Image(systemName: request.pending ? "clock.badge.exclamationmark" : (request.approved == true ? "checkmark.circle" : "xmark.circle"))
-                                    Text(request.pending ? "待审批 · \(request.title)" : "\(request.approved == true ? "已批准" : "已拒绝") · \(request.title)")
-                                        .lineLimit(2)
-                                    Spacer(minLength: 0)
-                                    Image(systemName: "chevron.right").font(.caption)
-                                }
-                                .font(.subheadline).padding(12)
-                                .background(Color.orange.opacity(0.1), in: RoundedRectangle(cornerRadius: 12))
-                                .contentShape(Rectangle())
-                            }
-                            .buttonStyle(.plain).foregroundStyle(.orange)
-                            .accessibilityIdentifier("approval-event-\(request.id)")
+                            approvalCard(request)
                         }
                     }
                     Color.clear.frame(height: 1).id("bottom")
                 }
-                .padding(16)
+                .padding(.horizontal, 20).padding(.vertical, 22)
+                .background(GeometryReader { geometry in
+                    Color.clear.preference(key: ChatBottomPreference.self,
+                        value: ChatScrollPosition(top: geometry.frame(in: .named("chat-scroll")).minY,
+                                                          bottom: geometry.frame(in: .named("chat-scroll")).maxY))
+                })
             }
-            .background(Color(.systemGroupedBackground))
+            .coordinateSpace(name: "chat-scroll")
+            .background(ChatStyle.background)
+            .background(GeometryReader { geometry in
+                Color.clear.onAppear { viewportHeight = geometry.size.height }
+                    .onChange(of: geometry.size.height) { _, height in viewportHeight = height }
+            })
+            .onPreferenceChange(ChatBottomPreference.self) { bottom in
+                guard let bottom else { return }
+                bottomPosition = bottom.bottom
+                scrollState.observe(bottom, viewport: viewportHeight)
+            }
+            .simultaneousGesture(DragGesture(minimumDistance: 5).onChanged { value in
+                if value.translation.height > 5 { scrollState.followsLatest = false }
+            }.onEnded { _ in
+                scrollState.followsLatest = bottomPosition <= viewportHeight + 32
+            })
             .scrollDismissesKeyboard(.interactively)
             .task(id: sessionId) {
                 await loadMacMessages()
                 if !Task.isCancelled { proxy.scrollTo("bottom", anchor: .bottom) }
             }
-            .onChange(of: thread.count) { _, _ in
-                withAnimation { proxy.scrollTo("bottom", anchor: .bottom) }
+            #if DEBUG
+            .task(id: sessionId) { await applyLiveUpdateFixture() }
+            #endif
+            .onChange(of: thread) { _, _ in
+                if followsLatest { proxy.scrollTo("bottom", anchor: .bottom) }
             }
-            .onChange(of: thread.last?.text.count) { _, _ in
-                if busy { proxy.scrollTo("bottom", anchor: .bottom) }
+            .onChange(of: requests) { _, _ in
+                if followsLatest { proxy.scrollTo("bottom", anchor: .bottom) }
+            }
+            .onChange(of: scrollRequest) { _, _ in
+                scrollState.followsLatest = true
+                withAnimation(reduceMotion ? nil : .easeOut(duration: 0.2)) { proxy.scrollTo("bottom", anchor: .bottom) }
             }
             .onChange(of: composing) { _, active in
-                if active {
+                if active && followsLatest {
                     Task { @MainActor in
                         try? await Task.sleep(for: .milliseconds(300))
-                        if composing { withAnimation { proxy.scrollTo("bottom", anchor: .bottom) } }
+                        if composing && followsLatest { proxy.scrollTo("bottom", anchor: .bottom) }
                     }
+                }
+            }
+            .overlay(alignment: .bottomTrailing) {
+                if !followsLatest {
+                    Button { scrollRequest += 1 } label: {
+                        Label("回到最新", systemImage: "arrow.down")
+                            .font(.caption.weight(.medium)).padding(.horizontal, 14)
+                            .frame(minHeight: 44)
+                            .background(ChatStyle.surface, in: Capsule())
+                            .overlay(Capsule().stroke(ChatStyle.border))
+                    }
+                    .buttonStyle(.plain).accessibilityIdentifier("chat-latest")
+                    .padding(16)
                 }
             }
             .safeAreaInset(edge: .bottom, spacing: 0) { composer }
         }
         .navigationTitle(sessionRow?.title ?? "新对话")
         .navigationBarTitleDisplayMode(.inline)
+        .tint(ChatStyle.accent)
+        .toolbarBackground(ChatStyle.background, for: .navigationBar)
+        .toolbarBackground(.visible, for: .navigationBar)
         .toolbar {
+            ToolbarItem(placement: .principal) {
+                if typeSize.isAccessibilitySize {
+                    Text("对话").font(.headline)
+                } else {
+                    VStack(spacing: 3) {
+                        Text(sessionRow?.title ?? "新对话").font(.headline).lineLimit(1)
+                        contextHeader
+                    }
+                }
+            }
             if !isMacThread {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button { path.append(Route.terminal(resolvedId ?? "")) } label: { Image(systemName: "terminal") }
-                        .accessibilityLabel("终端").disabled(resolvedId == nil || resolvedId.map { store.isRemoteChatSession(sessionId: $0) } == true)
-                }
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button { more = true } label: { Image(systemName: "ellipsis") }
+                    Button { more = true } label: { Image(systemName: "ellipsis").frame(width: 44, height: 44) }
                         .accessibilityLabel("会话操作").disabled(resolvedId == nil)
                 }
             }
@@ -113,6 +160,8 @@ struct ChatView: View {
         }
         .confirmationDialog("会话", isPresented: $more, titleVisibility: .hidden) {
             if let id = resolvedId, !isMacThread {
+                Button("终端") { path.append(Route.terminal(id)) }
+                    .disabled(store.isRemoteChatSession(sessionId: id))
                 Button("取消当前任务") { store.cancelPending(sessionId: id) }
                 Button("停止会话") { store.stopSession(id: id) }
                 Button("删除会话记录", role: .destructive) { store.deleteSession(id: id); path.removeLast() }
@@ -132,18 +181,52 @@ struct ChatView: View {
     }
 
     private var contextHeader: some View {
-        let layout = typeSize.isAccessibilitySize
-            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 6))
-            : AnyLayout(HStackLayout(spacing: 6))
-        return layout {
-            Image(systemName: project?.agent.symbolName ?? "sparkle")
-                .foregroundStyle(project?.agent.tint ?? .accentColor)
-            Text(project?.name ?? "项目不存在").lineLimit(1)
-            if !typeSize.isAccessibilitySize { Spacer() }
-            Text(isMacThread ? "\(sessionRow?.source.rawValue ?? "未知") · 只读" : (remoteChat ? "CLI · Mac 远程" : "CLI · 本地模拟"))
+        Text("\(project?.name ?? "项目不存在") · \(store.hostName.isEmpty ? "本地" : store.hostName)\(isMacThread ? " · 只读" : "")")
+            .font(.caption2).foregroundStyle(.secondary).lineLimit(typeSize.isAccessibilitySize ? nil : 1)
+            .accessibilityIdentifier("chat-context")
+    }
+
+    private func approvalCard(_ request: ApprovalItem) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Button { composing = false; path.append(Route.approval(request.id)) } label: {
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack {
+                        Label(request.pending ? "需要你的确认" : (request.approved == true ? "已批准" : "已拒绝"),
+                              systemImage: request.pending ? "hand.raised" : (request.approved == true ? "checkmark.circle" : "xmark.circle"))
+                            .font(.subheadline.weight(.semibold))
+                        Spacer()
+                        Image(systemName: "chevron.right").font(.caption)
+                    }
+                    Text(request.title).font(.subheadline)
+                    Text(request.target).font(.caption.monospaced()).lineLimit(3)
+                    Text("查看完整请求").font(.caption).foregroundStyle(ChatStyle.accent)
+                }
+                .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain).accessibilityIdentifier("approval-event-\(request.id)")
+            DisclosureGroup("操作详情") {
+                Text(request.detail).font(.footnote.monospaced()).textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .leading).padding(.top, 8)
+            }
+            .font(.caption)
+            if request.pending && store.canApprove {
+                HStack(spacing: 10) {
+                    Button("拒绝") { store.resolve(request.id, approved: false) }
+                        .buttonStyle(.bordered)
+                    Button("允许本次") { store.resolve(request.id, approved: true) }
+                        .buttonStyle(.borderedProminent)
+                }
+                .controlSize(.large)
+                .disabled(store.isApprovalSubmitting(request.id, sessionId: request.sessionId)
+                          || store.isChatSendBlocked(sessionId: request.sessionId))
+                if store.isApprovalSubmitting(request.id, sessionId: request.sessionId) {
+                    ProgressView("正在提交决定…").font(.caption)
+                }
+            }
         }
-        .font(.caption).foregroundStyle(.secondary)
-        .accessibilityIdentifier("chat-context")
+        .padding(16).background(ChatStyle.surface, in: RoundedRectangle(cornerRadius: 16))
+        .overlay(RoundedRectangle(cornerRadius: 16).stroke(ChatStyle.border))
     }
 
     @ViewBuilder private var history: some View {
@@ -189,12 +272,12 @@ struct ChatView: View {
                     }
                 }
                 .padding(.horizontal, 14).padding(.vertical, 10)
-                .background(Color(.systemGray5), in: RoundedRectangle(cornerRadius: 18))
+                .background(ChatStyle.user, in: RoundedRectangle(cornerRadius: 18))
                 Text(time).font(.caption2).foregroundStyle(.tertiary).monospacedDigit()
                     .padding(.trailing, 4)
             }
             .frame(maxWidth: .infinity, alignment: .trailing)
-            .padding(.leading, 52)
+            .padding(.leading, typeSize.isAccessibilitySize ? 16 : 44)
         } else {
             // Agent message: left-aligned
             VStack(alignment: .leading, spacing: 14) {
@@ -210,21 +293,11 @@ struct ChatView: View {
                             .fixedSize(horizontal: false, vertical: true)
                         Spacer(minLength: 0)
                         if !typeSize.isAccessibilitySize { Text(time).font(.caption2).monospacedDigit() }
-                        if !text.isEmpty {
-                            Button {
-                                UIPasteboard.general.string = text
-                                store.show("已复制回复的 Markdown")
-                            } label: {
-                                Image(systemName: "doc.on.doc").font(.system(size: 14))
-                                    .frame(width: 44, height: 44)
-                                    .contentShape(Rectangle())
-                            }
-                            .buttonStyle(.plain).accessibilityLabel("复制回复的 Markdown")
-                        }
                     }
                     if typeSize.isAccessibilitySize { Text(time).font(.caption2).monospacedDigit() }
                 }
                 .font(.caption).foregroundStyle(.secondary)
+                if !steps.isEmpty { AgentStepsDisclosure(steps: steps) }
                 if !text.isEmpty {
                     MacMessageText(text: text).textSelection(.enabled)
                 }
@@ -238,15 +311,20 @@ struct ChatView: View {
                         .buttonStyle(.plain).accessibilityLabel("查看图片 \(index + 1)")
                     }
                 }
-                if !steps.isEmpty {
-                    AgentStepsDisclosure(steps: steps)
+                if !text.isEmpty {
+                    Button {
+                        UIPasteboard.general.string = text
+                        store.show("已复制回复的 Markdown")
+                    } label: {
+                        Label("复制", systemImage: "doc.on.doc").font(.caption)
+                            .foregroundStyle(.secondary).frame(minWidth: 44, minHeight: 44)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain).accessibilityLabel("复制回复的 Markdown")
                 }
-                Divider()
                 ConversationSummaryView(summary: summary)
             }
-            .padding(16)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16))
         }
     }
 
@@ -303,39 +381,51 @@ struct ChatView: View {
                 if busy && resolvedId.flatMap({ store.chatRecoveryLabel(sessionId: $0) }) == nil {
                     HStack {
                         ProgressView()
-                        Text("正在等待 Mac 上的 Codex…").font(.caption)
+                        Text("正在等待 Mac 上的 \(project?.agent.rawValue ?? "Agent")…").font(.caption)
                         Spacer()
-                        if let id = resolvedId { Button("停止") { store.stopSession(id: id) } }
+
                     }
                 }
                 if !store.canSend {
                     Text("当前权限仅可查看\(store.canApprove ? "和审批" : "")，不能发送新任务。")
                         .font(.caption).foregroundStyle(.secondary)
                 }
-                HStack(alignment: .bottom, spacing: 8) {
-                    PhotosPicker(selection: $picked, maxSelectionCount: max(1, ChatAttachment.maximumCount - attachments.count), matching: .images) {
-                        Image(systemName: "photo.badge.plus").frame(width: 44, height: 44)
-                    }
-                    .accessibilityLabel("从相册添加图片")
-                    .disabled(!canCompose || loadingImages || attachments.count >= ChatAttachment.maximumCount)
-                    .onChange(of: picked) { _, items in loadImages(items) }
-                    imagePasteButton
-                    TextField("描述需求，支持 Markdown", text: $draft, axis: .vertical)
-                        .focused($composing).lineLimit(1...5).padding(.vertical, 11)
+                VStack(alignment: .leading, spacing: 8) {
+                    TextField("继续描述你的需求…", text: $draft, axis: .vertical)
+                        .focused($composing).lineLimit(2...5).padding(.horizontal, 6).padding(.top, 6)
                         .accessibilityIdentifier("composer").disabled(!canCompose)
-                    if loadingImages { ProgressView().frame(width: 40, height: 44) }
-                    Button(action: send) {
-                        Image(systemName: "arrow.up").font(.body.weight(.semibold))
-                            .foregroundStyle(.white).frame(width: 36, height: 36)
-                            .background(canSubmit ? Color.accentColor : Color.secondary.opacity(0.4), in: Circle())
-                            .frame(width: 44, height: 44)
+                    HStack(spacing: 4) {
+                        PhotosPicker(selection: $picked, maxSelectionCount: max(1, ChatAttachment.maximumCount - attachments.count), matching: .images) {
+                            Image(systemName: "plus").frame(width: 44, height: 44)
+                        }
+                        .accessibilityLabel("从相册添加图片")
+                        .disabled(!canCompose || loadingImages || attachments.count >= ChatAttachment.maximumCount)
+                        .onChange(of: picked) { _, items in loadImages(items) }
+                        imagePasteButton
+                        Text(project?.agent.rawValue ?? "Agent").font(.caption).foregroundStyle(.secondary)
+                            .lineLimit(1).minimumScaleFactor(0.8)
+                        Spacer(minLength: 0)
+                        if loadingImages { ProgressView().frame(width: 24, height: 44) }
+                        Button {
+                            if busy, let id = resolvedId { store.stopSession(id: id) }
+                            else { send() }
+                        } label: {
+                            Image(systemName: busy ? "stop.fill" : "arrow.up")
+                                .font(.body.weight(.semibold)).foregroundStyle(ChatStyle.onAccent)
+                                .frame(width: 44, height: 44)
+                                .background(ChatStyle.accent.opacity(busy || canSubmit ? 1 : 0.35), in: Circle())
+                        }
+                        .accessibilityLabel(busy ? "停止" : "发送")
+                        .disabled(submitting || (busy ? resolvedId == nil : !canSubmit))
                     }
-                    .accessibilityLabel("发送").disabled(!canSubmit)
                 }
-                Text(remoteChat ? "文字和图片发送到 Mac 上的 Codex · 最多 4 张，自动压缩" : "本地模拟 · 图片最多 4 张，每张不超过 10 MB")
+                .padding(8).background(ChatStyle.surface, in: RoundedRectangle(cornerRadius: 22))
+                .overlay(RoundedRectangle(cornerRadius: 22).stroke(ChatStyle.border))
+
+                Text(remoteChat ? "文字和图片发送到 Mac · 最多 4 张，自动压缩" : "本地模拟 · 图片最多 4 张，每张不超过 10 MB")
                     .font(.caption2).foregroundStyle(.secondary)
             }
-            .padding(.horizontal, 12).padding(.vertical, 8).background(.bar)
+            .padding(.horizontal, 16).padding(.vertical, 10).background(ChatStyle.background)
 
         }
     }
@@ -355,7 +445,7 @@ struct ChatView: View {
             }
         }
         .labelStyle(.iconOnly)
-        .frame(width: 32, height: 44)
+        .frame(width: 44, height: 44)
         .accessibilityLabel("粘贴图片")
         .disabled(!canCompose || loadingImages || attachments.count >= ChatAttachment.maximumCount)
     }
@@ -401,6 +491,8 @@ struct ChatView: View {
         let images = attachments.map(\.data)
         let originalDraft = draft
         submitting = true
+        scrollState.followsLatest = true
+        scrollRequest += 1
         Task { @MainActor in
             let accepted = await store.sendMessage(sessionId: id, text: text, images: images, deviceID: deviceID)
             submitting = false
@@ -412,6 +504,22 @@ struct ChatView: View {
             }
         }
     }
+
+    #if DEBUG
+    private func applyLiveUpdateFixture() async {
+        let environment = Foundation.ProcessInfo.processInfo.environment
+        guard let testID = environment["ARCLINK_UI_TEST_ID"], UUID(uuidString: testID) != nil,
+              !store.usesRemoteChat,
+              let json = environment["ARCLINK_UI_TEST_LIVE_UPDATE"], let data = json.data(using: .utf8),
+              let update = try? JSONDecoder().decode(ChatMessage.self, from: data),
+              update.sessionId == resolvedId else { return }
+        let device = store.selectedDeviceID
+        do { try await Task.sleep(for: .seconds(20)) } catch { return }
+        guard !Task.isCancelled, device == store.selectedDeviceID, update.sessionId == resolvedId,
+              let index = store.messages.firstIndex(where: { $0.id == update.id && $0.sessionId == update.sessionId }) else { return }
+        store.messages[index] = update
+    }
+    #endif
 
     private func loadMacMessages() async {
         guard isMacThread, let id = resolvedId, let project else { return }

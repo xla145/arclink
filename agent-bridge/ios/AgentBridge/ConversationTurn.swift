@@ -21,7 +21,7 @@ struct ConversationTurn: Identifiable {
             if !message.isUser {
                 if let execution = message.executionStep {
                     steps.append(MessageStep(id: "\(message.id)-execution", title: execution.title ?? "工具调用",
-                        summary: MessageStep.preview(execution.input ?? execution.output ?? "执行中"), input: execution.input, output: execution.output))
+                        summary: MessageStep.preview(execution.input ?? execution.output ?? "执行中"), input: execution.input, output: execution.output, completed: execution.completed, failed: execution.failed))
                 }
                 if let summary = message.thinkingSummary, !summary.isEmpty {
                     steps.append(MessageStep(id: "\(message.id)-summary", title: "思考摘要", summary: MessageStep.preview(summary), output: summary, isSummary: true))

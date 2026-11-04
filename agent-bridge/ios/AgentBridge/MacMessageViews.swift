@@ -130,10 +130,27 @@ struct MessageStep: Identifiable {
     var summary: String
     var input: String?
     var output: String?
+    var completed: Bool? = nil
+    var failed: Bool? = nil
     var isSummary = false
     var isCommentary = false
     var images: [Data] = []
     var isExecution: Bool { !isSummary && !isCommentary }
+
+    var statusLabel: String {
+        if !isExecution { return isSummary ? "公开摘要" : "过程说明" }
+        if failed == true { return "执行失败" }
+        if completed == false { return "执行中" }
+        if failed == false { return "已成功" }
+        return completed == true ? "已结束 · 结果未知" : "状态未知"
+    }
+
+    var statusSymbol: String {
+        if !isExecution { return "text.alignleft" }
+        if failed == true { return "exclamationmark.circle" }
+        if completed == false { return "clock" }
+        return failed == false ? "checkmark.circle" : "questionmark.circle"
+    }
 
     static func preview(_ text: String) -> String {
         let line = text.prefix(512).split(whereSeparator: \.isNewline).first.map(String.init) ?? ""
@@ -168,10 +185,12 @@ struct MessageStep: Identifiable {
     private static func historyChunk(_ messages: [MacMessage], offset: Int) -> [Int: MessageStep] {
         var inputs = Set<String>()
         var outputs: [String: String] = [:]
+        var outcomes: [String: Bool] = [:]
         for message in messages where message.role == "tool" {
             guard let id = message.toolCallId, !id.isEmpty else { continue }
             if message.toolPhase == "input" { inputs.insert(id) }
             if message.toolPhase == "output" {
+                if let failed = message.toolFailed { outcomes[id] = outcomes[id] == true || failed }
                 let previous = outputs[id]
                 outputs[id] = previous.map { $0 + "\n\n" + message.text } ?? message.text
             }
@@ -188,7 +207,9 @@ struct MessageStep: Identifiable {
                 let title = message.toolName ?? (isInput ? "工具调用" : "工具结果")
                 result[index] = MessageStep(id: id, title: title, summary: toolPreview(message.text, title: title),
                     input: isInput ? message.text : nil,
-                    output: isInput ? message.toolCallId.flatMap { outputs[$0] } : message.text)
+                    output: isInput ? message.toolCallId.flatMap { outputs[$0] } : message.text,
+                    completed: isInput ? (message.toolCallId.flatMap { outputs[$0] } == nil ? nil : true) : (message.toolPhase == "output" ? true : nil),
+                    failed: isInput ? message.toolCallId.flatMap { outcomes[$0] } : message.toolFailed)
             }
         }
         return result
@@ -199,71 +220,119 @@ struct MessageStep: Identifiable {
 struct AgentStepsDisclosure: View {
     var steps: [MessageStep]
     @State private var expanded = false
-    @State private var selectedStep: MessageStep?
+    @State private var selected: StepSelection?
+
+    private struct StepSelection: Identifiable { let id: String }
 
     var body: some View {
         DisclosureGroup(isExpanded: $expanded) {
             VStack(alignment: .leading, spacing: 0) {
                 ForEach(steps) { step in
-                    Button { selectedStep = step } label: {
+                    Button { selected = StepSelection(id: step.id) } label: {
                         HStack(spacing: 10) {
-                            Image(systemName: step.isExecution ? "terminal" : "sparkle")
-                                .font(.caption).frame(width: 18).accessibilityHidden(true)
+                            Image(systemName: step.statusSymbol)
+                                .font(.caption).frame(width: 18)
+                                .foregroundStyle(step.failed == true ? ChatStyle.failure : ChatStyle.accent)
+                                .accessibilityHidden(true)
                             VStack(alignment: .leading, spacing: 4) {
-                                Text(step.title).font(.caption.weight(.semibold))
-                                Text(step.summary).font(.caption).lineLimit(2)
+                                Text(step.title).font(.caption.weight(.semibold)).foregroundStyle(.primary)
+                                Text(step.summary).font(.caption).foregroundStyle(.secondary).lineLimit(2)
                             }
                             .frame(maxWidth: .infinity, alignment: .leading)
-                            Image(systemName: "chevron.right").font(.caption2)
+                            Image(systemName: "chevron.right").font(.caption2).foregroundStyle(.secondary)
                                 .accessibilityHidden(true)
                         }
-                        .foregroundStyle(.secondary)
                         .padding(.vertical, 10)
                         .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
                         .contentShape(Rectangle())
                     }
-                    .buttonStyle(.plain)
-                    .accessibilityIdentifier(step.id)
+                    .buttonStyle(.plain).accessibilityIdentifier(step.id)
+                    .accessibilityValue(step.statusLabel)
                     .accessibilityHint("查看步骤输入和输出")
                     if step.id != steps.last?.id { Divider() }
                 }
-            }
-            .padding(.top, 4)
+            }.padding(.top, 4)
         } label: {
-            Label("工具步骤 · \(steps.count) 项", systemImage: "chevron.left.forwardslash.chevron.right")
+            Label("工具步骤 · \(steps.count) 项", systemImage: "list.bullet.rectangle")
                 .font(.caption.weight(.medium)).foregroundStyle(.secondary)
         }
         .disclosureGroupStyle(MessageDisclosureStyle())
-        .padding(.horizontal, 10)
-        .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 12))
-        .sheet(item: $selectedStep) { step in
-            NavigationStack {
-                ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 20) {
+        .padding(.horizontal, 12)
+        .background(ChatStyle.surface, in: RoundedRectangle(cornerRadius: 12))
+        .overlay(RoundedRectangle(cornerRadius: 12).stroke(ChatStyle.border))
+        .sheet(item: $selected) { selection in
+            // Resolve identity against the latest projection, not a captured step snapshot.
+            MessageStepDetail(step: steps.first { $0.id == selection.id }) { selected = nil }
+        }
+    }
+}
+
+struct MessageStepDetail: View {
+    var step: MessageStep?
+    var dismiss: () -> Void
+    @State private var copiedSection: String?
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                if let step {
+                    LazyVStack(alignment: .leading, spacing: 22) {
+                        Label(step.statusLabel, systemImage: step.statusSymbol)
+                            .font(.caption.weight(.medium))
+                            .foregroundStyle(step.failed == true ? ChatStyle.failure : ChatStyle.accent)
+                            .padding(.horizontal, 10).padding(.vertical, 7)
+                            .background(ChatStyle.user, in: Capsule())
+                            .accessibilityIdentifier("step-status")
                         if !step.isExecution {
-                            detailSection(step.isSummary ? "摘要" : "过程说明", text: step.output, missing: "没有内容记录")
+                            detailSection(step.isSummary ? "摘要" : "过程说明", text: step.output, missing: "没有内容记录", code: false)
                             ForEach(Array(step.images.enumerated()), id: \.offset) { _, data in
                                 MessageInlineImage(source: "data:image/png;base64," + data.base64EncodedString(), caption: "过程图片")
                             }
                         } else {
-                            detailSection("输入", text: step.input, missing: "历史记录未提供输入")
-                            detailSection("输出", text: step.output, missing: "历史记录未提供输出")
+                            detailSection("输入", text: step.input, missing: "记录未提供输入", code: true)
+                            detailSection("输出", text: step.output,
+                                          missing: step.completed == false ? "等待输出…" : "记录未提供输出", code: true)
                         }
-                    }
-                    .padding(16)
+                    }.padding(20)
+                } else {
+                    ContentUnavailableView("步骤已不可用", systemImage: "doc.questionmark", description: Text("这条步骤记录已不在当前对话中。"))
                 }
-                .navigationTitle(step.title)
-                .navigationBarTitleDisplayMode(.inline)
-                .toolbar { ToolbarItem(placement: .confirmationAction) { Button("完成") { selectedStep = nil } } }
             }
+            .background(ChatStyle.background)
+            .navigationTitle(step?.title ?? "步骤详情").navigationBarTitleDisplayMode(.inline)
+            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("完成", action: dismiss) } }
+            .tint(ChatStyle.accent)
         }
+        .presentationDragIndicator(.visible)
     }
 
-    private func detailSection(_ title: String, text: String?, missing: String) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text(title).font(.headline)
-            if let text { MacMessageText(text: text).font(.subheadline) }
-            else { Text(missing).font(.subheadline).foregroundStyle(.secondary) }
+    private func detailSection(_ title: String, text: String?, missing: String, code: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text(title).font(.headline)
+                Spacer()
+                if let text {
+                    Button {
+                        UIPasteboard.general.string = text
+                        copiedSection = title
+                    } label: {
+                        Label(copiedSection == title ? "已复制" : "复制", systemImage: copiedSection == title ? "checkmark" : "doc.on.doc")
+                            .font(.caption).frame(minHeight: 44)
+                    }
+                    .accessibilityLabel("复制\(title)")
+                }
+            }
+            Group {
+                if let text {
+                    if code {
+                        Text(text.isEmpty ? "（空内容）" : text)
+                            .font(.system(.footnote, design: .monospaced)).textSelection(.enabled)
+                    } else { MacMessageText(text: text).font(.subheadline).textSelection(.enabled) }
+                } else { Text(missing).font(.subheadline).foregroundStyle(.secondary) }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading).padding(14)
+            .background(ChatStyle.surface, in: RoundedRectangle(cornerRadius: 12))
+            .overlay(RoundedRectangle(cornerRadius: 12).stroke(ChatStyle.border))
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }

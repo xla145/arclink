@@ -14,6 +14,58 @@ final class MockPathTests: XCTestCase {
     func testLightPaths() throws { try runPaths(theme: "浅色") }
     func testDarkPaths() throws { try runPaths(theme: "深色") }
 
+    func testReadingHistoryStaysPutWhenNewOutputArrives() throws {
+        var messages: [[String: Any]] = []
+        for index in 0..<24 {
+            messages.append(["id": "user-\(index)", "sessionId": "s-rich", "isUser": true, "text": "历史问题 \(index)", "time": "10:30"])
+            messages.append(["id": "answer-\(index)", "sessionId": "s-rich", "isUser": false, "text": "这是第 \(index) 条回复，保留完整的对话内容。", "time": "10:30"])
+        }
+        var update = try XCTUnwrap(messages.last)
+        update["text"] = "NEW_OUTPUT_AFTER_READING"
+        try launchFixture(theme: "浅色", liveMessages: messages, liveUpdate: update)
+        app.buttons["project-p1"].tap()
+        app.buttons["session-s-rich"].tap()
+        let scroll = app.scrollViews.firstMatch
+        XCTAssertTrue(scroll.waitForExistence(timeout: 5))
+        scroll.swipeDown()
+        scroll.swipeDown()
+        let latest = app.buttons["chat-latest"]
+        XCTAssertTrue(latest.waitForExistence(timeout: 3))
+        let anchor = try XCTUnwrap(app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "历史问题 ")).allElementsBoundByIndex.first { $0.isHittable })
+        let anchorLabel = anchor.label
+        let y = anchor.frame.minY
+        let delivered = expectation(description: "delayed fixture output arrives while reading")
+        DispatchQueue.main.asyncAfter(deadline: .now() + 22) { delivered.fulfill() }
+        wait(for: [delivered], timeout: 25)
+        XCTAssertTrue(latest.isHittable)
+        XCTAssertTrue(app.staticTexts[anchorLabel].isHittable)
+        XCTAssertEqual(app.staticTexts[anchorLabel].frame.minY, y, accuracy: 20)
+        latest.tap()
+        XCTAssertTrue(app.staticTexts["NEW_OUTPUT_AFTER_READING"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["NEW_OUTPUT_AFTER_READING"].isHittable)
+        shot("浅色", "return-to-latest")
+    }
+
+    func testLiveStepDetailRefreshesWhileOpen() throws {
+        let initial: [String: Any] = ["id": "live-step", "sessionId": "s-rich", "isUser": false, "text": "", "time": "10:30",
+            "executionStep": ["id": "call", "completed": false, "title": "执行命令", "input": "swift test"]]
+        var final = initial
+        final["executionStep"] = ["id": "call", "completed": true, "failed": true, "title": "执行命令", "input": "swift test", "output": "LIVE_OUTPUT_UPDATED"]
+        try launchFixture(theme: "浅色", liveMessages: [initial], liveUpdate: final)
+        app.buttons["project-p1"].tap()
+        app.buttons["session-s-rich"].tap()
+        let process = disclosure("工具步骤 · 1 项")
+        reveal(process, swipeUp: false)
+        process.tap()
+        app.buttons["live-step-execution"].tap()
+        XCTAssertTrue(app.staticTexts["等待输出…"].waitForExistence(timeout: 2))
+        XCTAssertTrue(app.staticTexts["LIVE_OUTPUT_UPDATED"].waitForExistence(timeout: 30))
+        XCTAssertTrue(app.staticTexts["执行失败"].exists)
+        XCTAssertTrue(app.buttons["复制输入"].exists)
+        XCTAssertTrue(app.buttons["复制输出"].exists)
+        shot("浅色", "live-step-updated")
+    }
+
     func testStepsHeaderExpandsAcrossEntireRow() throws {
         try launchFixture(theme: "浅色")
         XCTAssertTrue(app.buttons["project-p1"].waitForExistence(timeout: 10))
@@ -302,7 +354,7 @@ final class MockPathTests: XCTestCase {
         // Desktop imports are read-only even while disconnected; starting a
         // CLI conversation is a separate route and has no editable history.
         app.buttons["session-s-desktop"].tap()
-        XCTAssertTrue(app.staticTexts["桌面历史仅供查看"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.descendants(matching: .any)["readonly-composer"].waitForExistence(timeout: 3))
         XCTAssertFalse(input.exists)
         XCTAssertFalse(app.buttons["发送"].exists)
         XCTAssertFalse(app.buttons["终端"].exists)
@@ -425,7 +477,13 @@ final class MockPathTests: XCTestCase {
 
     private func reveal(_ element: XCUIElement, swipeUp: Bool) {
         for _ in 0..<8 {
-            if element.exists && element.isHittable { return }
+            let composer = app.textFields["composer"]
+            let bottom = composer.exists ? composer.frame.minY - 12 : app.frame.maxY - 80
+            // XCUITest can report SwiftUI scroll descendants as hittable even
+            // beneath a safeAreaInset composer. Require the target to be inside
+            // the readable viewport rather than tapping through the input box.
+            if element.exists && element.isHittable,
+               element.frame.midY < bottom, element.frame.minY > app.navigationBars.firstMatch.frame.maxY { return }
             // Swipe beside nested code/table scroll areas so the outer
             // conversation scrolls, not a wide code block.
             let start = app.coordinate(withNormalizedOffset: CGVector(dx: 0.98, dy: swipeUp ? 0.74 : 0.25))
@@ -442,7 +500,7 @@ final class MockPathTests: XCTestCase {
         add(attachment)
     }
 
-    private func launchFixture(theme: String, history: [[String: String]]? = nil, largeText: Bool = false) throws {
+    private func launchFixture(theme: String, history: [[String: String]]? = nil, largeText: Bool = false, liveMessages: [[String: Any]]? = nil, liveUpdate: [String: Any]? = nil) throws {
         let now = Date().timeIntervalSinceReferenceDate
         func project(_ id: String, _ name: String, _ path: String, _ agent: String) -> [String: Any] {
             ["id": id, "name": name, "path": path, "agent": agent, "createdAt": now]
@@ -469,7 +527,7 @@ final class MockPathTests: XCTestCase {
 
         > 修改前先确认影响范围。
         """
-        let workspace: [String: Any] = [
+        var workspace: [String: Any] = [
             "selectedAgent": "Claude Code", "selectedProjectIDs": ["Claude Code": "p1", "Codex": "p3"],
             "projects": [project("p1", "my-app", "/ui/app", "Claude Code"), project("p2", "service", "/ui/service", "Claude Code"), project("p3", "codex-app", "/ui/codex", "Codex")],
             "sessions": [session("s-rich", "Dashboard rich content", "CLI"), session("s-desktop", "Desktop history", "桌面"), session("s-image", "Images", "CLI")],
@@ -480,12 +538,14 @@ final class MockPathTests: XCTestCase {
             "approvals": [["id": "a1", "sessionId": "s-rich", "title": "更新 Dashboard", "kind": "工具调用 · 写入文件", "target": "/ui/app/src/Dashboard.tsx", "detail": "本地模拟审批，不会写入 Mac 文件。", "pending": true]],
             "permission": "完全访问"
         ]
+        if let liveMessages { workspace["messages"] = liveMessages; workspace["approvals"] = [] }
         let state: [String: Any] = ["version": 2, "selectedDeviceID": "mac", "devices": [["id": "mac", "name": "UI 测试 Mac", "workspace": workspace]], "notifyApproval": true, "notifyDone": true, "notifyOnMac": false, "notifyFailed": true]
         app.launchEnvironment = ["ARCLINK_UI_TEST_ID": UUID().uuidString,
                                  "ARCLINK_UI_TEST_STATE": String(decoding: try JSONSerialization.data(withJSONObject: state), as: UTF8.self)]
         if let history {
             app.launchEnvironment["ARCLINK_UI_TEST_MAC_MESSAGES"] = String(decoding: try JSONSerialization.data(withJSONObject: history), as: UTF8.self)
         }
+        if let liveUpdate { app.launchEnvironment["ARCLINK_UI_TEST_LIVE_UPDATE"] = String(decoding: try JSONSerialization.data(withJSONObject: liveUpdate), as: UTF8.self) }
         app.launchArguments = ["-appearance", theme]
         if largeText { app.launchArguments += ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"] }
         app.launch()

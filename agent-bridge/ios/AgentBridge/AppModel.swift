@@ -1431,6 +1431,11 @@ final class AppStore {
         return changed
     }
 
+    func isApprovalSubmitting(_ id: String, sessionId: String) -> Bool {
+        guard let deviceID = selectedDeviceID else { return false }
+        return chats[ChatKey(deviceID: deviceID, sessionID: sessionId)]?.deciding.contains(id) == true
+    }
+
     func resolve(_ id: String, approved: Bool) {
         if usesRemoteChat {
             guard canApprove, let deviceID = selectedDeviceID,

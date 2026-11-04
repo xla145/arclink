@@ -58,13 +58,13 @@ struct ConversationSummaryView: View {
     }
 
     private func metric(_ title: String, value: String, icon: String, failed: Bool = false) -> some View {
-        VStack(alignment: .leading, spacing: 5) {
-            Label(title, systemImage: icon)
-                .font(.caption2).foregroundStyle(.secondary)
-            Text(value).font(.subheadline.weight(.medium)).monospacedDigit()
-                .foregroundStyle(failed ? Color.orange : Color.primary)
-                .fixedSize(horizontal: false, vertical: true)
+        HStack(spacing: 5) {
+            Image(systemName: icon).accessibilityHidden(true)
+            Text("\(title) \(value)").monospacedDigit()
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .font(.caption2)
+        .foregroundStyle(failed ? ChatStyle.failure : Color.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+
     }
 }

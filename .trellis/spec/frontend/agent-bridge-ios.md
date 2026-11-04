@@ -23,7 +23,7 @@ referenced by its `Contents.json`. The onboarding image uses
 Let iOS apply the app-icon corner mask. Verify asset-catalog compilation and
 the built app's display name; do not rename the internal target to change branding.
 
-Use native NavigationStack, semantic grouped backgrounds, safeAreaInset for the chat composer and approval actions, and scroll-to-bottom after new messages or keyboard focus. The approval preview must match the operation: a diff for writing, the actual command/work directory for execution. A mock execution must never run a shell command.
+Use native NavigationStack, adaptive semantic surfaces, and safeAreaInset for the chat composer and approval actions. Chat follows incoming messages and keyboard focus only while the user is following the latest content; reading older content must remain stable. Explicit Send and the accessible return-to-latest action resume following. The approval preview must match the operation: a diff for writing, the actual command/work directory for execution. A mock execution must never run a shell command.
 
 Use an item-bound image sheet so its data and presentation change together:
 
@@ -464,12 +464,18 @@ Assert paragraph/image preservation, stable group IDs, multiple turns, summary-o
 Wrong: render every assistant response item as a separate bubble, or search its prose for “error”. Correct: project by user turn and use native structured outcome metadata, preserving unknown values.
 
 
-### Conversation card presentation
-Keep assistant prose before the compact expandable process-record row. The header contains an Agent badge/name, timestamp and an accessible copy control with a44-point target. Render statistics from typed ConversationSummary fields, not by parsing formatted text: semantic icons/labels above independent values, a subtle separator and explicit unknown-result note. Only real failures receive failure emphasis. Accessibility Dynamic Type uses vertical header/metric/action layout rather than compressing labels. Use semantic light/dark colors. Process disclosure counts all public records; label it “工具步骤” per the product request, but distinguish record count from the execution-step statistic (commentary and public summaries are not executions). Verify light/dark, expanded step details and large-text screenshots.
+### Conversation presentation
+The approved `prototypes/arclink-chat/index.html` reference replaces assistant reply cards with unboxed prose, right-aligned adaptive green user bubbles, a compact context header and a rounded multiline composer. Keep native navigation, system photo/paste consent and app appearance preferences. ChatStyle scopes adaptive background, surface, user, accent/onAccent and border colors to conversation UI; do not replace global theme settings.
+
+The assistant header contains an Agent badge/name and timestamp; an accessible copy control after the reply content has a 44-point target. Place the compact expandable process-record row before final prose. Render compact statistics from typed ConversationSummary fields, not by parsing formatted text; retain explicit unknown-result notes and emphasize only structured failures. Dynamic Type uses vertical header/metric/action layout rather than compressing labels. Process disclosure counts all public records; label it “工具步骤”, but distinguish record count from the execution-step statistic (commentary and public summaries are not executions). Verify light/dark, expanded step details and large-text screenshots.
+
+AgentStepsDisclosure selects a stable step identity and resolves current content from the latest projection; a sheet must not freeze the input/output snapshot captured at opening. MessageStepDetail separates selectable/copyable input/output blocks from prose records, shows missing data explicitly and handles removed steps without displaying another record. Optional MessageStep completion/failure values come from native structured metadata or call-ID-paired historical results; absent metadata is unknown, not success. Never infer failure from text or invent individual step durations. A live step without output may show “等待输出”; historical absent output remains explicitly unavailable. Test live status projection, open-detail updates, missing metadata, reversed parallel results and repeated IDs across turns.
+
+Scrolling uses public iOS 17-compatible APIs and native indicators. Geometry from an unrealized lazy row must not reset reading intent to following-latest. Test a long conversation away from the bottom while incoming content grows, then explicitly return to latest. Respect reduced motion and keyboard/safe-area insets.
 
 
 ### Final-answer-only projection
-Display final result first, collapsed 工具步骤 second, and execution statistics last. Preserve native assistant phase as optional backward-compatible metadata. Explicit commentary is process content even when no final answer has arrived; multiple explicit final messages remain complete and ordered. For legacy unclassified turns, use the last complete assistant message as answer and retain earlier messages as process records. Commentary, recorded public summaries and tool steps retain original source positions; do not sort by type. Copy acts on final answer content. Do not expose private reasoning or infer classification from prose keywords.
+Project only final result content into assistant prose; visually place collapsed 工具步骤 before that prose and execution statistics last, matching the approved conversation prototype. Preserve native assistant phase as optional backward-compatible metadata. Explicit commentary is process content even when no final answer has arrived; multiple explicit final messages remain complete and ordered. For legacy unclassified turns, use the last complete assistant message as answer and retain earlier messages as process records. Commentary, recorded public summaries and tool steps retain original source positions; do not sort by type. Copy acts on final answer content. Do not expose private reasoning or infer classification from prose keywords.
 
 
 ### Structured completed user answers
