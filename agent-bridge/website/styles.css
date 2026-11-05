@@ -975,6 +975,7 @@ h3 {
   color: #77869e;
   font-size: 10px;
 }
+.site-footer .footer-github,
 .site-footer > a:last-child {
   color: #acb9cd;
   font-size: 11px;
@@ -1149,7 +1150,7 @@ h3 {
     gap: 19px;
     font-size: 12px;
   }
-  .site-header nav > a:nth-child(2) {
+  .site-header nav > .nav-section {
     display: none;
   }
   .nav-download {

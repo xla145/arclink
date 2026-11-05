@@ -24,8 +24,15 @@
         /><span>ArcLink <small>弧连</small></span></a
       >
       <nav aria-label="主导航">
-        <a href="#features">功能</a><a href="#start">使用指南</a
-        ><a class="nav-download" href="#download"
+        <a class="nav-section" href="#features">功能</a
+        ><a class="nav-section" href="#start">使用指南</a>
+        <a
+          href="https://github.com/xla145/arclink"
+          target="_blank"
+          rel="noopener noreferrer"
+          >GitHub</a
+        >
+        <a class="nav-download" href="#download"
           >下载客户端 <span aria-hidden="true">↗</span></a
         >
       </nav>
@@ -282,7 +289,10 @@
               <span>v{{MAC_VERSION}}</span><span>DMG · {{MAC_SIZE}}</span>
             </div>
             <p class="package-note">
-              当前为本地构建测试版，签名与公证状态尚未验证。
+              Apple Silicon 测试版，已完成本地签名完整性校验，尚未经过 Apple 公证。
+              首次打开若被阻止，请进入“系统设置 → 隐私与安全性”，点击“仍要打开”，
+              按系统提示输入 Mac 登录密码或使用 Touch ID，再确认打开。
+              若没有此选项或仍提示“已损坏”，请重新下载最新安装包并联系我们。
             </p>
           </article>
           <article class="download-card ios-card">
@@ -339,6 +349,13 @@
         /><span>ArcLink <small>弧连</small></span></a
       >
       <p>让灵感随行，让工作相连。</p>
+      <a
+        class="footer-github"
+        href="https://github.com/xla145/arclink"
+        target="_blank"
+        rel="noopener noreferrer"
+        >GitHub <span aria-hidden="true">↗</span></a
+      >
       <a href="#download">获取客户端 <span aria-hidden="true">↗</span></a>
     </footer>
     <script type="module" src="main.js"></script>
