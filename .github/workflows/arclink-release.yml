@@ -2,6 +2,12 @@ name: ArcLink macOS release
 
 on:
   workflow_dispatch:
+    inputs:
+      mirror_tag:
+        description: "Mirror an existing published tag to R2 only (leave empty to build artifacts)"
+        required: false
+        type: string
+        default: ""
   push:
     branches:
       - "**"
@@ -13,6 +19,8 @@ on:
       - "agent-bridge/Cargo.*"
       - "agent-bridge/scripts/release-assets.py"
       - "agent-bridge/scripts/test-release-assets.py"
+      - "agent-bridge/scripts/r2-release.py"
+      - "agent-bridge/scripts/test-r2-release.py"
     tags:
       - "arclink-v*"
 
@@ -26,6 +34,7 @@ concurrency:
 jobs:
   build:
     name: Build ${{ matrix.arch }}
+    if: github.event_name != 'workflow_dispatch' || inputs.mirror_tag == ''
     strategy:
       fail-fast: false
       matrix:
@@ -81,7 +90,9 @@ jobs:
               assert notes_file.read_text(encoding='utf-8').strip(), 'Release notes must not be empty'
           PY
       - name: Test release manifest assembly
-        run: python3 ../scripts/test-release-assets.py
+        run: |
+          python3 ../scripts/test-release-assets.py
+          python3 ../scripts/test-r2-release.py
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
@@ -175,3 +186,61 @@ jobs:
           fi
           gh release upload "$TAG" ./*.dmg ./*.app.tar.gz ./*.sig latest.json SHA256SUMS.txt --clobber
           gh release edit "$TAG" --draft=false --latest
+
+  mirror:
+    name: Mirror published release to R2
+    needs: publish
+    if: >-
+      always() && (needs.publish.result == 'success' ||
+      (github.event_name == 'workflow_dispatch' && inputs.mirror_tag != ''))
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      TAG: ${{ inputs.mirror_tag || github.ref_name }}
+      R2_ACCOUNT_ID: ${{ vars.R2_ACCOUNT_ID }}
+      R2_BUCKET: ${{ vars.R2_BUCKET }}
+      R2_PUBLIC_BASE_URL: ${{ vars.R2_PUBLIC_BASE_URL }}
+      R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+    steps:
+      # Recovery runs use the selected workflow ref's publisher, never the old
+      # tag's source (which may predate the R2 publisher).
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Validate mirror configuration and published tag provenance
+        run: |
+          set -euo pipefail
+          for NAME in R2_ACCOUNT_ID R2_BUCKET R2_PUBLIC_BASE_URL R2_ACCESS_KEY_ID R2_SECRET_ACCESS_KEY; do
+            test -n "${!NAME}" || { echo "::error::Missing $NAME for R2 publication"; exit 1; }
+          done
+          python3 - <<'PY'
+          import os, re
+          assert re.fullmatch(r'arclink-v\d+\.\d+\.\d+', os.environ['TAG']), 'Expected stable ArcLink tag'
+          PY
+          git fetch --no-tags origin main
+          git merge-base --is-ancestor "$TAG^{commit}" origin/main || {
+            echo "::error::Mirror source tag must be reachable from main"
+            exit 1
+          }
+          gh release view "$TAG" --json tagName,isDraft,isPrerelease > source-release.json
+          python3 - <<'PY'
+          import json, os
+          release = json.load(open('source-release.json'))
+          assert release['tagName'] == os.environ['TAG'] and not release['isDraft'] and not release['isPrerelease'], 'Only published stable releases can be mirrored'
+          PY
+      - name: Install R2 S3 client
+        run: python3 -m pip install boto3==1.40.76
+      - name: Download original published attachments
+        run: |
+          set -euo pipefail
+          mkdir mirror-source
+          gh release download "$TAG" --dir mirror-source --pattern 'ArcLink-macos-*.dmg' --pattern 'ArcLink-macos-*.app.tar.gz' --pattern 'ArcLink-macos-*.app.tar.gz.sig' --pattern latest.json --pattern SHA256SUMS.txt
+      - name: Mirror and publicly verify complete release before promotion
+        run: |
+          python3 agent-bridge/scripts/r2-release.py --directory mirror-source --version "${TAG#arclink-v}" --repository "$GH_REPO"
