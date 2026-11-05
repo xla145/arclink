@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/frontend/agent-bridge-ios.md", "reason": "iOS SwiftUI contracts: toast contrast, row hit areas, safeAreaInset, appearance preference"}
+{"file": ".trellis/tasks/11-04-ios-redesign/research/design-system/tokens.json", "reason": "Exact token names and light/dark values for ArcTheme"}
+{"file": ".trellis/tasks/11-04-ios-redesign/research/design-system/README.md", "reason": "Brand book: color/type/spacing/icon usage rules"}
+{"file": ".trellis/tasks/11-04-ios-redesign/research/design-system/redesign.md", "reason": "Per-screen redesign changes"}
+{"file": ".trellis/tasks/11-04-ios-redesign/research/design-system/components/", "type": "directory", "reason": "Component guidelines and HTML reference previews"}

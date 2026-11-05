@@ -1,0 +1,10 @@
+/target/
+**/node_modules/
+/desktop/dist/
+/desktop/src-tauri/gen/
+/.DS_Store
+**/.DS_Store
+*.log
+ios/work/
+vps.md
+/.release-keys/

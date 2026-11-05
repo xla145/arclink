@@ -1,0 +1,4 @@
+{"file":".trellis/spec/frontend/agent-bridge-desktop.md","reason":"Desktop command boundaries, compact panel, lifecycle and native verification"}
+{"file":".trellis/spec/frontend/arclink-updater.md","reason":"Preserve updater shutdown, restart and settings integration"}
+{"file":".trellis/tasks/11-05-desktop-settings-diagnostics/prd.md","reason":"User-confirmed requirements and acceptance criteria"}
+{"file":".trellis/tasks/11-05-desktop-settings-diagnostics/design.md","reason":"Native ownership, bounded diagnostics and UI contracts"}

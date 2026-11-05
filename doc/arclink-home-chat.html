@@ -1,0 +1,516 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>ArcLink · 富文本对话</title>
+<style>
+:root{color-scheme:light;--bg:#f2f2f7;--card:#fff;--ink:#1c1c1e;--muted:#8e8e93;--line:#e9e9ee;--blue:#007aff;--purple:#af52de;--green:#34a853;--soft:#eaf3ff}
+*{box-sizing:border-box}body{margin:0;background:#e9ebef;color:var(--ink);font:15px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC",sans-serif;-webkit-font-smoothing:antialiased}button,input,textarea,select{font:inherit}button{cursor:pointer}button{color:inherit}button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:3px solid #88bbff;outline-offset:3px}button:disabled{opacity:.4;cursor:default}svg{width:21px;height:21px;fill:none;stroke:currentColor;stroke-width:1.65;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0}[hidden]{display:none!important}
+.demo-label{max-width:410px;margin:24px auto 12px;display:flex;align-items:center;justify-content:space-between;color:#737780;font-size:11px;letter-spacing:.08em}.demo-label strong{color:#424750;font-weight:600}.phone{position:relative;isolation:isolate;width:410px;height:min(850px,calc(100dvh - 90px));min-height:0;margin:auto;background:var(--bg);border:1px solid #fff;border-radius:38px;overflow:hidden;box-shadow:0 24px 80px #29344917,0 2px 6px #2934490a}.screen{height:100%;display:flex;flex-direction:column}.statusbar{display:flex;align-items:center;justify-content:space-between;height:46px;padding:10px 26px 0;flex-shrink:0;font-size:14px;font-weight:650}.status-right{display:flex;align-items:center;gap:5px}.status-right svg{width:16px;height:16px}.battery{width:24px;height:12px;border:1px solid currentColor;border-radius:4px;padding:2px;position:relative}.battery:before{content:"";display:block;height:100%;background:currentColor;border-radius:1px}.battery:after{content:"";position:absolute;right:-3px;top:3px;width:2px;height:4px;background:currentColor;border-radius:1px}
+.nav{height:61px;display:grid;grid-template-columns:70px 1fr 70px;align-items:center;padding:0 16px;flex-shrink:0}.brand{text-align:center;font-size:17px;font-weight:650;letter-spacing:-.3px}.host{font-size:10px;color:var(--muted);font-weight:400;letter-spacing:0;margin-top:2px}.dot{display:inline-block;width:6px;height:6px;background:var(--green);border-radius:50%;margin-right:4px}.nav-tools{display:flex;justify-content:flex-end;gap:3px}.icon-button{border:0;background:transparent;display:grid;place-items:center;min-width:34px;min-height:44px;padding:0;color:var(--blue)}.icon-button svg{width:21px;height:21px}.content{flex:1;min-height:0;overflow:auto;padding:14px 16px 110px;scrollbar-width:none}.agent-bar{display:flex;align-items:center;gap:8px;margin-bottom:17px}.agents{display:flex;gap:7px;flex:1}.agent{border:0;background:#e8e8ed;border-radius:20px;padding:8px 12px;font-size:12px;font-weight:550;white-space:nowrap}.agent .dot{width:7px;height:7px;margin-right:5px}.agent.active{background:var(--ink);color:white}.add{width:30px;min-width:30px;height:30px;min-height:30px;border:1.5px dashed #b5b5bf;border-radius:50%;color:#999}.add svg{width:14px;height:14px}.approval{display:flex;align-items:center;gap:9px;padding:12px;border-radius:13px;background:#fff0da;color:#c77a08;font-size:13px;margin-bottom:17px;width:100%;border:0}.approval svg{width:17px;height:17px}.approval span:first-of-type{flex:1;text-align:left;font-weight:550}.approval small{font-size:11px}.chevron{width:12px!important;height:12px!important;color:#b5b5bd}
+.search{display:flex;align-items:center;gap:8px;background:#e7e7ed;color:#91919a;border-radius:11px;padding:9px 11px}.search svg{width:17px;height:17px}.search input{border:0;background:transparent;outline:none;min-width:0;width:100%;font-size:14px;color:var(--ink)}input::placeholder,textarea::placeholder{color:#96969f}.scope{display:flex;gap:3px;padding:3px;background:#e6e6ec;border-radius:9px;margin:14px 0}.scope button{flex:1;padding:5px;border:0;border-radius:7px;background:transparent;font-size:12px}.scope button.active{background:white;box-shadow:0 1px 4px #00000014;font-weight:600}.projects{border-radius:16px;overflow:hidden;background:var(--card)}.project{display:flex;width:100%;align-items:center;gap:11px;padding:17px 13px;border:0;background:var(--card);text-align:left;position:relative}.project+.project:before{content:"";position:absolute;left:60px;right:0;top:0;height:1px;background:var(--line)}.folder{display:grid;place-items:center;width:36px;height:36px;border-radius:9px;background:#f4eafb;color:var(--purple);flex-shrink:0}.folder svg{width:19px;height:19px}.project-copy{flex:1;min-width:0}.row-title{font-size:14px;font-weight:550}.project-line{display:flex;justify-content:space-between;gap:6px}.time{font-size:10px;color:#aeaeb7;font-weight:400;white-space:nowrap}.sub{color:var(--muted);font-size:11px;margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.pill{background:#fff1dc;color:#c77a08;font-size:9px;padding:3px 5px;border-radius:5px;white-space:nowrap}.home-caption{margin:18px 0;text-align:center;color:#b2b2bc;font-size:10px;display:flex;justify-content:center;align-items:center;gap:4px}.home-caption svg{width:11px;height:11px}
+.fab{position:absolute;right:22px;bottom:33px;width:58px;height:58px;border:0;border-radius:50%;background:var(--ink);color:white;display:grid;place-items:center;box-shadow:0 7px 18px #10182026;transition:transform .18s,box-shadow .18s}.fab:hover{transform:translateY(-2px);box-shadow:0 10px 22px #10182032}.fab:active{transform:scale(.94)}.fab svg{width:25px;height:25px;stroke-width:1.7}.home-indicator{position:absolute;bottom:9px;left:50%;transform:translateX(-50%);width:124px;height:5px;border-radius:5px;background:var(--ink);pointer-events:none;z-index:10}
+.modal{position:absolute;inset:0;z-index:5;display:flex;align-items:flex-end;background:#11182740;backdrop-filter:blur(2px)}.sheet{width:100%;max-height:88%;display:flex;flex-direction:column;border-radius:26px 26px 0 0;background:#f8f8fb;box-shadow:0 -8px 40px #0000000b;padding:0 20px 32px;animation:rise .25s ease-out}.handle{width:34px;height:5px;border-radius:5px;background:#d1d1d8;margin:10px auto 16px;flex-shrink:0}.sheet-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:3px}.sheet h1{font-size:22px;letter-spacing:-.7px;line-height:1.2;margin:0;font-weight:700}.close{border:0;border-radius:50%;width:29px;height:29px;min-height:29px;min-width:29px;background:#eaeaef;color:#919199}.close svg{width:13px;height:13px;stroke-width:2.4}.sheet-desc{color:var(--muted);font-size:12px;margin:5px 0 21px}.sheet-scroll{overflow:auto;min-height:0;padding:1px 0 5px}.new-card{display:flex;align-items:center;gap:12px;padding:15px;border-radius:15px;background:var(--ink);color:white;border:0;width:100%;text-align:left;margin-bottom:24px}.new-card .new-icon{width:37px;height:37px;background:#ffffff19;border-radius:11px;display:grid;place-items:center}.new-card strong{font-size:15px;font-weight:600}.new-card small{display:block;font-size:11px;color:#b9b9c1;margin-top:2px}.new-card .chevron{margin-left:auto;color:white}.section-label{font-size:11px;letter-spacing:.02em;color:var(--muted);margin:0 1px 10px;display:flex;justify-content:space-between;align-items:center}.section-label span{font-size:10px;color:#aaaab2}.sheet .search{background:#eaeaef;margin-bottom:13px}.recent-list{background:white;border-radius:14px;overflow:hidden}.recent{border:0;background:white;padding:15px 13px;display:flex;gap:11px;align-items:center;width:100%;text-align:left;position:relative}.recent+.recent:before{content:"";position:absolute;left:54px;right:0;top:0;height:1px;background:var(--line)}.chat-icon{width:29px;height:32px;display:grid;place-items:center;color:var(--purple);flex-shrink:0}.chat-icon svg{width:20px;height:20px}.recent .row-title{font-size:13px}.recent .sub{font-size:10px}.recent .dot{width:5px;height:5px;vertical-align:1px;margin-right:4px}.recent .project-copy{padding-right:2px}.sheet-foot{color:#aaaab4;text-align:center;font-size:10px;padding-top:18px}.project-select{width:100%;border:1px solid #dedee6;background:white;color:var(--ink);border-radius:11px;padding:13px;font-size:14px}.path{font-size:11px;color:#a0a0aa;margin-top:7px;padding-left:2px}.empty-result{text-align:center;padding:26px 10px;color:var(--muted);font-size:13px}
+.chat-nav{border-bottom:1px solid var(--line);background:#fafafd}.chat-nav .brand{font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.chat-nav .host{font-size:10px}.chat-body{flex:1;overflow:auto;padding:20px 18px}.chat-empty{height:100%;min-height:200px;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;padding-bottom:50px}.chat-empty-icon{width:58px;height:58px;border-radius:18px;background:#e5e5ed;display:grid;place-items:center;margin-bottom:17px}.chat-empty-icon svg{width:27px;height:27px;color:#777782}.chat-empty h2{font-size:19px;letter-spacing:-.4px;margin:0 0 8px}.chat-empty p{color:var(--muted);font-size:12px;max-width:240px;margin:0;line-height:1.8}.suggestion{border:1px solid #dedee5;border-radius:11px;padding:10px 13px;background:#fafafd;font-size:11px;color:#696973;margin-top:22px}.composer{display:flex;align-items:flex-end;gap:9px;margin:0 16px 36px;padding:9px;background:white;border:1px solid #e2e2e9;border-radius:18px}.composer textarea{border:0;outline:none;resize:none;max-height:100px;min-height:35px;padding:7px 4px;width:100%;font-size:13px;line-height:21px;background:transparent}.send{width:34px;min-width:34px;height:34px;border:0;border-radius:50%;background:var(--ink);color:white;display:grid;place-items:center}.send svg{width:17px;height:17px}.message{max-width:90%;padding:12px 14px;background:white;border-radius:15px;margin:0 0 16px;font-size:13px;line-height:1.8;white-space:pre-wrap;overflow-wrap:anywhere}.message.user{background:#e1edff;margin-left:auto}.message-meta{font-size:10px;color:var(--muted);margin-bottom:6px}.prototype-note{text-align:center;font-size:10px;color:#a1a1ab;margin:-22px 0 37px}.toast{position:absolute;bottom:112px;left:50%;transform:translateX(-50%);background:#27272ceF;color:white;padding:11px 16px;font-size:12px;border-radius:12px;max-width:85%;width:max-content;z-index:15;box-shadow:0 4px 20px #0002;text-align:center}
+@keyframes rise{from{transform:translateY(25px);opacity:.5}to{transform:translateY(0);opacity:1}}@media(prefers-reduced-motion:reduce){*,*:before,*:after{animation:none!important;transition:none!important}}@media(max-width:480px){body{background:var(--bg)}.demo-label{display:none}.phone{width:100%;height:100dvh;min-height:0;border:0;border-radius:0;box-shadow:none}.statusbar{padding-top:max(10px,env(safe-area-inset-top));height:calc(36px + max(10px,env(safe-area-inset-top)))}.sheet{padding-bottom:max(32px,env(safe-area-inset-bottom))}.fab{bottom:max(33px,calc(env(safe-area-inset-bottom) + 16px))}}
+/* Homepage: device → agent → current project → project switcher. */
+#home .nav{height:66px;display:flex;justify-content:space-between;padding:0 22px}
+.home-brand{font-size:25px;font-weight:720;letter-spacing:-1px}
+.device-switch{display:flex;align-items:center;gap:7px;background:white;border:1px solid #e8e9ed;border-radius:18px;padding:7px 10px;font-size:11px;color:#62656f;min-height:36px}
+.device-switch .dot{margin:0;width:5px;height:5px}.device-switch svg{width:11px;height:11px;transform:rotate(90deg);color:#979aa3}
+#home .nav-tools{align-items:center;gap:6px}#home .nav-tools .icon-button{color:#858894;width:30px;min-width:30px}
+#home .content{padding:9px 22px 112px}#home .agent-bar{margin-bottom:17px}
+#home .agents{display:flex;background:#e7e8ed;border-radius:12px;padding:4px;gap:3px}
+#home .agent{flex:1;border-radius:9px;background:transparent;color:#81838d;font-size:12px;min-height:37px;padding:8px 5px;font-weight:500}
+#home .agent.active{background:#fff;color:var(--ink);box-shadow:0 1px 5px #2327360c;font-weight:650}
+#home .agent[data-agent=Herdr]{color:#a3a5af}#home .agent[data-agent=Herdr].active{color:var(--ink)}
+.bell{position:relative}#home .nav-tools .bell{width:44px;min-width:44px}.bell-badge{position:absolute;right:3px;top:2px;min-width:16px;height:16px;padding:0 4px;display:grid;place-items:center;background:#cd694f;color:white;border:2px solid var(--bg);border-radius:12px;font-size:9px;font-weight:650}
+.eyebrow{font-size:10px;color:#9598a3;letter-spacing:.07em;margin:0 0 10px;font-weight:500}
+.current-card{background:var(--card);border:1px solid #e8e9ef;border-radius:20px;margin-bottom:22px;overflow:hidden;box-shadow:0 3px 8px #22273603}
+.current-main{display:block;width:100%;padding:17px 19px 15px;text-align:left;border:0;background:transparent}
+.current-heading{display:flex;justify-content:space-between;align-items:center;gap:12px}
+.current-folder{width:36px;height:36px;border-radius:11px;display:grid;place-items:center;background:#f1eef9;color:#9984bd}.current-folder svg{width:21px;height:21px}
+.current-name{font-size:23px;font-weight:650;letter-spacing:-.7px;margin-top:12px;line-height:1.3;overflow-wrap:anywhere}
+.current-meta{display:flex;align-items:center;gap:6px;font-size:11px;color:#999ba6;margin-top:7px}.current-meta span+span:before{content:'·';margin-right:6px;color:#c3c5cd}
+.current-path{font-size:11px;color:#999ba6;margin-top:5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.agent-tag{font-size:10px;color:#8c849c;background:#f6f3fa;border-radius:6px;padding:4px 7px;font-weight:500}
+.continue-row{display:flex;align-items:center;gap:9px;border:0;border-top:1px solid #f0f0f4;background:#fdfdfe;padding:12px 19px;width:100%;text-align:left}
+.continue-row>svg{width:16px;height:16px;color:#a1a3ae}.continue-copy{flex:1;min-width:0}.continue-label{font-size:10px;color:#a1a3ad;margin-bottom:2px}.continue-title{font-size:12px;color:#565963;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.continue-action{font-size:11px;color:#777b87;white-space:nowrap}.continue-action svg{width:10px;height:10px;vertical-align:-1px;margin-left:3px}
+.projects-heading{display:flex;align-items:center;justify-content:space-between;margin-bottom:11px;height:32px}.projects-heading h2{margin:0;font-size:15px;font-weight:650;letter-spacing:-.3px}.project-total{color:#a4a6b0;font-weight:400;font-size:11px;margin-left:6px}.project-tools{display:flex;align-items:center;gap:7px}.project-tools .icon-button{min-height:36px;min-width:32px;color:#878b97}.project-tools svg{width:18px;height:18px}
+#home .search{margin-bottom:12px;background:#e8e9ee;padding:10px 12px}#home .search input{font-size:13px}
+#home .projects{border:1px solid #e9eaf0;border-radius:16px}#home .project{padding:16px 13px;gap:11px;min-height:77px}
+#home .folder{background:#f3f3f7!important;color:#9296a4!important;width:34px;height:34px;border-radius:10px}
+#home .project .row-title{font-size:13px;font-weight:550}#home .project .sub{font-size:10px;color:#9b9eaa;margin-top:4px}#home .project .time{font-size:10px;color:#a5a8b2}
+#home .project+.project:before{left:59px;background:#f0f0f4}.project-status{color:#bd8b3b!important}
+#home .fab{width:58px;height:58px;right:24px;bottom:35px;box-shadow:0 6px 18px #1a1c2926;background:#25262c}
+.workspace-empty{padding:32px 20px;background:white;border:1px solid #e8e9ef;border-radius:20px;text-align:center;margin-bottom:27px}.workspace-empty .current-folder{margin:auto auto 15px}.workspace-empty strong{font-size:15px}.workspace-empty p{font-size:12px;line-height:1.8;color:#999ba6;margin:8px 0 0}
+@media(max-width:350px){#home .nav{padding:0 16px}.home-brand{font-size:23px}.device-switch{font-size:10px;padding:7px 8px}#home .content{padding-left:16px;padding-right:16px}.current-name{font-size:21px}.continue-row{padding-left:16px;padding-right:16px}}
+.page-nav{height:59px;display:flex;align-items:center;padding:0 16px;gap:7px;flex-shrink:0}.page-nav .icon-button{color:#616572}.page-nav h1{font-size:17px;font-weight:650;margin:0}.approval-content{flex:1;min-height:0;overflow:auto;padding:14px 22px 40px}.approval-heading{margin:0 0 18px}.approval-heading h2{font-size:26px;letter-spacing:-.8px;margin:0 0 6px;font-weight:680}.approval-heading p{font-size:12px;color:#9396a2;margin:0}.approval-tabs{display:flex;gap:23px;border-bottom:1px solid #e2e4ea;margin:22px 0 18px}.approval-tab{position:relative;background:transparent;border:0;padding:0 1px 11px;color:#9699a5;font-size:13px}.approval-tab.active{color:#272931;font-weight:600}.approval-tab.active:after{content:'';position:absolute;bottom:-1px;left:0;right:0;height:2px;background:#272931;border-radius:2px}.approval-tab span{font-size:10px;margin-left:6px;font-weight:400}.request-card{display:block;width:100%;border:1px solid #e8e9ef;border-radius:16px;background:white;text-align:left;padding:16px;margin:0 0 12px}.request-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}.request-origin{font-size:10px;color:#8b8e9c}.request-origin strong{font-weight:500;color:#626773}.request-status{font-size:10px;color:#bb853c;background:#fbf4e9;border-radius:5px;padding:3px 6px}.request-status.done{background:#eef4ef;color:#6c8b76}.request-status.denied{background:#f5eeee;color:#ab7777}.request-card h3{font-size:15px;font-weight:600;margin:0 0 6px;letter-spacing:-.2px}.request-summary{font-size:11px;color:#9296a2;line-height:1.7;margin:0}.request-bottom{display:flex;justify-content:space-between;align-items:center;margin-top:15px;color:#a1a5af;font-size:10px}.request-bottom span:last-child{color:#787e8c}.request-bottom svg{width:10px;height:10px;vertical-align:-1px;margin-left:3px}.approval-empty{padding:60px 16px;text-align:center}.approval-empty>svg{width:34px;height:34px;color:#a2b4a8;margin-bottom:12px}.approval-empty strong{display:block;font-size:16px;font-weight:550}.approval-empty p{color:#969aa5;font-size:12px;line-height:1.8;margin:8px 0}.request-detail h2{font-size:22px;letter-spacing:-.6px;margin:15px 0 8px;font-weight:650}.request-detail .detail-desc{color:#8f94a0;font-size:12px;line-height:1.8;margin:0 0 20px}.detail-context{background:white;border:1px solid #e8e9ef;border-radius:14px;padding:4px 15px;margin-bottom:22px}.detail-field{display:flex;gap:20px;justify-content:space-between;padding:11px 0;font-size:12px}.detail-field+.detail-field{border-top:1px solid #f0f0f4}.detail-field span{color:#999da7}.detail-field strong{font-weight:500;color:#585e6c;text-align:right}.detail-label{font-size:12px;font-weight:600;margin:18px 0 10px}.code-preview{background:white;border:1px solid #e7e9ef;border-radius:13px;overflow:hidden}.code-path{padding:10px 12px;border-bottom:1px solid #eff0f4;font:10px/1.7 ui-monospace,SFMono-Regular,monospace;color:#9095a0;overflow-wrap:anywhere}.code-preview pre{padding:13px 12px;font:11px/1.9 ui-monospace,SFMono-Regular,monospace;white-space:pre-wrap;overflow-wrap:anywhere;margin:0;color:#6b7280}.code-preview .code-add{color:#527a61;background:#f0f7f2;display:block}.code-preview .code-remove{color:#ac7474;background:#faf0f0;display:block}.detail-impact{font-size:11px;line-height:1.8;color:#8c929f;margin:12px 0}.decision-bar{display:flex;gap:10px;flex-shrink:0;padding:14px 22px 35px;background:#f2f2f7;border-top:1px solid #e6e8ef}.decision-bar button{border:1px solid #dfe2e9;background:white;border-radius:12px;padding:13px;font-size:13px;font-weight:550;flex:1}.decision-bar .allow{background:#272931;color:white;border-color:#272931;flex:2}.decision-result{width:100%;text-align:center;font-size:12px;color:#858c98;padding:8px}.global-device-note{font-size:10px;color:#a3a7b1;text-align:center;margin:22px 0 0}
+/* Keep global navigation visible without crowding the device selector. */
+#home .nav{height:80px}.home-identity{min-width:0}.home-identity .device-switch{background:transparent;border:0;border-radius:5px;padding:2px 0;min-height:26px;font-size:10px;color:#9499a4;gap:6px;margin-top:1px}
+#home .nav-tools{gap:2px}#home .nav-tools .icon-button{width:44px;min-width:44px;color:#858b98}
+.settings-content{flex:1;min-height:0;overflow:auto;padding:12px 22px 40px}.settings-group{background:white;border:1px solid #e8e9ef;border-radius:16px;overflow:hidden;margin-bottom:24px}.settings-label{font-size:11px;color:#9399a5;margin:0 0 10px}.settings-row{width:100%;display:flex;align-items:center;gap:12px;padding:16px;border:0;background:white;text-align:left;font-size:13px;min-height:58px}.settings-row+.settings-row{border-top:1px solid #f0f0f4}.settings-row>svg{width:19px;height:19px;color:#939aaa}.settings-copy{flex:1;min-width:0}.settings-value{font-size:11px;color:#959ba7}.settings-desc{font-size:10px;color:#a0a5b0;margin-top:4px;line-height:1.6}.settings-about{padding:18px 16px;font-size:12px;color:#686e7c;line-height:1.9}.settings-about strong{display:block;font-size:16px;color:#30343d;margin-bottom:5px}.settings-foot{font-size:10px;color:#a0a5b0;text-align:center}
+.settings-select{max-width:58%;border:0;background:transparent;color:#858c9a;text-align:right;font-size:12px;padding:7px 0 7px 8px;cursor:pointer}.settings-toggle{appearance:none;-webkit-appearance:none;position:relative;width:39px;height:24px;flex-shrink:0;background:#dedfe5;border-radius:15px;margin:0;cursor:pointer;transition:background .15s}.settings-toggle:after{content:'';position:absolute;width:20px;height:20px;left:2px;top:2px;border-radius:50%;background:#fff;box-shadow:0 1px 3px #0002;transition:transform .15s}.settings-toggle:checked{background:#74998a}.settings-toggle:checked:after{transform:translateX(15px)}.settings-helper{font-size:10px;color:#989eaa;line-height:1.8;margin:-16px 12px 22px}.destructive{color:#be6a62!important}#settings .settings-row{min-height:51px;padding:12px 15px}#settings .settings-group{margin-bottom:22px}
+#clear-dialog{border:1px solid #e5e6ec;border-radius:20px;padding:23px;max-width:340px;width:calc(100% - 40px);color:var(--ink);background:var(--card);box-shadow:0 15px 70px #0002}#clear-dialog::backdrop{background:#151b2855;backdrop-filter:blur(3px)}#clear-dialog h2{font-size:17px;margin:0 0 12px;line-height:1.5}#clear-dialog p{font-size:12px;line-height:1.9;color:#9299a5;margin:0 0 23px}.clear-actions{display:flex;gap:10px}.clear-actions button{flex:1;border:1px solid #e4e6ec;background:transparent;border-radius:10px;padding:11px;font-size:13px;color:var(--ink)}
+:root[data-theme=dark]{color-scheme:dark;--bg:#15171c;--card:#20232b;--ink:#e4e7ee;--muted:#979daa;--line:#30343d;--blue:#8aade6;--purple:#b5a1da;--green:#84ae97}html[data-theme=dark] body{background:#101216}html[data-theme=dark] .phone{border-color:#353946}html[data-theme=dark] :is(.settings-group,.settings-row,.current-card,.current-main,.project,.projects,.recent-list,.recent,.request-card,.detail-context,.code-preview,.composer,.project-select,.message,.workspace-empty){background:var(--card)!important;border-color:#30343e!important}html[data-theme=dark] :is(.settings-row+.settings-row,.detail-field+.detail-field,.continue-row,.code-path,.approval-tabs,.decision-bar){border-color:#30343e!important}html[data-theme=dark] :is(.sheet,.chat-nav,.decision-bar){background:#1a1d24}html[data-theme=dark] :is(#home .agents,#home .search,.sheet .search,.chat-empty-icon,.close,.suggestion){background:#292d36;border-color:#383e49}html[data-theme=dark] #home .agent.active{background:#3b414e;color:#edf0f7}html[data-theme=dark] #home .agent{color:#a4aab7}html[data-theme=dark] :is(.continue-row,.folder){background:#252933!important}html[data-theme=dark] :is(.current-folder,.agent-tag){background:#302b3c;color:#b4a2cf}html[data-theme=dark] :is(.request-card h3,.settings-copy,.settings-about strong,.approval-tab.active,.continue-title,.detail-field strong){color:#d1d6e2}html[data-theme=dark] .approval-tab.active:after{background:#bdc7dc}html[data-theme=dark] :is(.project+.project:before,.recent+.recent:before){background:#30343e}html[data-theme=dark] :is(.fab,.new-card,.send,.decision-bar .allow){background:#d9deea!important;color:#20232b}html[data-theme=dark] .new-card small{color:#686e7a}html[data-theme=dark] .decision-bar button{background:#292d36;border-color:#383e49;color:#d5dbe5}html[data-theme=dark] .message.user{background:#2a3b55!important}html[data-theme=dark] .request-status{background:#393027;color:#d9b37e}html[data-theme=dark] .request-status.done{background:#28372e;color:#99baa5}html[data-theme=dark] .request-status.denied{background:#3b2b2b;color:#cfaaaa}html[data-theme=dark] .code-preview .code-add{background:#26352e;color:#9cbcaa}html[data-theme=dark] .code-preview .code-remove{background:#382b2e;color:#c7989e}
+/* The switcher stays outside the project scroll area. */
+#home .agent-bar{flex-shrink:0;margin:4px 22px 14px}#home .agents{padding:4px;gap:4px;border:1px solid #e2e4eb;border-radius:14px}#home .agent{display:flex;justify-content:center;align-items:center;gap:7px;min-width:0;min-height:45px;padding:8px 5px;border-radius:10px;font-size:12px;position:relative}#home .agent svg{width:20px;height:20px;stroke-width:1.8}#home .agent .agent-name{line-height:1.25;text-align:left}#home .agent .agent-name small{display:block;font-size:8px;margin-top:3px;font-weight:400;color:#a0a5af}#home .agent.active{box-shadow:0 1px 5px #20263412}#home .agent.active:after{content:'';position:absolute;bottom:3px;left:50%;transform:translateX(-50%);width:12px;height:2px;border-radius:2px;background:#a2a8b4}#home .agent[data-agent="Claude Code"] svg{color:#bb8a76}#home .agent[data-agent=Codex] svg{color:#77808c}#home .agent.unavailable svg{color:#b0b5c0}#home .agent.active .agent-name{color:var(--ink)}#home .content{padding-top:3px}
+html[data-theme=dark] #home .agents{border-color:#343945}html[data-theme=dark] #home .agent[data-agent="Claude Code"] svg{color:#d7ac96}html[data-theme=dark] #home .agent[data-agent=Codex] svg{color:#b3bdcd}
+@media(max-width:350px){#home .agent-bar{margin-left:16px;margin-right:16px}#home .agent{gap:5px;font-size:11px}#home .agent svg{width:18px;height:18px}}
+/* Compact homepage: reserve the screen for projects rather than chrome. */
+#home .nav{height:48px;padding:0 16px;gap:8px}.home-identity{display:flex;align-items:center;gap:10px;flex:1;overflow:hidden}.home-brand{font-size:18px;letter-spacing:-.6px;flex-shrink:0}.home-identity .device-switch{margin:0;min-width:0;max-width:130px;min-height:40px;white-space:nowrap;font-size:10px}.home-identity .device-switch svg{width:9px;height:9px}.home-identity .device-switch .dot{width:4px;height:4px;flex-shrink:0}#home .nav-tools{flex-shrink:0;gap:0}#home .nav-tools .icon-button{min-height:44px;width:40px;min-width:40px}#home .nav-tools svg{width:18px;height:18px}
+#home .agent-bar{margin:0 16px 8px}#home .agents{padding:0;gap:4px;background:transparent;border:0;border-radius:0}#home .agent{min-height:40px;padding:6px 8px;gap:6px;font-size:11px;border-radius:9px}#home .agent svg{width:16px;height:16px}#home .agent .agent-name small{display:none}#home .agent.active:after{display:none}#home .agent.active{box-shadow:0 1px 4px #2026340a}#home .content{padding:0 16px 96px}
+.current-card{border-radius:13px;margin-bottom:12px}.current-main{display:flex;align-items:center;gap:10px;padding:12px 13px;min-height:64px}.current-main .current-folder{width:28px;height:28px;border-radius:8px;flex-shrink:0}.current-main .current-folder svg{width:17px;height:17px}.current-summary{flex:1;min-width:0}.current-main .current-name{font-size:15px;margin:0;letter-spacing:-.3px;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.current-indicator{font-size:9px;color:#969ca7;margin-left:7px;font-weight:400}.current-path{font-size:10px;margin-top:4px}.current-count{font-size:10px;color:#a1a6b0;white-space:nowrap}.continue-row{min-height:40px;padding:9px 13px;gap:8px}.continue-label{display:none}.continue-title{font-size:11px}.continue-action{font-size:10px}.continue-row>svg{width:14px;height:14px}.projects-heading{height:32px;margin-bottom:7px}.projects-heading h2{font-size:13px}#home .projects{border-radius:13px}#home .project{min-height:62px;padding:11px 12px;gap:10px}#home .folder{width:28px;height:28px;border-radius:8px}#home .folder svg{width:16px;height:16px}#home .project .row-title{font-size:13px}#home .project .sub{margin-top:3px}#home .project+.project:before{left:50px}#home .fab{width:50px;height:50px;right:20px;bottom:29px}#home .fab svg{width:22px;height:22px}
+html[data-theme=dark] #home .agents{background:transparent}
+@media(max-width:350px){.home-brand{font-size:17px}.home-identity{gap:7px}.home-identity .device-switch{font-size:9px;gap:4px}.current-main .current-name{font-size:14px}#home .agent-bar{margin-left:16px;margin-right:16px}#home .agent{font-size:11px;gap:5px}.continue-row{padding-left:13px;padding-right:13px}}
+.project-nav{height:50px;display:grid;grid-template-columns:44px minmax(0,1fr) 44px;align-items:center;padding:0 12px;flex-shrink:0}.project-nav .icon-button{color:#858b98}.project-nav h1{margin:0;font-size:16px;font-weight:600;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.project-context{display:flex;align-items:center;gap:8px;padding:2px 16px 10px;font-size:10px;color:#969da9;flex-shrink:0}.project-context strong{font-weight:500;color:#7f8796;white-space:nowrap}.project-context span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.session-controls{display:flex;align-items:center;padding:0 16px 8px;gap:6px;flex-shrink:0}.source-filters{display:flex;gap:5px;flex:1}.source-filter{border:0;background:transparent;padding:8px 10px;min-height:38px;font-size:11px;color:#969dab;border-radius:8px;white-space:nowrap}.source-filter.active{background:white;color:#363c48;font-weight:600;box-shadow:0 1px 4px #20263408}.source-filter small{font-size:9px;font-weight:400;margin-left:4px;color:#a1a7b1}.session-controls .icon-button{color:#929aa8}.project-session-content{flex:1;min-height:0;overflow:auto;padding:0 16px 38px}.project-session-content>.search{margin-bottom:10px;background:#e7e9ef;padding:9px 11px}.project-session-content>.search input{font-size:12px}.project-sessions{background:white;border:1px solid #e8eaf0;border-radius:13px;overflow:hidden}.session-row{display:flex;align-items:flex-start;gap:10px;padding:14px 12px;width:100%;border:0;background:transparent;text-align:left;position:relative}.session-row+.session-row:before{content:'';position:absolute;left:49px;right:0;top:0;height:1px;background:#eff0f4}.session-origin-icon{width:27px;height:27px;display:grid;place-items:center;flex-shrink:0;border-radius:7px;background:#f1f2f6;color:#8d97a7;margin-top:2px}.session-origin-icon svg{width:15px;height:15px}.session-title-row{display:flex;justify-content:space-between;gap:8px;align-items:baseline}.session-title-row strong{font-size:13px;font-weight:550;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.session-snippet{font-size:11px;color:#a0a6b1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin:4px 0 7px}.session-meta{display:flex;align-items:center;gap:8px;font-size:9px;color:#969ead}.source-badge{padding:1px 5px;border-radius:4px;background:#f0f2f6;color:#7e899a;font-size:9px}.source-badge.desktop{background:#f0eef6;color:#998bac}.session-state{font-size:9px}.chat-source-banner{padding:9px 16px;background:#e9edf4;color:#8791a2;font-size:10px;flex-shrink:0;line-height:1.7}.project-list-caption{color:#a0a7b3;text-align:center;font-size:10px;margin:14px 0}.view-project-sessions{border:0;background:transparent;padding:15px 0 0;color:#7b879a;font-size:12px;display:block;width:100%}.new-card:disabled{opacity:.5}
+html[data-theme=dark] :is(.project-sessions,.source-filter.active){background:var(--card);border-color:#30343e;color:var(--ink)}html[data-theme=dark] :is(.source-badge,.session-origin-icon,.chat-source-banner){background:#292f3c;color:#abb5c7}html[data-theme=dark] .source-badge.desktop{background:#322e3e;color:#b8a9ce}html[data-theme=dark] .session-row+.session-row:before{background:#30343e}
+/* Conversation: quiet chrome, readable messages, and an attachment composer. */
+#chat .chat-nav{height:55px;padding:0 12px;grid-template-columns:38px minmax(0,1fr) 48px;background:var(--bg);border-color:#e5e8ef}#chat .chat-nav .brand{font-size:13px}#chat .chat-nav .host{font-size:9px;margin-top:3px;color:#949eac}#chat .chat-nav .icon-button{color:#8b95a5}.chat-type{font-size:9px;color:#8390a4;background:#e9edf4;border-radius:5px;padding:4px 6px;text-align:center;justify-self:end}#chat .chat-body{padding:16px 16px 20px;min-height:0;scroll-behavior:smooth}.chat-date{text-align:center;color:#a7adba;font-size:9px;margin:0 0 19px}.chat-message{margin:0 0 22px}.chat-message.is-user{display:flex;flex-direction:column;align-items:flex-end;margin-bottom:23px}.message-author{display:flex;align-items:center;gap:7px;font-size:10px;color:#8993a2;margin:0 0 8px}.agent-avatar{width:22px;height:22px;border-radius:7px;background:#f1eae6;color:#b98c78;display:grid;place-items:center}.agent-avatar svg{width:13px;height:13px}.message-author time{font-size:9px;color:#afb4c0;margin-left:2px}.chat-message .message-content{font-size:13px;line-height:1.9;white-space:pre-wrap;overflow-wrap:anywhere;color:#525e70}.chat-message.is-user .message-content{background:#e8edf7;border:1px solid #dfe5f0;border-radius:15px 15px 4px 15px;padding:11px 13px;max-width:90%;color:#53627a}.chat-message.is-user .message-author{margin-bottom:6px}.message-images{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:8px;max-width:100%}.message-image{padding:0;border:1px solid #e1e5ed;border-radius:11px;overflow:hidden;display:block;background:#eef0f5;max-width:100%}.message-image img{display:block;width:145px;height:120px;object-fit:cover}.message-images.single .message-image img{width:220px;height:160px}.message-image:focus-visible{outline-offset:3px}.message-event{display:flex;align-items:center;gap:7px;padding:10px 12px;background:#f7f3eb;border:1px solid #eee6d9;border-radius:10px;font-size:10px;color:#ad8b53;margin-top:13px;width:100%;text-align:left}.message-event span{flex:1}.message-event svg{width:13px;height:13px}.composer-shell{flex-shrink:0;padding:0 12px 30px;background:var(--bg)}#chat .composer{display:block;margin:0;padding:9px 11px 7px;border:1px solid #dfe4ed;border-radius:17px;background:white;box-shadow:0 3px 12px #27324a04}#chat .composer:focus-within{border-color:#b5c3d8;box-shadow:0 0 0 2px #7589aa0a}#chat .composer textarea{display:block;width:100%;min-height:42px;max-height:104px;line-height:21px;font-size:12px;padding:6px 3px;background:transparent;color:var(--ink);resize:none;outline:none}.composer-toolbar{display:flex;align-items:center;justify-content:space-between;gap:10px}.attach-button{display:flex;align-items:center;justify-content:center;width:36px;height:36px;border:0;border-radius:9px;background:transparent;color:#8996a9;padding:0}.attach-button:hover{background:#f0f3f8}.attach-button svg{width:20px;height:20px}.composer-meta{display:flex;align-items:center;gap:7px;font-size:9px;color:#a7afbc;flex:1}.composer-meta .dot{width:4px;height:4px;margin-right:0;background:#90aa9a}#chat .send{width:31px;min-width:31px;height:31px;background:#394457}#chat .send:disabled{opacity:.25}.composer-hint{font-size:9px;color:#aab2bf;text-align:center;margin:7px 0 0}.attachment-strip{display:flex;gap:8px;overflow:auto;padding:3px 3px 9px;scrollbar-width:thin}.attachment-thumb{position:relative;width:62px;height:62px;flex-shrink:0}.attachment-preview{width:62px;height:62px;border:1px solid #e0e5ed;background:#eef0f5;border-radius:9px;padding:0;overflow:hidden;display:block}.attachment-preview img{width:100%;height:100%;object-fit:cover;display:block}.remove-image{position:absolute;right:-4px;top:-4px;width:22px;height:22px;border:2px solid var(--card);background:#6c788c;border-radius:50%;color:white;display:grid;place-items:center;padding:0}.remove-image svg{width:10px;height:10px;stroke-width:2.5}#chat .chat-empty{padding-bottom:25px;min-height:180px}#chat .chat-empty-icon{width:43px;height:43px;border-radius:13px;background:#e8ecf3;margin-bottom:14px}#chat .chat-empty-icon svg{width:22px;height:22px;color:#8c99ae}#chat .chat-empty h2{font-size:18px;font-weight:600}#chat .chat-empty p{font-size:11px;line-height:1.9;color:#9aa3b2}#chat .suggestion{font-size:10px;padding:9px 12px;background:transparent;border-color:#dfe4ed;color:#8c98a9;margin-top:18px}.readonly-footer{font-size:9px;color:#a1aaba;text-align:center;padding:13px 16px 30px;flex-shrink:0}.chat-source-banner{padding:8px 16px;font-size:10px;background:#e9edf4}
+#image-dialog{max-width:800px;width:calc(100vw - 40px);max-height:90dvh;padding:12px;border:1px solid #424754;background:#20242d;color:#e2e6ee;border-radius:16px}#image-dialog::backdrop{background:#11151cce;backdrop-filter:blur(7px)}.image-viewer-head{display:flex;align-items:center;justify-content:space-between;gap:15px;padding:0 0 10px}.image-viewer-head span{font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.image-viewer-head button{width:36px;height:36px;border:0;border-radius:50%;background:#343a46;color:#c3ccd9;display:grid;place-items:center;flex-shrink:0}#image-full{display:block;width:100%;max-height:calc(90dvh - 86px);object-fit:contain;border-radius:7px}
+html[data-theme=dark] #chat .chat-nav{background:var(--bg);border-color:#303845}html[data-theme=dark] .chat-message .message-content{color:#bdc7d8}html[data-theme=dark] .chat-message.is-user .message-content{background:#293448;border-color:#35425a;color:#c3cde0}html[data-theme=dark] :is(.agent-avatar,#chat .chat-empty-icon,.chat-type){background:#302e37;color:#c1ab9c}html[data-theme=dark] :is(.attachment-preview,.message-image){background:#242c39;border-color:#394256}html[data-theme=dark] .message-event{background:#332f26;border-color:#443c2e;color:#c7ac7e}html[data-theme=dark] #chat .composer{border-color:#354052}html[data-theme=dark] .attach-button:hover{background:#303846}
+@media(prefers-reduced-motion:reduce){#chat .chat-body{scroll-behavior:auto}}@media(max-width:480px){.composer-shell{padding-bottom:max(30px,env(safe-area-inset-bottom))}}
+/* Rich content shares a single renderer across CLI and desktop history. */
+.chat-message{min-width:0}.chat-message .message-content.markdown-body{white-space:normal;max-width:100%;min-width:0}.markdown-body>:first-child{margin-top:0}.markdown-body>:last-child{margin-bottom:0}.markdown-body p{margin:0 0 11px}.markdown-body :is(h1,h2,h3,h4,h5,h6){line-height:1.55;color:#3f4c60;letter-spacing:-.2px;margin:18px 0 8px;font-weight:600}.markdown-body h1{font-size:19px}.markdown-body h2{font-size:16px}.markdown-body h3{font-size:14px}.markdown-body :is(h4,h5,h6){font-size:13px}.markdown-body :is(ul,ol){margin:8px 0 13px;padding-left:22px}.markdown-body li{padding-left:1px;margin:4px 0}.markdown-body li>p{margin-bottom:4px}.markdown-body li :is(ul,ol){margin:4px 0}.markdown-body strong{font-weight:650;color:#465368}.markdown-body em{color:inherit}.markdown-body blockquote{margin:12px 0;padding:8px 12px;border-left:3px solid #ccd5e3;background:#eaf0f733;border-radius:0 6px 6px 0;color:#8c97a8;font-size:12px}.markdown-body blockquote p:last-child{margin-bottom:0}.markdown-body hr{border:0;border-top:1px solid #dfe5ee;margin:17px 0}.markdown-body a{color:#738fb7;text-decoration:underline;text-underline-offset:3px;overflow-wrap:anywhere}.markdown-body :not(pre)>code{font:11px/1.8 ui-monospace,SFMono-Regular,Consolas,monospace;background:#e7ecf4;color:#6f7d96;border-radius:4px;padding:2px 4px;overflow-wrap:anywhere}.markdown-body .md-code{border:1px solid #dee4ee;border-radius:10px;overflow:hidden;margin:12px 0;background:#e9edf555}.md-code-head{display:flex;align-items:center;justify-content:space-between;padding:6px 10px;border-bottom:1px solid #dfe5ef;color:#96a1b2;font-size:10px}.md-code-head button,.message-actions button{border:0;background:transparent;color:#97a2b4;font-size:10px;padding:5px 2px;display:flex;align-items:center;gap:4px}.md-code-head svg,.message-actions svg{width:12px;height:12px}.markdown-body .md-code pre{margin:0;padding:12px;max-height:300px;max-width:100%;overflow:auto;white-space:pre;font:11px/1.85 ui-monospace,SFMono-Regular,Consolas,monospace;color:#6e7e96;tab-size:2}.markdown-body .md-code code{font:inherit;white-space:pre;background:transparent;padding:0}.md-table{overflow-x:auto;max-width:100%;border:1px solid #dfe5ee;border-radius:9px;margin:13px 0;scrollbar-width:thin}.md-table table{border-collapse:collapse;width:100%;min-width:260px;font-size:11px;text-align:left;white-space:nowrap}.md-table :is(th,td){padding:9px 11px;border-bottom:1px solid #e0e6ee;border-right:1px solid #e0e6ee}.md-table tr:last-child td{border-bottom:0}.md-table :is(th,td):last-child{border-right:0}.md-table th{font-weight:550;background:#eaf0f7;color:#7d899e}.md-task{width:11px;height:11px;margin:0 5px 0 -1px;accent-color:#8ba399;vertical-align:-1px}.analysis-block{border:1px solid #e0e5ee;border-radius:10px;margin:0 0 14px;overflow:hidden;color:#8e99aa;font-size:11px;background:#edf1f733}.analysis-block summary,.tool-block summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:7px;min-height:38px;padding:9px 11px}.analysis-block summary::-webkit-details-marker,.tool-block summary::-webkit-details-marker{display:none}.analysis-block summary>svg,.tool-block summary>svg{width:13px;height:13px;flex-shrink:0}.analysis-block summary>span,.tool-block summary>span{flex:1;min-width:0}.analysis-block summary small{font-size:9px;color:#a4adbb}.analysis-chevron{width:10px!important;height:10px!important;transition:transform .15s}.analysis-block[open] .analysis-chevron,.tool-block[open] .analysis-chevron{transform:rotate(90deg)}.analysis-body{padding:0 12px 12px;font-size:11px;line-height:1.9;color:#939daf}.analysis-body .markdown-body :is(h1,h2,h3){font-size:12px}.analysis-body .markdown-body p{margin-bottom:7px}.tool-block{font-size:10px;color:#919eaf;border-bottom:1px solid #e3e8f0}.tool-block:last-child{border:0}.tool-group{border:1px solid #e0e6ef;border-radius:9px;overflow:hidden;margin:0 0 15px}.tool-block summary{min-height:35px;padding:8px 10px}.tool-block .tool-path{display:block;font:9px/1.6 ui-monospace,monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#a6afbd}.tool-state{font-size:9px;color:#90a79d;white-space:nowrap}.tool-block pre{padding:0 11px 11px;margin:0;max-height:170px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;font:10px/1.8 ui-monospace,monospace;color:#97a2b4}.message-actions{display:flex;gap:12px;margin-top:10px}.message-actions button{min-height:27px}.md-image{display:block;position:relative;margin:13px 0;max-width:100%;border:1px solid #dfe5ee;border-radius:10px;overflow:hidden;background:#e9edf555}.md-image-main{display:block;width:100%;border:0;background:transparent;padding:0;cursor:zoom-in}.md-image img{display:block;width:100%;height:auto;max-height:250px;object-fit:contain}.md-image-caption{display:block;padding:7px 10px;font-size:10px;line-height:1.7;color:#a0aaba;overflow-wrap:anywhere}.md-image-load{display:flex;align-items:center;justify-content:center;gap:8px;min-height:95px;border:0;background:transparent;width:100%;color:#929fb2;font-size:11px;padding:12px}.md-image-load svg{width:18px;height:18px}.md-image-load small{display:block;font-size:9px;color:#a8b0bc;margin-top:4px}.md-image-retry{display:none;width:100%;min-height:95px;border:0;background:transparent;color:#9d91a0;font-size:11px;padding:15px}.md-image.is-error .md-image-main{display:none}.md-image.is-error .md-image-retry{display:block}.md-image.is-loading .md-image-main{min-height:90px}.md-image.is-loading:after{content:'图片加载中…';position:absolute;top:30px;left:0;right:0;text-align:center;color:#a0aaba;font-size:10px;pointer-events:none}.message-images.single .message-image img{width:auto;height:auto;max-width:220px;max-height:260px;object-fit:contain}.message-images{max-width:100%}.message-images .message-image img{max-width:100%}.is-user .markdown-body .md-code{background:#e1e7f1}.is-user .markdown-body .md-code pre{font-size:10px}.chat-body{scrollbar-width:thin;scrollbar-color:#cbd3e2 transparent}.message-content.markdown-body:empty{display:none}
+html[data-theme=dark] .markdown-body :is(h1,h2,h3,h4,h5,h6,strong){color:#c4cede}html[data-theme=dark] .markdown-body :not(pre)>code{background:#2d3748;color:#b3c1d7}html[data-theme=dark] :is(.md-code,.analysis-block,.tool-group,.md-table,.md-image){background:#252d3a;border-color:#374255}html[data-theme=dark] :is(.md-code-head,.tool-block,.md-table th,.md-table td){border-color:#374255}html[data-theme=dark] .md-table th{background:#2c3749;color:#b2bfd3}html[data-theme=dark] .markdown-body .md-code pre{color:#b2c0d5}html[data-theme=dark] .markdown-body blockquote{background:#283346;border-color:#465b78;color:#9daec5}html[data-theme=dark] .markdown-body hr{border-color:#39475b}html[data-theme=dark] .is-user .markdown-body .md-code{background:#253248}
+.markdown-body li.task-list-item{list-style:none}.image-full-status{font-size:12px;color:#b8a6aa;text-align:center;padding:25px 12px;margin:0}
+</style>
+</head>
+<body>
+<svg style="display:none" aria-hidden="true"><defs>
+<symbol id="i-chat" viewBox="0 0 24 24"><path d="M20.5 11.5a8.5 8.5 0 0 1-8.5 8.5H4l-2 2v-10a9.5 9.5 0 0 1 18.5-2"/><path d="M8 10h8M8 14h5"/></symbol>
+<symbol id="i-new" viewBox="0 0 24 24"><path d="M12 4H6a3 3 0 0 0-3 3v11a3 3 0 0 0 3 3h11a3 3 0 0 0 3-3v-6M16 3l5 5M10 14l1-5 7-7 5 5-7 7z"/></symbol>
+<symbol id="i-search" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/></symbol>
+<symbol id="i-folder" viewBox="0 0 24 24"><path d="M3 6a2 2 0 0 1 2-2h5l2 3h7a2 2 0 0 1 2 2v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z"/></symbol>
+<symbol id="i-arrow" viewBox="0 0 24 24"><path d="m9 5 7 7-7 7"/></symbol>
+<symbol id="i-close" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></symbol>
+<symbol id="i-computer" viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></symbol>
+<symbol id="i-more" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></symbol>
+<symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="10" width="14" height="11" rx="3"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></symbol>
+<symbol id="i-bell" viewBox="0 0 24 24"><path d="M5 9a7 7 0 0 1 14 0c0 8 3 8 3 9H2c0-1 3-1 3-9M9 21h6"/></symbol>
+<symbol id="i-check" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-6"/></symbol>
+<symbol id="i-settings" viewBox="0 0 24 24"><path d="m9 3 .7-1h4.6L15 3l.3 2 1.5.9 1.9-.7 1.2.6 2.3 4-.1 1.4-1.6 1.3v1.8l1.6 1.3.1 1.4-2.3 4-1.2.6-1.9-.7-1.5.9-.3 2-.7 1H9.7L9 22l-.3-2-1.5-.9-1.9.7-1.2-.6-2.3-4 .1-1.4 1.6-1.3v-1.8L1.9 9.4l-.1-1.4 2.3-4 1.2-.6 1.9.7 1.5-.9z" transform="translate(1 0) scale(.9)"/><circle cx="12" cy="12" r="3.2"/></symbol>
+<!-- Prototype identifiers, not official brand artwork. -->
+<symbol id="i-agent-claude" viewBox="0 0 24 24"><path d="M12 2v20M2 12h20M5 5l14 14M5 19 19 5M8 2.8l8 18.4M2.8 8l18.4 8M2.8 16l18.4-8M8 21.2l8-18.4" stroke-width="1.7"/></symbol>
+<symbol id="i-agent-codex" viewBox="0 0 24 24"><rect x="2.5" y="3.5" width="19" height="17" rx="4"/><path d="m7 9 3.5 3L7 15M13.5 15H17"/></symbol>
+<symbol id="i-agent-herdr" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="5" stroke-dasharray="2.5 2.5"/><path d="M8.5 7.5v9M15.5 7.5v9M8.5 12h7"/></symbol>
+<symbol id="i-image" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="4"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m3 16 5-5 5 5 3-3 5 5"/></symbol>
+<symbol id="i-copy" viewBox="0 0 24 24"><rect x="8" y="8" width="13" height="13" rx="3"/><path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3"/></symbol>
+<symbol id="i-think" viewBox="0 0 24 24"><path d="M9 18h6M10 21h4M8 14a6 6 0 1 1 8 0c-1 1-1 2-1 2H9s0-1-1-2"/></symbol>
+</defs></svg>
+<div class="demo-label"><strong>ARCLINK / Markdown · 思考摘要 · 图片</strong><span>交互设计原型 · 10</span></div>
+<main class="phone">
+  <div id="app" class="screen">
+    <div class="statusbar" aria-hidden="true"><span>9:41</span><div class="status-right"><svg viewBox="0 0 20 20"><path d="M2 15v-2M6 15V9M10 15V6M14 15V3" stroke-width="2.5"/></svg><svg viewBox="0 0 20 20"><path d="M2 7a12 12 0 0 1 16 0M5 10a8 8 0 0 1 10 0M8 13a3 3 0 0 1 4 0"/><circle cx="10" cy="16" r=".6"/></svg><div class="battery"></div></div></div>
+    <section id="home" class="screen" style="min-height:0">
+      <header class="nav"><div class="home-identity"><div class="home-brand">ArcLink</div><button class="device-switch" aria-label="当前设备 MacBook Pro，在线，点击切换设备" onclick="toast('MacBook Pro · 在线 · 直连 · 端到端加密')"><span class="dot"></span>MacBook Pro<svg><use href="#i-arrow"/></svg></button></div><div class="nav-tools"><button class="icon-button bell" id="approval-entry" aria-label="审批，2 项待处理"><svg><use href="#i-bell"/></svg><span class="bell-badge" id="approval-badge">2</span></button><button class="icon-button" id="settings-entry" aria-label="设置"><svg><use href="#i-settings"/></svg></button></div></header>
+      <div class="agent-bar"><div class="agents" id="home-agents" role="group" aria-label="选择 Agent"><button class="agent active" data-agent="Claude Code" aria-label="Claude Code" title="Claude Code"><svg aria-hidden="true"><use href="#i-agent-claude"/></svg><span class="agent-name">Claude</span></button><button class="agent" data-agent="Codex" aria-label="Codex" title="Codex"><svg aria-hidden="true"><use href="#i-agent-codex"/></svg><span class="agent-name">Codex</span></button><button class="agent unavailable" data-agent="Herdr" aria-label="Herdr，未安装" title="本机未安装 Herdr"><svg aria-hidden="true"><use href="#i-agent-herdr"/></svg><span class="agent-name">Herdr<small>未安装</small></span></button></div></div>
+      <div class="content">
+        <div id="current-workspace"></div>
+        <div class="projects-heading"><h2><span id="projects-label">切换项目</span><span class="project-total" id="project-total"></span></h2><div class="project-tools"><button class="icon-button" id="toggle-search" aria-label="搜索项目" aria-expanded="false" aria-controls="project-search-wrap"><svg><use href="#i-search"/></svg></button><button class="icon-button" aria-label="添加项目" onclick="toast('项目添加入口保持原首页交互')"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button></div></div>
+        <label class="search" id="project-search-wrap" hidden><svg><use href="#i-search"/></svg><input id="project-search" type="search" placeholder="搜索项目名称或路径" aria-label="搜索项目名称或路径"></label>
+        <div class="projects" id="projects"></div>
+      </div>
+      <button class="fab" id="chat-fab" aria-label="选择对话" aria-haspopup="dialog" aria-controls="conversation-dialog" aria-expanded="false"><svg><use href="#i-chat"/></svg></button>
+    </section>
+    <section id="project-sessions-page" class="screen" style="min-height:0" hidden>
+      <header class="project-nav"><button class="icon-button" id="project-sessions-back" aria-label="返回首页"><svg style="transform:rotate(180deg)"><use href="#i-arrow"/></svg></button><h1 id="project-sessions-title"></h1><button class="icon-button" id="project-new-chat" aria-label="新建 CLI 对话"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button></header>
+      <div class="project-context"><strong id="project-sessions-agent"></strong><span id="project-sessions-path"></span></div>
+      <div class="session-controls"><div class="source-filters" role="group" aria-label="对话来源"><button class="source-filter active" data-source="all">全部<small id="source-all-count"></small></button><button class="source-filter" data-source="cli">CLI<small id="source-cli-count"></small></button><button class="source-filter" data-source="desktop">桌面<small id="source-desktop-count"></small></button></div><button class="icon-button" id="session-search-toggle" aria-label="搜索项目对话" aria-expanded="false" aria-controls="project-session-search-wrap"><svg><use href="#i-search"/></svg></button></div>
+      <div class="project-session-content"><label class="search" id="project-session-search-wrap" hidden><svg><use href="#i-search"/></svg><input id="project-session-search" type="search" placeholder="搜索对话" aria-label="搜索项目对话标题或内容"></label><div class="project-sessions" id="project-session-list"></div><p class="project-list-caption">按最近更新排序 · 桌面历史仅供查看</p></div>
+    </section>
+    <section id="settings" class="screen" style="min-height:0" hidden>
+      <header class="page-nav"><button class="icon-button" id="settings-back" aria-label="返回首页"><svg style="transform:rotate(180deg)"><use href="#i-arrow"/></svg></button><h1>设置</h1></header>
+      <div class="settings-content">
+        <p class="settings-label">Mac</p>
+        <div class="settings-group"><button class="settings-row" id="settings-device"><svg><use href="#i-computer"/></svg><span class="settings-copy">我的设备</span><span class="settings-value"><span class="dot"></span>MacBook Pro</span><svg class="chevron"><use href="#i-arrow"/></svg></button><div class="settings-row"><span class="settings-copy">连接状态</span><span class="settings-value">在线 · 直连</span></div><div class="settings-row"><span class="settings-copy">Mac 上的 Agent</span><span class="settings-value">2 个可用</span></div></div>
+        <p class="settings-label">智能体</p>
+        <div class="settings-group"><label class="settings-row"><span class="settings-copy">权限</span><select class="settings-select" id="permission" aria-label="智能体权限"><option>完全访问</option><option>查看和审批</option><option>仅查看</option></select></label></div>
+        <p class="settings-helper" id="permission-desc">可以发起任务、发送消息和审批操作。</p>
+        <p class="settings-label">通知</p>
+        <div class="settings-group"><label class="settings-row"><span class="settings-copy">需要批准</span><input class="settings-toggle" type="checkbox" id="notify-approval" checked role="switch"></label><label class="settings-row"><span class="settings-copy">已完成</span><input class="settings-toggle" type="checkbox" id="notify-done" checked role="switch"></label><label class="settings-row"><span class="settings-copy">在 Mac 上完成</span><input class="settings-toggle" type="checkbox" id="notify-mac" role="switch"></label><label class="settings-row"><span class="settings-copy">执行失败</span><input class="settings-toggle" type="checkbox" id="notify-failed" checked role="switch"></label></div>
+        <p class="settings-label">ArcLink</p>
+        <div class="settings-group"><label class="settings-row"><span class="settings-copy">外观</span><select class="settings-select" id="appearance" aria-label="外观"><option>自动</option><option>浅色</option><option>深色</option></select></label><label class="settings-row"><span class="settings-copy">会话保留</span><select class="settings-select" id="retention" aria-label="会话保留"><option>3 天</option><option selected>7 天</option><option>30 天</option><option>永久</option></select></label><label class="settings-row"><span class="settings-copy">语言</span><select class="settings-select" id="language" aria-label="语言"><option>简体中文</option></select></label><button class="settings-row destructive" id="clear-history">清除会话历史</button></div>
+        <p class="settings-label">关于</p>
+        <div class="settings-group"><button class="settings-row" id="settings-approvals"><span class="settings-copy">审批记录</span><svg class="chevron"><use href="#i-arrow"/></svg></button><div class="settings-row"><span class="settings-copy">版本</span><span class="settings-value">0.1.0</span></div></div>
+        <p class="settings-foot">设计预览 · 设置仅在本原型中生效</p>
+      </div>
+    </section>
+    <section id="devices" class="screen" style="min-height:0" hidden>
+      <header class="page-nav"><button class="icon-button" id="devices-back" aria-label="返回设置"><svg style="transform:rotate(180deg)"><use href="#i-arrow"/></svg></button><h1>我的设备</h1></header>
+      <div class="settings-content"><p class="settings-label">已配对设备 · 1</p><div class="settings-group"><div class="settings-row"><svg><use href="#i-computer"/></svg><span class="settings-copy">MacBook Pro<div class="settings-desc">在线 · 直连 · 端到端加密</div></span><span class="settings-value">当前</span></div></div><p class="settings-label">MacBook Pro 上的 Agent</p><div class="settings-group"><div class="settings-row"><span class="settings-copy">Claude Code</span><span class="settings-value">已安装</span></div><div class="settings-row"><span class="settings-copy">Codex</span><span class="settings-value">已安装</span></div><div class="settings-row"><span class="settings-copy">Herdr</span><span class="settings-value">未安装</span></div></div><p class="settings-foot">多台电脑可同时连接，切换设备后查看对应项目。</p></div>
+    </section>
+    <section id="approvals" class="screen" style="min-height:0" hidden>
+      <header class="page-nav"><button class="icon-button" id="approvals-back" aria-label="返回首页"><svg style="transform:rotate(180deg)"><use href="#i-arrow"/></svg></button><h1>审批</h1></header>
+      <div class="approval-content">
+        <div class="approval-heading"><h2>待你确认</h2><p>MacBook Pro · 查看 Agent 请求执行的操作</p></div>
+        <div class="approval-tabs" aria-label="审批状态"><button class="approval-tab active" data-status="pending" aria-pressed="true">待处理<span id="pending-count">2</span></button><button class="approval-tab" data-status="done" aria-pressed="false">已处理<span id="done-count">0</span></button></div>
+        <div id="approval-list"></div>
+        <p class="global-device-note">当前设备下所有项目与 Agent 的审批</p>
+      </div>
+    </section>
+    <section id="approval-detail" class="screen" style="min-height:0" hidden>
+      <header class="page-nav"><button class="icon-button" id="approval-detail-back" aria-label="返回审批列表"><svg style="transform:rotate(180deg)"><use href="#i-arrow"/></svg></button><h1>操作详情</h1></header>
+      <div class="approval-content request-detail" id="approval-detail-content"></div>
+      <div class="decision-bar" id="decision-bar"></div>
+    </section>
+    <section id="chat" class="screen" style="min-height:0" hidden>
+      <header class="nav chat-nav"><button class="icon-button" id="chat-back" aria-label="返回项目对话列表"><svg style="transform:rotate(180deg)"><use href="#i-arrow"/></svg></button><div class="brand"><span id="chat-title">新对话</span><div class="host" id="chat-context"></div></div><span class="chat-type" id="chat-type">CLI</span></header>
+      <div class="chat-source-banner" id="chat-source-banner" hidden>这段对话来自桌面客户端，当前仅支持查看历史。</div>
+      <div class="chat-body" id="chat-body" aria-live="polite"></div>
+      <div class="composer-shell" id="composer-shell"><form class="composer" id="composer"><div class="attachment-strip" id="attachment-strip" aria-label="待发送图片" hidden></div><textarea id="message-input" rows="1" placeholder="描述任务，也可以附上图片…" aria-label="消息内容"></textarea><div class="composer-toolbar"><button type="button" class="attach-button" id="attach-image" aria-label="添加图片" title="添加图片，最多 4 张，每张不超过 10 MB"><svg><use href="#i-image"/></svg></button><span class="composer-meta"><span class="dot"></span><span id="composer-status">图片 + 文字</span></span><button class="send" id="send" aria-label="发送消息" disabled><svg viewBox="0 0 24 24"><path d="M12 19V5M6 11l6-6 6 6"/></svg></button></div><input type="file" id="image-input" accept="image/png,image/jpeg,image/webp,image/gif,image/avif" multiple hidden></form><p class="composer-hint">演示模式 · 图片仅在本地预览，不会上传</p></div>
+      <div class="readonly-footer" id="readonly-footer" hidden>桌面历史 · 仅供查看</div>
+    </section>
+  </div>
+  <div class="modal" id="conversation-modal" hidden>
+    <section class="sheet" id="conversation-dialog" role="dialog" aria-modal="true" aria-labelledby="sheet-title" aria-describedby="sheet-desc" tabindex="-1">
+      <div class="handle" aria-hidden="true"></div>
+      <div class="sheet-head"><h1 id="sheet-title">开始一段对话</h1><button class="icon-button close" id="close-sheet" aria-label="关闭对话选择"><svg><use href="#i-close"/></svg></button></div>
+      <p class="sheet-desc" id="sheet-desc"></p>
+      <div class="sheet-scroll" id="choose-view">
+        <label class="section-label" for="current-project">当前项目<span>可切换项目</span></label>
+        <select class="project-select" id="current-project"></select><div class="path" id="project-path" style="margin-bottom:18px"></div>
+        <button class="new-card" id="new-conversation"><span class="new-icon"><svg><use href="#i-agent-codex"/></svg></span><span><strong>新建 CLI 对话</strong><small id="new-context"></small></span><svg class="chevron"><use href="#i-arrow"/></svg></button>
+        <div class="section-label">继续最近对话<span>仅当前项目</span></div>
+        <label class="search"><svg><use href="#i-search"/></svg><input type="search" id="session-search" aria-label="搜索当前项目的对话" placeholder="搜索当前项目的对话"></label>
+        <div class="recent-list" id="recent-list"></div>
+        <button class="view-project-sessions" id="view-project-sessions">查看项目全部对话 →</button>
+        <div class="sheet-foot">对话将在 MacBook Pro 上继续</div>
+      </div>
+    </section>
+  </div>
+  <div class="home-indicator" aria-hidden="true"></div>
+  <div class="toast" id="toast" role="status" hidden></div>
+  <dialog id="clear-dialog" aria-labelledby="clear-title" aria-describedby="clear-desc"><h2 id="clear-title">清除当前设备的会话历史？</h2><p id="clear-desc">将清除本原型中 MacBook Pro 的对话、消息和审批记录，项目会保留。清除后无法撤销。</p><div class="clear-actions"><button id="cancel-clear" autofocus>取消</button><button class="destructive" id="confirm-clear">清除历史</button></div></dialog>
+  <dialog id="image-dialog" aria-label="图片预览"><div class="image-viewer-head"><span id="image-name"></span><button id="close-image" aria-label="关闭图片预览"><svg><use href="#i-close"/></svg></button></div><img id="image-full" alt=""><p class="image-full-status" id="image-full-status" role="status" hidden>图片加载失败，请关闭后重试</p></dialog>
+</main>
+<script src="assets/vendor/markdown-it-14.1.0.min.js"></script>
+<script>
+// Standalone design prototype. All projects, conversations and responses are local demo data.
+const $=id=>document.getElementById(id);
+const icon=(name,cls='')=>`<svg class="${cls}" aria-hidden="true"><use href="#i-${name}"/></svg>`;
+const projects=[
+ {id:'my-app',name:'my-app',path:'~/projects/my-app',agent:'Claude Code',count:3,time:'2 分钟前',approval:true},
+ {id:'backend',name:'backend',path:'~/work/backend',agent:'Claude Code',count:1,time:'1 小时前'},
+ {id:'arclink',name:'arclink',path:'~/projects/arclink',agent:'Claude Code',count:2,time:'昨天'},
+ {id:'design-system',name:'design-system',path:'~/work/design-system',agent:'Claude Code',count:0,time:'10 月 28 日'},
+ {id:'api-server',name:'api-server',path:'~/projects/api-server',agent:'Codex',count:1,time:'12 分钟前'},
+ {id:'mac-dev',name:'mac-dev',path:'~/mac-dev',agent:'Codex',count:2,time:'昨天'}
+];
+const sessions=[
+ {id:'s1',title:'重构 Dashboard 组件',project:'my-app',agent:'Claude Code',time:'2 分钟前',state:'等待审批',color:'#d99223',user:'重构 Dashboard 组件，使用 useQuery 替换手动 fetch。',reply:'已整理好 Dashboard 的重构方案，写入文件的操作正在等待你的审批。'},
+ {id:'s2',title:'补充 API 接口测试',project:'api-server',agent:'Codex',time:'12 分钟前',state:'已完成',color:'#96969f',user:'为用户接口补充测试。',reply:'已补充用户接口的测试。你可以继续描述下一项任务。'},
+ {id:'s3',title:'优化数据库查询',project:'backend',agent:'Claude Code',time:'1 小时前',state:'等待审批',color:'#d99223',user:'检查列表接口的慢查询。',reply:'已定位到一处可优化的查询，索引变更正在等待你的审批。'}
+];
+sessions.forEach(s=>s.source='cli');
+sessions.push(
+ {id:'s4',title:'讨论首页布局与信息层级',project:'my-app',agent:'Claude Code',source:'desktop',time:'18 分钟前',state:'历史对话',color:'#969eae',user:'首页应该怎么减少视觉干扰？',reply:'可以先突出当前项目，将辅助操作集中到导航区域，再压缩重复的信息。'},
+ {id:'s5',title:'修复登录状态刷新问题',project:'my-app',agent:'Claude Code',source:'cli',time:'1 小时前',state:'已完成',color:'#899d93',user:'检查登录后页面未更新的问题。',reply:'已调整登录状态的刷新逻辑。'},
+ {id:'s6',title:'梳理组件拆分方案',project:'my-app',agent:'Claude Code',source:'desktop',time:'昨天',state:'历史对话',color:'#969eae',user:'帮我梳理组件拆分方案。',reply:'建议按导航、项目列表和会话三部分拆分，分别管理各自的展示状态。'},
+ {id:'s7',title:'补充表单校验',project:'my-app',agent:'Claude Code',source:'cli',time:'昨天',state:'已完成',color:'#899d93',user:'补充表单校验。',reply:'已补充必填项和格式校验。'},
+ {id:'s8',title:'订单接口设计讨论',project:'backend',agent:'Claude Code',source:'desktop',time:'昨天',state:'历史对话',color:'#969eae',user:'讨论订单接口的结构。',reply:'可按创建、查询和状态变更组织接口。'},
+ {id:'s9',title:'修复分页参数校验',project:'backend',agent:'Claude Code',source:'cli',time:'2 天前',state:'已完成',color:'#899d93',user:'修复分页参数。',reply:'已补充页码和每页数量的边界校验。'},
+ {id:'s10',title:'API 错误处理方案',project:'api-server',agent:'Codex',source:'desktop',time:'1 小时前',state:'历史对话',color:'#969eae',user:'讨论接口的错误处理。',reply:'建议保持统一的错误结构，并明确业务错误与服务异常的边界。'},
+ {id:'s11',title:'整理接口文档',project:'api-server',agent:'Codex',source:'cli',time:'昨天',state:'已完成',color:'#899d93',user:'整理接口文档。',reply:'已整理接口的入参、响应与使用示例。'}
+);
+const richExample=[
+ '## Dashboard 调整方案',
+ '建议将 **数据请求** 与 **卡片展示** 分开，保持 `Dashboard` 组件简洁。以下为设计预览中的示例内容。',
+ '### 修改范围',
+ '- [x] 整理数据请求与加载状态\n- [ ] 将统计卡片提取为 `StatCard`\n  - 保留现有布局\n  - 补充错误提示与重试入口',
+ '```tsx\nconst { data, isLoading, error, refetch } = useQuery({\n  queryKey: ["dashboard"],\n  queryFn: fetchDashboard,\n});\n\nif (isLoading) return <DashboardSkeleton />;\nif (error) return <ErrorState onRetry={refetch} />;\n```',
+ '| 区域 | 调整方式 | 状态 |\n| --- | --- | --- |\n| 数据请求 | 使用 useQuery | 待写入 |\n| 统计卡片 | 拆为独立组件 | 待审批 |\n| 异常处理 | 保留重试入口 | 待验证 |',
+ '> 写入文件前需要你的批准。上方是方案预览，当前还没有执行修改。',
+ '### 布局示意',
+ '![Dashboard 布局示意](assets/chat-layout-preview.svg)',
+ '可参考 [TanStack Query 文档](https://tanstack.com/query/latest)。'
+].join('\n\n');
+const exampleSession=sessions.find(s=>s.id==='s1');exampleSession.reply=richExample;
+exampleSession.messages=[{user:true,text:exampleSession.user,time:exampleSession.time},{user:false,text:richExample,time:exampleSession.time,analysis:{status:'已完成',duration:'6 秒',text:'已归纳本次任务的修改范围：**数据获取、组件拆分、错误提示**。建议先保持现有功能，再逐步替换实现。'},tools:[{title:'读取文件',target:'src/components/Dashboard.tsx',state:'已完成',output:'示例结果：组件包含请求逻辑、统计卡片和错误提示，共 156 行。'}]}];
+// Stable demo timestamps keep mixed sources ordered consistently by recency.
+const demoAge={s1:2,s2:12,s3:60,s4:18,s5:60,s6:1440,s7:1500,s8:1440,s9:2880,s10:60,s11:1440};
+sessions.forEach(s=>s.updatedAt=Date.now()-demoAge[s.id]*60000);
+sessions.sort((a,b)=>b.updatedAt-a.updatedAt);
+projects.forEach(p=>p.count=sessions.filter(s=>s.project===p.id&&s.agent===p.agent).length);
+let sourceFilter='all';
+const sourceLabel=s=>s.source==='desktop'?'桌面':'CLI';
+const approvals=[
+ {id:'a1',project:'my-app',agent:'Claude Code',session:'s1',title:'更新 Dashboard 组件',summary:'将手动 fetch 替换为 useQuery，并拆分统计卡片。',kind:'写入文件',path:'src/components/Dashboard.tsx',time:'2 分钟前',state:'pending',impact:'将修改 1 个文件，新增 42 行、删除 18 行。',preview:'dashboard'},
+ {id:'a2',project:'backend',agent:'Claude Code',session:'s3',title:'为查询添加数据库索引',summary:'为订单列表的筛选字段添加索引，优化查询速度。',kind:'执行命令',path:'psql · 当前项目数据库',time:'1 小时前',state:'pending',impact:'将在当前项目数据库中创建索引，不修改已有记录。',preview:'sql'}
+];
+let approvalScope='pending',activeApproval=null,approvalsReturn='home';
+const approvalLabel=item=>item.state==='pending'?'待审批':item.state==='allowed'?'已允许':'已拒绝';
+function updateApprovalBadge(){
+ const count=approvals.filter(a=>a.state==='pending').length;
+ $('approval-badge').hidden=!count;$('approval-badge').textContent=count;
+ $('approval-entry').setAttribute('aria-label',count?'审批，'+count+' 项待处理':'审批，无待处理操作');
+ $('pending-count').textContent=count;$('done-count').textContent=approvals.length-count;
+}
+function showPage(id){
+ ['home','chat','approvals','approval-detail','settings','devices','project-sessions-page'].forEach(page=>$(page).hidden=page!==id);
+}
+function renderApprovals(){
+ updateApprovalBadge();
+ document.querySelectorAll('[data-status]').forEach(b=>{const active=b.dataset.status===approvalScope;b.classList.toggle('active',active);b.setAttribute('aria-pressed',active)});
+ const items=approvals.filter(a=>approvalScope==='pending'?a.state==='pending':a.state!=='pending');
+ $('approval-list').innerHTML=items.map(a=>`<button class="request-card" data-request="${a.id}"><div class="request-top"><span class="request-origin"><strong>${a.project}</strong> · ${a.agent}</span><span class="request-status ${a.state==='allowed'?'done':a.state==='rejected'?'denied':''}">${approvalLabel(a)}</span></div><h3>${a.title}</h3><p class="request-summary">${a.summary}</p><div class="request-bottom"><span>${a.kind} · ${a.time}</span><span>查看详情${icon('arrow')}</span></div></button>`).join('')||`<div class="approval-empty">${icon('check')}<strong>${approvalScope==='pending'?'暂时没有待审批操作':'还没有处理记录'}</strong><p>${approvalScope==='pending'?'所有请求都已处理，可以继续工作。':'处理后的操作会保留在这里，方便回看。'}</p></div>`;
+}
+function showApprovals(){renderApprovals();showPage('approvals');$('approvals-back').focus()}
+function showApprovalDetail(id){
+ const item=approvals.find(a=>a.id===id);if(!item)return;activeApproval=id;
+ const preview=item.preview==='dashboard'?'<span class="code-remove">− const [data, setData] = useState(null);</span><span class="code-remove">− useEffect(() =&gt; { fetchDashboard(); }, []);</span><span class="code-add">+ const { data, isLoading } = useQuery({</span><span class="code-add">+   queryKey: ["dashboard"],</span><span class="code-add">+   queryFn: fetchDashboard,</span><span class="code-add">+ });</span>':'CREATE INDEX CONCURRENTLY\n  idx_orders_status_created_at\nON orders (status, created_at DESC);';
+ $('approval-detail-content').innerHTML=`<span class="request-status ${item.state==='allowed'?'done':item.state==='rejected'?'denied':''}">${approvalLabel(item)}</span><h2>${item.title}</h2><p class="detail-desc">${item.summary}</p><div class="detail-context"><div class="detail-field"><span>项目</span><strong>${item.project}</strong></div><div class="detail-field"><span>Agent</span><strong>${item.agent}</strong></div><div class="detail-field"><span>设备</span><strong>MacBook Pro</strong></div><div class="detail-field"><span>操作</span><strong>${item.kind}</strong></div></div><div class="detail-label">${item.kind==='写入文件'?'变更预览':'待执行命令'}</div><div class="code-preview"><div class="code-path">${item.path}</div><pre>${preview}</pre></div><p class="detail-impact">${item.impact}</p>`;
+ $('decision-bar').innerHTML=item.state==='pending'?(preferences.permission==='仅查看'?'<div class="decision-result">当前为「仅查看」，无法审批操作</div>':'<button id="reject-request">拒绝</button><button class="allow" id="allow-request">允许本次操作</button>'):`<div class="decision-result">${approvalLabel(item)} · 可在「已处理」中回看</div>`;
+ showPage('approval-detail');$('approval-detail-content').scrollTop=0;$('approval-detail-back').focus();
+}
+function decideApproval(state){
+ if(preferences.permission==='仅查看')return;
+ const item=approvals.find(a=>a.id===activeApproval);if(!item||item.state!=='pending')return;
+ item.state=state;const session=sessions.find(s=>s.id===item.session);
+ if(session){session.state=state==='allowed'?'已允许操作':'操作已拒绝';session.color=state==='allowed'?'#73917f':'#b38282';session.reply=state==='allowed'?'操作已获允许，可继续查看执行进度。':'本次操作已拒绝。你可以补充要求，让 Agent 调整方案。';if(session.messages)session.messages.push({user:false,text:session.reply,time:'刚刚'})}
+ renderProjects();renderApprovals();showPage('approvals');$('approvals-back').focus();toast((state==='allowed'?'已允许本次操作':'已拒绝本次操作')+' · 原型演示');
+}
+let selectedAgent='Claude Code',activeChat=null,returnFocus=null,toastTimer;
+let pendingImages=[],uploadBusy=false,draftEpoch=0,nextImageId=0;
+const imageUrls=new Set();
+function revokeImage(src){URL.revokeObjectURL(src);imageUrls.delete(src)}
+function clearImageDraft(){draftEpoch++;pendingImages.forEach(img=>revokeImage(img.src));pendingImages=[];uploadBusy=false;$('image-input').value='';$('message-input').style.height='';renderAttachments()}
+function canSendChat(){return !!activeChat&&activeChat.source!=='desktop'&&preferences.permission==='完全访问'}
+function refreshComposer(){
+ $('send').disabled=!canSendChat()||uploadBusy||(!$('message-input').value.trim()&&!pendingImages.length);
+ $('attach-image').disabled=!canSendChat()||uploadBusy||pendingImages.length>=4;
+ $('composer').setAttribute('aria-busy',uploadBusy);
+ $('composer-status').textContent=uploadBusy?'正在读取图片…':pendingImages.length?pendingImages.length+' / 4 张图片':'图片 + 文字';
+}
+function renderAttachments(){
+ $('attachment-strip').hidden=!pendingImages.length;
+ $('attachment-strip').innerHTML=pendingImages.map(img=>`<div class="attachment-thumb"><button type="button" class="attachment-preview" data-preview-src="${escapeText(img.src)}" data-preview-name="${escapeText(img.name)}" aria-label="预览 ${escapeText(img.name)}"><img src="${escapeText(img.src)}" alt="${escapeText(img.name)}"></button><button type="button" class="remove-image" data-remove-image="${img.id}" aria-label="移除 ${escapeText(img.name)}">${icon('close')}</button></div>`).join('');
+ refreshComposer();
+}
+async function addImages(files){
+ if(!canSendChat()||uploadBusy)return;
+ const epoch=draftEpoch;uploadBusy=true;refreshComposer();let error='';
+ for(const file of files){
+  if(epoch!==draftEpoch)break;
+  if(pendingImages.length>=4){error='一次最多添加 4 张图片';break}
+  if(!['image/png','image/jpeg','image/webp','image/gif','image/avif'].includes(file.type)){error='请选择 PNG、JPG、WebP、GIF 或 AVIF 图片';continue}
+  if(file.size>10*1024*1024){error='每张图片不能超过 10 MB';continue}
+  const src=URL.createObjectURL(file);imageUrls.add(src);const probe=new Image();probe.src=src;
+  try{await probe.decode()}catch{revokeImage(src);if(epoch===draftEpoch)error='这张图片无法读取，请换一张';continue}
+  if(epoch!==draftEpoch){revokeImage(src);break}
+  pendingImages.push({id:String(++nextImageId),src,name:file.name});
+ }
+ if(epoch===draftEpoch){uploadBusy=false;renderAttachments();if(error)toast(error)}
+}
+function openImage(src,name){if(!imageUrls.has(src)&&src!==demoImageURL&&!loadedExternalImages.has(src))return;$('image-full-status').hidden=true;$('image-name').textContent=name;$('image-full').referrerPolicy='no-referrer';$('image-full').src=src;$('image-full').alt=name;$('image-dialog').showModal()}
+function messageMarkup(message,index){
+ const images=message.images||[];
+ const attachmentHTML=images.length?`<div class="message-images ${images.length===1?'single':''}">${images.map(img=>`<button type="button" class="message-image" data-preview-src="${escapeText(img.src)}" data-preview-name="${escapeText(img.name)}" aria-label="放大 ${escapeText(img.name)}"><img src="${escapeText(img.src)}" alt="${escapeText(img.name)}"></button>`).join('')}</div>`:'';
+ const analysis=!message.user&&message.analysis?`<details class="analysis-block" data-analysis-message="${index}"${message.analysis.open?' open':''}><summary>${icon('think')}<span>思考摘要</span><small>${escapeText(message.analysis.status||'已完成')}${message.analysis.duration?' · '+escapeText(message.analysis.duration):''}</small>${icon('arrow','analysis-chevron')}</summary><div class="analysis-body"><div class="markdown-body">${renderMarkdown(message.analysis.text)}</div></div></details>`:'';
+ const tools=!message.user&&message.tools?.length?`<div class="tool-group">${message.tools.map((tool,toolIndex)=>`<details class="tool-block" data-tool-message="${index}" data-tool-index="${toolIndex}"${tool.open?' open':''}><summary>${icon('agent-codex')}<span>${escapeText(tool.title)}<span class="tool-path">${escapeText(tool.target)}</span></span><small class="tool-state">${escapeText(tool.state)}</small>${icon('arrow','analysis-chevron')}</summary><pre>${escapeText(tool.output)}</pre></details>`).join('')}</div>`:'';
+ const actions=!message.user&&message.text?`<div class="message-actions"><button type="button" data-copy-message="${index}" aria-label="复制回复的 Markdown">${icon('copy')}复制回复</button></div>`:'';
+ return `<article class="chat-message ${message.user?'is-user':''}"><div class="message-author">${message.user?'你':`<span class="agent-avatar">${icon(activeChat.agent==='Claude Code'?'agent-claude':'agent-codex')}</span>${activeChat.agent}`}<time>${escapeText(message.time||activeChat.time||'刚刚')}</time></div>${analysis}${tools}${attachmentHTML}${message.text?`<div class="message-content markdown-body">${renderMarkdown(message.text)}</div>`:''}${actions}</article>`;
+}
+function renderChatMessages(){
+ if(!activeChat)return;
+ if(activeChat.isNew){const p=currentProject();$('chat-body').innerHTML=`<div class="chat-empty"><div class="chat-empty-icon">${icon('chat')}</div><h2>从一个想法开始</h2><p>在 ${escapeText(p.name)} 中使用 ${activeChat.agent}<br>描述任务，或附上图片一起讨论。</p><button class="suggestion" id="suggestion">分析这个项目的结构并给出改进建议 ${icon('arrow','chevron')}</button></div>`;return}
+ $('chat-body').innerHTML='<div class="chat-date">'+sourceLabel(activeChat)+' 对话 · MacBook Pro</div>'+activeChat.messages.map(messageMarkup).join('');
+ const count=approvals.filter(a=>a.session===activeChat.id&&a.state==='pending').length;
+ if(count)$('chat-body').insertAdjacentHTML('beforeend',`<button class="message-event" id="chat-pending-approval">${icon('lock')}<span>${count} 个操作等待你的审批</span>查看${icon('arrow','chevron')}</button>`);
+}
+const currentProjects={'Claude Code':'my-app',Codex:'api-server'};
+function currentProject(){return projects.find(p=>p.agent===selectedAgent&&p.id===currentProjects[selectedAgent])}
+const escapeText=s=>s.replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const demoImageURL=new URL('assets/chat-layout-preview.svg',location.href).href;
+const loadedExternalImages=new Set();
+const markdown=typeof window.markdownit==='function'?window.markdownit({html:false,linkify:true,breaks:true}):null;
+function imageAddress(raw){
+ try{const url=new URL(raw,location.href);if(imageUrls.has(url.href)||url.href===demoImageURL)return {src:url.href,local:true};if(['https:','http:'].includes(url.protocol)&&!url.username&&!url.password)return {src:url.href,local:false}}catch{}
+ return null;
+}
+function markdownImage(src,name){
+ const address=imageAddress(src);if(!address)return `<span class="md-image-caption">${icon('image')} ${escapeText(name||'图片')} · 不支持的图片地址</span>`;
+ const caption=escapeText(name||'图片');
+ if(!address.local&&!loadedExternalImages.has(address.src))return `<span class="md-image"><button type="button" class="md-image-load" data-load-image="${escapeText(address.src)}" data-preview-name="${caption}">${icon('image')}<span>${caption}<small>外部图片 · 点击加载</small></span></button></span>`;
+ return `<span class="md-image is-loading"><button type="button" class="md-image-main" data-preview-src="${escapeText(address.src)}" data-preview-name="${caption}" aria-label="放大 ${caption}"><img src="${escapeText(address.src)}" alt="${caption}" referrerpolicy="no-referrer" loading="lazy" decoding="async"></button><button type="button" class="md-image-retry" aria-label="重新加载 ${caption}">图片加载失败 · 点击重试</button><span class="md-image-caption">${caption}</span></span>`;
+}
+if(markdown){
+ const validate=markdown.validateLink;markdown.validateLink=url=>validate(url)&&!/^\s*(?:file|blob|data):/i.test(url);
+ // Trusted blob attachments use the image renderer directly; Markdown cannot inject arbitrary blob/data URLs.
+ markdown.renderer.rules.fence=(tokens,index)=>{const token=tokens[index],lang=(token.info||'text').trim().split(/\s+/)[0].slice(0,30)||'text';return `<div class="md-code"><div class="md-code-head"><span>${escapeText(lang)}</span><button type="button" data-copy-code aria-label="复制代码">${icon('copy')}复制</button></div><pre tabindex="0"><code>${escapeText(token.content)}</code></pre></div>`};
+ markdown.renderer.rules.code_block=(tokens,index)=>`<div class="md-code"><div class="md-code-head"><span>text</span><button type="button" data-copy-code aria-label="复制代码">${icon('copy')}复制</button></div><pre tabindex="0"><code>${escapeText(tokens[index].content)}</code></pre></div>`;
+ markdown.renderer.rules.table_open=()=>'<div class="md-table" tabindex="0" role="region" aria-label="表格，可横向滚动"><table>';
+ markdown.renderer.rules.table_close=()=>'</table></div>';
+ const linkOpen=markdown.renderer.rules.link_open||((tokens,index,options,env,self)=>self.renderToken(tokens,index,options));
+ markdown.renderer.rules.link_open=(tokens,index,options,env,self)=>{tokens[index].attrSet('target','_blank');tokens[index].attrSet('rel','noopener noreferrer');return linkOpen(tokens,index,options,env,self)};
+ markdown.renderer.rules.image=(tokens,index)=>markdownImage(tokens[index].attrGet('src'),tokens[index].content);
+ markdown.core.ruler.after('inline','task_checkboxes',state=>{for(let i=2;i<state.tokens.length;i++){const token=state.tokens[i];if(token.type!=='inline'||state.tokens[i-2].type!=='list_item_open'||token.children?.[0]?.type!=='text')continue;const match=token.children[0].content.match(/^\[([ xX])\]\s+/);if(!match)continue;state.tokens[i-2].attrJoin('class','task-list-item');token.children[0].content=token.children[0].content.slice(match[0].length);const checkbox=new state.Token('task_checkbox','input',0);checkbox.meta={checked:match[1].toLowerCase()==='x'};token.children.unshift(checkbox)}});
+ markdown.renderer.rules.task_checkbox=(tokens,index)=>`<input class="md-task" type="checkbox" disabled tabindex="-1" aria-label="${tokens[index].meta.checked?'已完成':'未完成'}"${tokens[index].meta.checked?' checked':''}>`;
+}
+function renderMarkdown(text){return markdown?markdown.render(String(text||'')):'<p>'+escapeText(String(text||'')).replace(/\n/g,'<br>')+'</p>'}
+function markdownSnippet(text){if(!markdown)return text;return markdown.parse(String(text||''),{}).filter(t=>t.type==='inline').map(t=>(t.children||[]).filter(c=>['text','code_inline'].includes(c.type)).map(c=>c.content).join('')).join(' ')}
+async function copyText(text){
+ try{await navigator.clipboard.writeText(text);return true}catch{}
+ const previous=document.activeElement,field=document.createElement('textarea');field.value=text;field.style.cssText='position:fixed;left:-9999px;top:0;opacity:0';document.body.append(field);field.select();let copied=false;try{copied=document.execCommand('copy')}catch{}field.remove();previous?.focus({preventScroll:true});return copied;
+}
+const preferenceDefaults={permission:'完全访问',appearance:'自动',retention:'7 天',language:'简体中文','notify-approval':true,'notify-done':true,'notify-mac':false,'notify-failed':true};
+const preferences={...preferenceDefaults};
+try{const saved=JSON.parse(localStorage.getItem('arclink-design-preferences')||'{}');for(const key of Object.keys(preferenceDefaults)){const el=$(key);if(typeof preferenceDefaults[key]==='boolean'){if(typeof saved[key]==='boolean')preferences[key]=saved[key]}else if([...el.options].some(o=>o.value===saved[key]))preferences[key]=saved[key]}}catch{}
+const systemTheme=matchMedia('(prefers-color-scheme: dark)');
+function applyAppearance(){document.documentElement.dataset.theme=preferences.appearance==='深色'||(preferences.appearance==='自动'&&systemTheme.matches)?'dark':'light'}
+systemTheme.addEventListener('change',applyAppearance);
+function syncPermission(){
+ $('permission-desc').textContent=preferences.permission==='完全访问'?'可以发起任务、发送消息和审批操作。':preferences.permission==='查看和审批'?'可以查看对话和审批操作，不能发起任务或发送消息。':'可以查看项目和对话，不能发起任务或审批操作。';
+ $('new-conversation').disabled=preferences.permission!=='完全访问';
+ $('new-conversation').title=preferences.permission==='完全访问'?'':'当前权限不能创建对话';
+ $('project-new-chat').disabled=preferences.permission!=='完全访问';
+}
+for(const key of Object.keys(preferenceDefaults)){
+ const el=$(key);if(typeof preferences[key]==='boolean')el.checked=preferences[key];else el.value=preferences[key];
+ el.addEventListener('change',()=>{preferences[key]=el.type==='checkbox'?el.checked:el.value;try{localStorage.setItem('arclink-design-preferences',JSON.stringify(preferences))}catch{}applyAppearance();syncPermission()});
+}
+applyAppearance();syncPermission();
+function renderProjects(){
+ document.querySelectorAll('#home-agents button').forEach(b=>{b.classList.toggle('active',b.dataset.agent===selectedAgent);b.setAttribute('aria-pressed',b.dataset.agent===selectedAgent)});
+ const query=$('project-search').value.trim().toLowerCase();
+ const project=currentProject();
+ const latest=sessions.find(s=>s.agent===selectedAgent&&s.project===project?.id);
+ $('current-workspace').innerHTML=project?`<div class="current-card"><button class="current-main" id="current-project-card" aria-label="打开 ${project.name} 的对话"><span class="current-folder">${icon('folder')}</span><span class="current-summary"><div class="current-name">${project.name}<span class="current-indicator">当前项目</span></div><div class="current-path">${project.path}</div></span><span class="current-count">${project.count} 个对话</span>${icon('arrow','chevron')}</button><button class="continue-row" id="continue-chat" ${latest?'data-session="'+latest.id+'"':''}>${icon(latest?'chat':'new')}<span class="continue-copy"><div class="continue-title">${latest?escapeText(latest.title):'在这个项目中开始新的任务'}</div></span><span class="continue-action">${latest?'继续':'开始'}${icon('arrow')}</span></button></div>`:`<div class="workspace-empty"><div class="current-folder">${icon('computer')}</div><strong>本机未安装 ${selectedAgent}</strong><p>在 Mac 上安装后即可使用。<br>你也可以切换到其他 Agent 继续工作。</p></div>`;
+ const items=projects.filter(p=>p.agent===selectedAgent&&(query||p.id!==project?.id)&&(p.name+' '+p.path).toLowerCase().includes(query));
+ $('projects-label').textContent=query?'搜索结果':'其他项目';$('project-total').textContent=items.length||'';
+ document.querySelector('.projects-heading').hidden=!project;$('projects').hidden=!project;
+ $('chat-fab').disabled=!project;$('chat-fab').title=project?'对话 · '+project.name:'本机未安装 '+selectedAgent;
+ $('projects').innerHTML=items.map(p=>{const pending=approvals.filter(a=>a.project===p.id&&a.agent===p.agent&&a.state==='pending').length;return `<button class="project" data-project="${p.id}" aria-label="查看 ${p.name} 的对话"><span class="folder">${icon('folder')}</span><span class="project-copy"><span class="project-line"><span class="row-title">${p.name}</span><span class="time">${p.time}</span></span><span class="sub ${pending?'project-status':''}" style="display:block">${pending?pending+' 个操作待审批':p.count?p.count+' 个对话':'还没有对话'}</span></span>${icon('arrow','chevron')}</button>`}).join('')||`<div class="empty-result">${query?'没有匹配的项目':'还没有其他项目'}</div>`;
+}
+function projectSessions(){return sessions.filter(s=>s.agent===selectedAgent&&s.project===currentProjects[selectedAgent]).sort((a,b)=>b.updatedAt-a.updatedAt)}
+function renderProjectSessions(){
+ const project=currentProject();if(!project)return;
+ $('project-sessions-title').textContent=project.name;
+ $('project-sessions-agent').textContent=project.agent;
+ $('project-sessions-path').textContent=project.path;
+ const all=projectSessions(),query=$('project-session-search').value.trim().toLowerCase();
+ $('source-all-count').textContent=all.length;$('source-cli-count').textContent=all.filter(s=>s.source==='cli').length;$('source-desktop-count').textContent=all.filter(s=>s.source==='desktop').length;
+ document.querySelectorAll('[data-source]').forEach(b=>{const active=b.dataset.source===sourceFilter;b.classList.toggle('active',active);b.setAttribute('aria-pressed',active)});
+ const items=all.filter(s=>(sourceFilter==='all'||s.source===sourceFilter)&&(s.title+' '+s.user+' '+s.reply).toLowerCase().includes(query));
+ $('project-session-list').innerHTML=items.map(s=>`<button class="session-row" data-project-session="${s.id}"><span class="session-origin-icon">${icon(s.source==='desktop'?'computer':'agent-codex')}</span><span class="project-copy"><span class="session-title-row"><strong>${escapeText(s.title)}</strong><span class="time">${s.time}</span></span><div class="session-snippet">${escapeText(markdownSnippet(s.reply))}</div><span class="session-meta"><span class="source-badge ${s.source==='desktop'?'desktop':''}">${sourceLabel(s)}</span>${s.source==='desktop'?'<span>只读</span>':''}<span class="session-state" style="color:${s.color}">${s.state}</span></span></span></button>`).join('')||`<div class="empty-result">${query?'没有匹配的对话':sourceFilter==='desktop'?'还没有桌面对话':sourceFilter==='cli'?'还没有 CLI 对话':'这个项目还没有对话'}<br><small>${query?'试试其他关键词':sourceFilter==='desktop'?'桌面历史同步后会显示在这里':'点击右上角 + 新建 CLI 对话'}</small></div>`;
+}
+function showProjectSessions(projectId=currentProjects[selectedAgent],reset=true){
+ const project=projects.find(p=>p.id===projectId&&p.agent===selectedAgent);if(!project)return;
+ currentProjects[selectedAgent]=project.id;closeSheet(false);
+ if(reset){sourceFilter='all';$('project-session-search').value='';$('project-session-search-wrap').hidden=true;$('session-search-toggle').setAttribute('aria-expanded','false')}
+ renderProjects();renderProjectSessions();showPage('project-sessions-page');$('project-sessions-back').focus();
+}
+function renderSessions(){
+ const q=$('session-search').value.trim().toLowerCase();
+ $('recent-list').innerHTML=projectSessions().filter(s=>s.title.toLowerCase().includes(q)).slice(0,3).map(s=>`<button class="recent" data-session="${s.id}"><span class="chat-icon">${icon(s.source==='desktop'?'computer':'agent-codex')}</span><span class="project-copy"><span class="project-line"><span class="row-title">${escapeText(s.title)}</span><span class="time">${s.time}</span></span><span class="sub" style="display:block">${sourceLabel(s)}${s.source==='desktop'?' · 只读':''} · <span style="color:${s.color}">${s.state}</span></span></span>${icon('arrow','chevron')}</button>`).join('')||`<div class="empty-result">${q?'没有匹配的对话':'这个项目还没有对话'}<br><small>${q?'换个关键词试试':'点击上方「新建 CLI 对话」开始任务'}</small></div>`;
+}
+function showChoose(){
+ $('sheet-title').textContent='开始一段对话';$('sheet-desc').textContent=selectedAgent+' · MacBook Pro';
+ $('current-project').innerHTML=projects.filter(p=>p.agent===selectedAgent).map(p=>`<option value="${p.id}">${p.name}</option>`).join('');
+ $('current-project').value=currentProjects[selectedAgent];updateProjectContext();
+}
+function openSheet(){
+ if(!currentProject()){toast('本机未安装 '+selectedAgent+'，暂时无法创建对话');return}
+ returnFocus=document.activeElement;$('session-search').value='';showChoose();$('conversation-modal').hidden=false;$('app').inert=true;$('chat-fab').setAttribute('aria-expanded','true');$('conversation-dialog').focus();
+}
+function closeSheet(restore=true){$('conversation-modal').hidden=true;$('app').inert=false;$('chat-fab').setAttribute('aria-expanded','false');if(restore)(returnFocus?.isConnected?returnFocus:$('chat-fab')).focus()}
+function updateProjectContext(){
+ const project=currentProject();$('project-path').textContent=project.path;
+ $('new-context').textContent='在 '+project.name+' 中使用 '+selectedAgent;
+ renderSessions();renderProjects();
+ if(!$('project-sessions-page').hidden)renderProjectSessions();
+}
+function openChat(session,project){
+ if(!session&&preferences.permission!=='完全访问'){toast('当前权限不能创建对话');return}
+ if(session&&(session.agent!==selectedAgent||session.project!==currentProjects[selectedAgent]))return;
+ if(!session&&(!project||project.agent!==selectedAgent||project.id!==currentProjects[selectedAgent]))return;
+ clearImageDraft();closeSheet(false);showPage('chat');$('message-input').value='';$('send').disabled=true;
+ activeChat=session||{title:'新 CLI 对话',agent:project.agent,project:project.id,source:'cli',messages:[],isNew:true};
+ const desktop=activeChat.source==='desktop';
+ $('chat-source-banner').hidden=!desktop;$('composer').hidden=desktop;$('composer-shell').hidden=desktop;$('readonly-footer').hidden=!desktop;
+ $('message-input').disabled=desktop||preferences.permission!=='完全访问';$('message-input').placeholder=preferences.permission==='完全访问'?'描述任务，也可以附上图片…':'当前权限只能查看对话';
+ $('chat-title').textContent=activeChat.title;$('chat-context').textContent=`${activeChat.project} · ${activeChat.agent}`;$('chat-type').textContent=desktop?'桌面':'CLI';
+ if(session&&!session.messages)session.messages=[{user:true,text:session.user,time:session.time},{user:false,text:session.reply,time:session.time}];
+ renderChatMessages();refreshComposer();
+ $('chat-body').scrollTop=session?$('chat-body').scrollHeight:0;
+ $('chat-back').focus();
+}
+function toast(message){clearTimeout(toastTimer);$('toast').textContent=message;$('toast').hidden=false;toastTimer=setTimeout(()=>$('toast').hidden=true,2600)}
+$('chat-fab').onclick=openSheet;$('close-sheet').onclick=()=>closeSheet();$('new-conversation').onclick=()=>openChat(null,currentProject());
+$('approval-entry').onclick=()=>{approvalScope='pending';approvalsReturn='home';showApprovals()};
+$('settings-entry').onclick=()=>{showPage('settings');$('settings-back').focus()};
+$('settings-back').onclick=()=>{showPage('home');$('settings-entry').focus()};
+$('settings-device').onclick=()=>{showPage('devices');$('devices-back').focus()};
+$('devices-back').onclick=()=>{showPage('settings');$('settings-device').focus()};
+$('clear-history').onclick=()=>$('clear-dialog').showModal();
+$('cancel-clear').onclick=()=>$('clear-dialog').close();
+$('confirm-clear').onclick=()=>{clearImageDraft();imageUrls.forEach(src=>URL.revokeObjectURL(src));imageUrls.clear();loadedExternalImages.clear();$('image-full').removeAttribute('src');sessions.splice(0);approvals.splice(0);projects.forEach(p=>p.count=0);activeChat=null;$('chat-body').replaceChildren();$('message-input').value='';$('send').disabled=true;$('clear-dialog').close();renderProjects();updateApprovalBadge();toast('已清除本原型的会话历史');$('clear-history').focus()};
+$('settings-approvals').onclick=()=>{approvalScope='pending';approvalsReturn='settings';showApprovals()};
+$('approvals-back').onclick=()=>{showPage(approvalsReturn);if(approvalsReturn==='chat'){renderChatMessages();$('chat-back').focus()}else $(approvalsReturn==='settings'?'settings-approvals':'approval-entry').focus()};
+$('approval-detail-back').onclick=showApprovals;
+document.querySelector('.approval-tabs').onclick=e=>{const b=e.target.closest('[data-status]');if(b){approvalScope=b.dataset.status;renderApprovals()}};
+$('approval-list').onclick=e=>{const b=e.target.closest('[data-request]');if(b)showApprovalDetail(b.dataset.request)};
+$('decision-bar').onclick=e=>{if(e.target.closest('#allow-request'))decideApproval('allowed');else if(e.target.closest('#reject-request'))decideApproval('rejected')};
+$('conversation-modal').onclick=e=>{if(e.target===$('conversation-modal'))closeSheet()};
+document.addEventListener('keydown',e=>{
+ if($('conversation-modal').hidden)return;
+ if(e.key==='Escape'){e.preventDefault();closeSheet()}
+ if(e.key==='Tab'){
+  const focusable=[...$('conversation-dialog').querySelectorAll('button:not(:disabled),input,select')].filter(el=>el.getClientRects().length);
+  const first=focusable[0],last=focusable.at(-1);
+  if(e.shiftKey&&(document.activeElement===first||document.activeElement===$('conversation-dialog'))){e.preventDefault();last.focus()}
+  else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus()}
+ }
+});
+$('home-agents').onclick=e=>{const b=e.target.closest('[data-agent]');if(b){selectedAgent=b.dataset.agent;$('project-search').value='';$('project-search-wrap').hidden=true;$('toggle-search').setAttribute('aria-expanded','false');renderProjects();document.querySelector('#home .content').scrollTop=0}};
+$('toggle-search').onclick=()=>{const open=$('project-search-wrap').hidden;$('project-search-wrap').hidden=!open;$('toggle-search').setAttribute('aria-expanded',open);if(open)$('project-search').focus();else{$('project-search').value='';renderProjects()}};
+$('current-workspace').onclick=e=>{const continueButton=e.target.closest('#continue-chat');if(continueButton){const session=sessions.find(s=>s.id===continueButton.dataset.session);openChat(session,currentProject())}else if(e.target.closest('#current-project-card'))showProjectSessions()};
+$('project-search').oninput=renderProjects;$('session-search').oninput=renderSessions;
+$('projects').onclick=e=>{const b=e.target.closest('[data-project]');if(b)showProjectSessions(b.dataset.project)};
+$('project-sessions-back').onclick=()=>{showPage('home');renderProjects();$('current-project-card')?.focus()};
+$('project-new-chat').onclick=()=>openChat(null,currentProject());
+$('view-project-sessions').onclick=()=>showProjectSessions();
+document.querySelector('.source-filters').onclick=e=>{const b=e.target.closest('[data-source]');if(b){sourceFilter=b.dataset.source;renderProjectSessions()}};
+$('project-session-search').oninput=renderProjectSessions;
+$('session-search-toggle').onclick=()=>{const open=$('project-session-search-wrap').hidden;$('project-session-search-wrap').hidden=!open;$('session-search-toggle').setAttribute('aria-expanded',open);if(open)$('project-session-search').focus();else{$('project-session-search').value='';renderProjectSessions()}};
+$('project-session-list').onclick=e=>{const b=e.target.closest('[data-project-session]');if(b)openChat(sessions.find(s=>s.id===b.dataset.projectSession))};
+$('current-project').onchange=()=>{const p=projects.find(p=>p.id===$('current-project').value&&p.agent===selectedAgent);if(!p)return;currentProjects[selectedAgent]=p.id;$('session-search').value='';updateProjectContext()};
+$('recent-list').onclick=e=>{const b=e.target.closest('[data-session]');if(b)openChat(sessions.find(s=>s.id===b.dataset.session))};
+$('chat-back').onclick=()=>{clearImageDraft();showProjectSessions(currentProjects[selectedAgent],false)};
+$('message-input').oninput=()=>{const el=$('message-input');el.style.height='auto';el.style.height=Math.min(104,Math.max(42,el.scrollHeight))+'px';refreshComposer()};
+$('attach-image').onclick=()=>$('image-input').click();
+$('image-input').onchange=()=>{const files=[...$('image-input').files];$('image-input').value='';addImages(files)};
+$('message-input').addEventListener('paste',e=>{const files=[...e.clipboardData.files];if(files.some(f=>f.type.startsWith('image/'))){e.preventDefault();addImages(files)}});
+$('message-input').addEventListener('keydown',e=>{if((e.metaKey||e.ctrlKey)&&e.key==='Enter'&&!e.isComposing){e.preventDefault();if(!$('send').disabled)$('composer').requestSubmit()}});
+$('attachment-strip').onclick=e=>{const remove=e.target.closest('[data-remove-image]');if(remove){const index=pendingImages.findIndex(img=>img.id===remove.dataset.removeImage);if(index!==-1){revokeImage(pendingImages[index].src);pendingImages.splice(index,1);renderAttachments();$('attach-image').focus()}return}const preview=e.target.closest('[data-preview-src]');if(preview)openImage(preview.dataset.previewSrc,preview.dataset.previewName)};
+$('image-full').onerror=()=>$('image-full-status').hidden=false;
+$('image-full').onload=()=>$('image-full-status').hidden=true;
+$('close-image').onclick=()=>$('image-dialog').close();
+$('image-dialog').addEventListener('close',()=>{$('image-full').removeAttribute('src')});
+$('chat-body').onclick=async e=>{
+ const copyCode=e.target.closest('[data-copy-code]');if(copyCode){const copied=await copyText(copyCode.closest('.md-code').querySelector('code').textContent);toast(copied?'已复制代码':'无法复制，请长按代码选择');return}
+ const copyMessage=e.target.closest('[data-copy-message]');if(copyMessage){const message=activeChat.messages[Number(copyMessage.dataset.copyMessage)];if(message)toast(await copyText(message.text)?'已复制 Markdown 回复':'无法复制，请长按文字选择');return}
+ const load=e.target.closest('[data-load-image]');if(load){const address=imageAddress(load.dataset.loadImage);if(address){loadedExternalImages.add(address.src);load.closest('.md-image').outerHTML=markdownImage(address.src,load.dataset.previewName)}return}
+ const retry=e.target.closest('.md-image-retry');if(retry){const wrapper=retry.closest('.md-image'),img=wrapper.querySelector('img');wrapper.classList.remove('is-error');wrapper.classList.add('is-loading');img.src=img.getAttribute('src');return}
+ const preview=e.target.closest('[data-preview-src]');if(preview){openImage(preview.dataset.previewSrc,preview.dataset.previewName);return}
+ if(e.target.closest('#chat-pending-approval')){approvalScope='pending';approvalsReturn='chat';showApprovals();return}
+ if(e.target.closest('#suggestion')&&canSendChat()){$('message-input').value='分析这个项目的结构并给出改进建议';$('message-input').dispatchEvent(new Event('input'));$('message-input').focus()}
+};
+$('chat-body').addEventListener('load',e=>{if(e.target.tagName==='IMG')e.target.closest('.md-image')?.classList.remove('is-loading','is-error')},true);
+$('chat-body').addEventListener('error',e=>{if(e.target.tagName==='IMG'){const wrapper=e.target.closest('.md-image');if(wrapper){wrapper.classList.remove('is-loading');wrapper.classList.add('is-error')}}},true);
+$('chat-body').addEventListener('toggle',e=>{const details=e.target;if(!details.isConnected)return;if(details.matches('[data-analysis-message]')){const message=activeChat?.messages[Number(details.dataset.analysisMessage)];if(message?.analysis)message.analysis.open=details.open}else if(details.matches('[data-tool-message]')){const tool=activeChat?.messages[Number(details.dataset.toolMessage)]?.tools?.[Number(details.dataset.toolIndex)];if(tool)tool.open=details.open}},true);
+$('composer').onsubmit=e=>{
+ e.preventDefault();const text=$('message-input').value.trim();if(!canSendChat()||uploadBusy||(!text&&!pendingImages.length))return;
+ const images=pendingImages;pendingImages=[];const time=new Date().toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'});
+ const response=(images.length?'收到 **'+images.length+' 张图片**，可以结合你的描述继续细化。':'已收到任务描述。')+'\n\n### 建议的下一步\n1. 确认需要调整的页面与交互。\n2. 梳理布局、间距和状态反馈。\n3. 在当前项目中逐项验证。\n\n> 这是本地演示回复，尚未执行项目操作。';
+ activeChat.messages.push({user:true,text,images,time},{user:false,text:response,time,analysis:{status:'已完成',text:'已归纳任务涉及的页面与交互范围，建议先确认目标，再逐项调整和验证。'}});activeChat.user=text||'[图片] '+images.map(img=>img.name).join('、');activeChat.reply=response;activeChat.updatedAt=Date.now();activeChat.time='刚刚';
+ if(activeChat.isNew){activeChat.title=(text||'图片 · '+images[0].name).slice(0,18);activeChat.isNew=false;$('chat-title').textContent=activeChat.title;activeChat.id='demo-'+Date.now();activeChat.state='演示对话';activeChat.color='#96969f';sessions.unshift(activeChat);const p=projects.find(p=>p.id===activeChat.project);if(p)p.count++;sourceFilter='all';$('project-session-search').value=''}
+ sessions.sort((a,b)=>b.updatedAt-a.updatedAt);renderProjects();
+ $('message-input').value='';$('message-input').style.height='';renderAttachments();renderChatMessages();$('chat-body').scrollTop=$('chat-body').scrollHeight;
+};
+renderProjects();
+updateApprovalBadge();
+</script>
+</body>
+</html>

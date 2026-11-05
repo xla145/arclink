@@ -1,0 +1,3 @@
+{"file": ".trellis/tasks/11-02-arclink-website/prd.md", "reason": "Approved requirements and platform/download boundaries"}
+{"file": ".trellis/tasks/11-02-arclink-website/design.md", "reason": "Independent static architecture and download contract"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend guideline entry point"}

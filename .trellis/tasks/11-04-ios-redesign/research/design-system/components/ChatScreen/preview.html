@@ -1,0 +1,15 @@
+<!-- @dsCard group="Screens" height=820 subtitle="对话 Chat" page -->
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"></head>
+<body>
+<div class="al-screens"><div class="al-phone"><div class="al-status"><span>9:41</span><span style="font-size:13px">5G · 100%</span></div><div class="al-navbar"><button class="al-icon-btn" aria-label="返回"><svg class="al-sym " viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg></button><div class="t"><b>首页刷新问题</b><span>agent-bridge · Claude</span></div><button class="al-icon-btn" aria-label="更多"><svg class="al-sym " viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h.01M12 12h.01M19 12h.01"/></svg></button></div><div class="al-scroll"><div class="al-turn me"><div class="al-bubble">首页从后台回来时不会刷新项目列表，帮我看看</div><span class="al-ts">10:42</span></div><div class="al-turn"><div class="al-who"><span class="al-avatar"><svg class="al-sym sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/></svg></span>Claude · 10:43</div><div class="al-steps"><div class="sum"><svg class="al-sym sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12l5 5 9-10"/></svg><span style="flex:1">执行了 3 个步骤 · 1 个失败</span><svg class="al-sym sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></div></div>
+<div class=al-prose><p>原因是 <code>.task(id:)</code> 只在设备或 Agent 变化时触发。我在 <code>onAppear</code> 里补一次刷新：</p></div><div class="al-code"><div class="bar"><span>swift</span><span>复制</span></div><pre><span class="c">// 进入前台时补一次刷新</span>
+.onAppear {
+  Task { await store.refresh() }
+}</pre></div></div><div class="al-approval" role="group" aria-label="待审批">
+  <div class="h"><svg class="al-sym sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 7v5l3 2"/></svg>等待你批准</div>
+  <div class="what">Claude 想在 agent-bridge 中运行一条命令</div>
+  <div class="cmd">$ rm -rf ios/work/rich-ui/Build</div>
+  <div class="btns"><button class="al-btn secondary">拒绝</button><button class="al-btn primary">允许</button></div>
+</div></div><div class=al-bottom><div class="al-composer"><div class="input filled">再跑一次测试，看看还有哪些失败</div><div class="tools"><button class="al-icon-btn" aria-label="添加图片"><svg class="al-sym " viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button><span class="al-model">Sonnet 5.5 <svg class="al-sym xs" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></span><button class="al-send" aria-label="发送"><svg class="al-sym sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6"/></svg></button></div></div></div><span class="al-home-ind"></span></div></div>
+</body></html>

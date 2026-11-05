@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/backend/agent-bridge-host.md", "reason": "Verify new Rust client code matches the documented ABP transport/pairing/process contract"}
+{"file": ".trellis/spec/frontend/agent-bridge-ios.md", "reason": "Verify AppModel.swift additions stay consistent with documented SwiftUI mock-state conventions"}
+{"file": ".trellis/tasks/10-31-ios-iroh-transport/prd.md", "reason": "Acceptance criteria to check against before marking complete"}
+{"file": ".trellis/tasks/10-31-ios-iroh-transport/design.md", "reason": "Design contracts (types, lifecycle, concurrency) the implementation must match"}

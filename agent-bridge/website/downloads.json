@@ -1,0 +1,13 @@
+{
+  "mac": {
+    "version": "0.1.1",
+    "minimumOS": "macOS 13+",
+    "architecture": "Apple Silicon",
+    "source": "../target/release/bundle/dmg/ArcLink_0.1.1_aarch64.dmg",
+    "url": "downloads/ArcLink_0.1.1_aarch64.dmg"
+  },
+  "ios": {
+    "url": null,
+    "status": "即将开放"
+  }
+}

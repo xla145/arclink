@@ -1,0 +1,10 @@
+{"file": ".trellis/spec/backend/agent-bridge-host.md", "reason": "Host identity, ABP authorization, pairing, shared mobile endpoint and process side-effect contracts"}
+{"file": ".trellis/spec/frontend/agent-bridge-desktop.md", "reason": "Tauri DTO ownership, transient invitation and lifecycle/settings conventions"}
+{"file": ".trellis/spec/frontend/agent-bridge-ios.md", "reason": "SwiftUI multi-device persistence, generation guards, native UI and error contracts"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Single typed boundary owners across Rust/FFI/Swift and public-versus-secret DTOs"}
+{"file": ".trellis/tasks/11-01-arclink-private-relay/prd.md", "reason": "Approved requirements and acceptance mapping"}
+{"file": ".trellis/tasks/11-01-arclink-private-relay/design.md", "reason": "Proposed network, credential, QR and compatibility architecture"}
+{"file": ".trellis/tasks/11-01-arclink-private-relay/implement.md", "reason": "Execution sequence, validation and rollback gates"}
+{"file": ".trellis/tasks/11-01-arclink-private-relay/research/connection-contracts.md", "reason": "Version-specific iroh direct-first selection and current code evidence"}
+{"file": "output/iroh-relay/deployment.md", "reason": "Existing server configuration, private credential location and test limitations"}
+{"file": ".trellis/tasks/11-01-arclink-private-relay/research/conversation-cache.md", "reason": "User-authorized cache follow-up; current repeated fetch owners and freshness contract"}

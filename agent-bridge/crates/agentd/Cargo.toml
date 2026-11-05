@@ -1,0 +1,32 @@
+[package]
+name = "agentd"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+bridge-network = { path = "../bridge-network" }
+agent-adapters = { path = "../agent-adapters" }
+abp-protocol = { path = "../abp-protocol" }
+tokio.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+chrono.workspace = true
+uuid.workspace = true
+rand.workspace = true
+sha2.workspace = true
+hex.workspace = true
+rusqlite.workspace = true
+fs2.workspace = true
+libc.workspace = true
+iroh.workspace = true
+dirs = "6"
+zstd = "0.13"
+
+[target.'cfg(target_os = "macos")'.dependencies]
+security-framework = "3"
+
+[dev-dependencies]
+tempfile.workspace = true

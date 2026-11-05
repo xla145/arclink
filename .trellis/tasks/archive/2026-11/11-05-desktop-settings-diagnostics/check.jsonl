@@ -1,0 +1,4 @@
+{"file":".trellis/spec/frontend/agent-bridge-desktop.md","reason":"Check desktop lifecycle, logging and real-state UI"}
+{"file":".trellis/spec/frontend/arclink-updater.md","reason":"Check update cleanup and restart regressions"}
+{"file":".trellis/tasks/11-05-desktop-settings-diagnostics/prd.md","reason":"Review each observable acceptance criterion"}
+{"file":".trellis/tasks/11-05-desktop-settings-diagnostics/design.md","reason":"Review storage failure, assertion cleanup and log bounds"}

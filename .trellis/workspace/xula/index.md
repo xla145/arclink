@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 2
-- **Last Active**: 2026-10-30
+- **Total Sessions**: 4
+- **Last Active**: 2026-11-05
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~69 | Active |
+| `journal-1.md` | ~128 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,8 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 4 | 2026-11-05 | 桌面设置、日志与保持活跃功能完成 | `3585d90` | `feature/agent-bridge-desktop` |
+| 3 | 2026-11-02 | ArcLink 官网与 HTTPS 发布 | `2cc81b0` | `feature/agent-bridge-desktop` |
 | 2 | 2026-10-30 | Agent Bridge Rust control and recovery completion | - | `-` |
 | 1 | 2026-10-30 | Agent Bridge Phase 0 native control validation | - | `-` |
 <!-- @@@/auto:session-history -->

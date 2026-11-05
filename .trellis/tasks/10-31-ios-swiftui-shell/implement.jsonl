@@ -1,0 +1,2 @@
+{"file": "doc/agent-bridge-ios-client.md", "reason": "iOS client technical design; this slice implements only the SwiftUI screens"}
+{"file": "doc/agent-bridge-plan.md", "reason": "product boundaries: phone owns interaction, daemon is relay, first version is one host"}

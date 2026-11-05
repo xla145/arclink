@@ -1,0 +1,36 @@
+[package]
+name = "agent-bridge-desktop"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[lib]
+name = "agent_bridge_desktop_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+bridge-network = { path = "../../crates/bridge-network" }
+agentd = { path = "../../crates/agentd" }
+# Transparent rounded WebViews on macOS require private APIs: local distribution, not Mac App Store.
+tauri = { version = "2", features = ["tray-icon", "image-png", "macos-private-api"] }
+tauri-plugin-single-instance = "2"
+tauri-plugin-autostart = "2"
+tauri-plugin-log = "2"
+tauri-plugin-dialog = "2"
+tauri-plugin-clipboard-manager = "2"
+tauri-plugin-updater = "2.14.1"
+log = "0.4"
+libc = "0.2"
+tokio.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+iroh.workspace = true
+
+tempfile.workspace = true
+
+[target.'cfg(target_os = "macos")'.dependencies]
+security-framework = "3"

@@ -1,0 +1,19 @@
+[package]
+name = "abp-test-harness"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+abp-protocol = { path = "../abp-protocol" }
+agentd = { path = "../agentd" }
+agent-adapters = { path = "../agent-adapters" }
+iroh.workspace = true
+tokio.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+bridge-network = { path = "../bridge-network" }
