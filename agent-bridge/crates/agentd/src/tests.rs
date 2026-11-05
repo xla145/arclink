@@ -598,3 +598,20 @@ fn legacy_product_name_upgrades_without_replacing_custom_host_names() {
         assert_eq!(reopened.settings().unwrap().device_name, expected);
     }
 }
+
+#[tokio::test]
+async fn first_discovery_ignores_previous_host_cache() {
+    let dir = tempfile::tempdir().unwrap();
+    let service = daemon(dir.path(), "exec cat");
+    let spec = service.adapters.lock().unwrap()[0].clone();
+    let mut stale = agent_adapters::probe(&spec).await;
+    stale.status = "version_mismatch".into();
+    stale.validation = "unverified".into();
+    stale.diagnostic = Some("old cached diagnostic".into());
+    service.store.cache_agents(&[stale]).unwrap();
+    let fresh = service.list_agents(false).await.unwrap();
+    assert_eq!(fresh[0].status, "available");
+    assert_eq!(fresh[0].diagnostic, None);
+    assert_eq!(service.store.cached_agents().unwrap().unwrap()[0].status, "available");
+    service.shutdown().await.unwrap();
+}

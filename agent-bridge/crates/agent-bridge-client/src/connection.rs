@@ -109,6 +109,25 @@ pub struct MacModel {
     pub name: String,
 }
 
+/// One subfolder of a folder on the Mac, for choosing a project path.
+#[derive(uniffi::Record, Clone, Debug, serde::Deserialize)]
+pub struct MacDirectoryEntry {
+    pub name: String,
+    pub path: String,
+    /// Contains `.git`; most likely a project root.
+    pub is_project: bool,
+}
+
+/// A folder inside the Mac user's home directory and its visible subfolders.
+#[derive(uniffi::Record, Clone, Debug, serde::Deserialize)]
+pub struct MacDirectoryListing {
+    pub path: String,
+    /// `None` at the home directory; browsing never goes above it.
+    pub parent: Option<String>,
+    pub entries: Vec<MacDirectoryEntry>,
+    pub truncated: bool,
+}
+
 /// A project path the Mac's Agent already tracked itself, plus the newest
 /// on-disk timestamp we could find for it (RFC3339), if any.
 #[derive(uniffi::Record, Clone, Debug, serde::Deserialize)]
@@ -349,9 +368,16 @@ impl BridgeConnection {
         let body = serde_json::json!({"agent_id": agent_id}).to_string();
         parse(&self.call("ListAgentProjects", body, 5_000).await?)
     }
+    /// Subfolders of `path` (absolute, `~` or `~/…`; `None` = home) on the Mac.
+    /// The Mac refuses anything outside the home directory with `forbidden`;
+    /// a Mac without this request answers `unsupported`.
+    pub async fn list_directory(&self, path: Option<String>) -> Result<MacDirectoryListing, BridgeError> {
+        let body = serde_json::json!({"path": path}).to_string();
+        parse(&self.call("ListDirectory", body, 5_000).await?)
+    }
     pub async fn list_agent_models(&self, agent_id: String) -> Result<Vec<MacModel>, BridgeError> {
         let body = serde_json::json!({"agent_id": agent_id}).to_string();
-        parse(&self.call("ListAgentModels", body, 5_000).await?)
+        parse(&self.call("ListAgentModels", body, 15_000).await?)
     }
 
     /// The user/assistant turns of one conversation, read from the Agent's
@@ -1015,6 +1041,18 @@ mod tests {
             tokio::time::sleep(std::time::Duration::from_millis(300)).await;
         });
         (addr, endpoint, handle)
+    }
+
+    #[test]
+    fn directory_listing_parses_the_macs_response() {
+        let body = r#"{"path":"/Users/me/work","parent":"/Users/me","truncated":false,
+            "entries":[{"name":"app","path":"/Users/me/work/app","is_project":true}]}"#;
+        let listing: MacDirectoryListing = parse(body).unwrap();
+        assert_eq!(listing.parent.as_deref(), Some("/Users/me"));
+        assert_eq!(listing.entries.len(), 1);
+        assert!(listing.entries[0].is_project);
+        let home: MacDirectoryListing = parse(r#"{"path":"/Users/me","parent":null,"entries":[],"truncated":true}"#).unwrap();
+        assert!(home.parent.is_none() && home.truncated);
     }
 
     #[tokio::test]

@@ -4,7 +4,7 @@ members = ["crates/bridge-network", "crates/abp-protocol", "crates/agent-adapter
 default-members = ["crates/abp-protocol", "crates/agent-adapters", "crates/agentd", "crates/abp-test-harness"]
 
 [workspace.package]
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 license = "MIT"
 rust-version = "1.91"

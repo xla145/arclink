@@ -95,7 +95,7 @@ Correct: a dedicated bounded reader owns partial framing across output events,
 and its task is cancelled when the owning stream ends.
 
 Wrong: version/help output proves task, approval or resume support.
-Correct: register only capabilities demonstrated by exact-version evidence.
+Correct: Codex must pass a bounded live `app-server --stdio` initialize handshake during discovery and again before launch; version strings alone do not gate it. This proves only stdio initialization, not account login, model access, approval or resume support. Kill and reap probe processes, cap output and time, and never log protocol payloads. Other production adapters remain installed/unverified until their transport is implemented and validated. Desktop diagnostics show the selected executable path.
 
 ## Client scenario: simultaneous Mac connections
 
@@ -297,12 +297,27 @@ metadata remains nil, not an invented correlation. Public summaries remain the
 only reasoning content returned.
 
 
+`ListDirectory {path?}` (view grant; capability `list_directory_v1`) lists the
+visible subfolders of `path` (absolute, `~`, `~/…`; omitted = home) for choosing a
+project path: `{path, parent, entries:[{name,path,is_project}], truncated}`, at most
+400 entries, sorted case-insensitively, `is_project` = contains `.git`. Folders only;
+dot-entries skipped. Both the request and every entry are canonicalized and must
+stay inside the home directory: anything resolving outside (`..`, symlinks) is
+`forbidden`, missing/unreadable/non-folder is `not_found`, and `parent` is null at
+home. Implemented in `agentd/src/directories.rs` with a test-injected home. A host
+without it answers `unsupported`, which the phone shows as "update the Mac app".
+
 `ListAgentModels {agent_id}` requires the existing view grant and returns at most
-100 `{id,name}` entries from a bounded (4 MiB) Codex models_cache.json projection.
-Hide `visibility=hide`, deduplicate IDs, bound identifiers/labels, and never return
-base instructions or the raw cache. Missing/unsupported catalogs return empty;
-clients can retain Mac defaults or accept an explicit model ID. This is cached
-discovery metadata, not an entitlement guarantee or a live model/list response.
+100 `{id,name}` entries, preferring Codex app-server `model/list` through the
+configured adapter executable. Initialize first, follow at most 20 pages, bound
+total output to 4 MiB and live discovery to 10 seconds, and kill/reap the helper.
+Cancellation also terminates its process group. Project native `model` and
+`displayName`, exclude hidden models, deduplicate IDs and bound identifiers/labels.
+On failure use the bounded (4 MiB) models_cache.json projection, excluding
+`visibility=hide`; a successful empty live list must not resurrect stale entries.
+Never return instructions or raw protocol/cache payloads. The client allows
+15 seconds for this RPC. Missing/unsupported catalogs return empty; model
+discovery does not guarantee entitlement or synchronize a thread's model.
 
 ## Historical tool outcome metadata
 
@@ -318,3 +333,5 @@ false, and mixed success/unfinished execution remains unknown. A running
 explicit tool_result flags; nonempty stderr and failure words are not evidence.
 Retain empty result rows with explicit outcome and their original call ID/phase.
 Unknown outcomes must not be converted into successful results in UI summaries.
+
+Discovery cache is valid only after fresh probing in the current host lifetime. Never reuse persisted discovery on first startup: it may contain an earlier binary’s version policy and diagnostic text. Retain the five-minute TTL for subsequent reads and always bypass it on explicit refresh.

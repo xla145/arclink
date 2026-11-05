@@ -5,7 +5,30 @@ macOS 13+, plus signed Tauri updater archives. Both builds must succeed before a
 release becomes visible. pnpm/Cargo lockfiles, frontend tests, TypeScript and the
 production build are enforced. Apple Developer ID signing and notarization are
 disabled; no Apple account or certificates are required. macOS Gatekeeper may
-block downloaded apps without Developer ID signing/notarization.
+block downloaded apps without Developer ID signing/notarization. The complete
+app bundle is ad-hoc signed (`bundle.macOS.signingIdentity: "-"`) before Tauri
+creates the DMG and updater archive. CI rejects bundles that fail
+`codesign --verify --deep --strict`; the linker's executable-only signature is
+not sufficient. Do not change app contents or re-sign after packaging.
+
+## First launch on macOS
+
+1. Drag ArcLink from the DMG into Applications, then open it once.
+2. If macOS blocks it because the developer cannot be verified, open **System
+   Settings → Privacy & Security**, scroll to Security and choose **Open Anyway**
+   for ArcLink.
+3. Authenticate with the Mac login password or Touch ID when macOS asks, then
+   confirm **Open**. ArcLink must never collect this password itself.
+
+The Chinese system labels are **系统设置 → 隐私与安全性 → 仍要打开**.
+The option is normally available for about an hour after the blocked launch.
+Ad-hoc signing provides bundle integrity, not verified developer identity or
+Apple notarization; availability of this override depends on macOS and device
+management policy. If macOS still reports that the app is damaged, use a newly
+rebuilt installer and investigate signature integrity rather than promising
+that a password will fix it. Existing installers are not repaired by this
+configuration change. Developer ID signing and notarization are the supported
+path for reliable public distribution. Do not ask users to disable Gatekeeper.
 
 ## One-time updater signing setup
 

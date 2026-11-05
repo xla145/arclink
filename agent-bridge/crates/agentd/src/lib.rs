@@ -1,5 +1,7 @@
 //! Embedded, byte-transparent Agent host. Business state stays with the peer.
+mod agent_models;
 pub mod agent_projects;
+pub mod directories;
 pub mod identity;
 pub mod network;
 mod pair_http;
@@ -234,7 +236,9 @@ impl Daemon {
                 "The host is shutting down.",
             ));
         }
-        if !refresh {
+        // Persistent discovery may come from an older app or executable install.
+        // Establish fresh evidence once per host lifetime before using its TTL cache.
+        if !refresh && !self.agents.lock().unwrap().is_empty() {
             if let Some(cached) = self.store.cached_agents()? {
                 let _snapshot = self.hub.snapshot_gate.lock().unwrap();
                 *self.agents.lock().unwrap() = cached.clone();
@@ -778,13 +782,7 @@ impl Daemon {
     }
 }
 fn production_specs() -> Vec<AdapterSpec> {
-    let mut specs = agent_adapters::discover_specs();
-    for s in &mut specs {
-        if s.id == "codex" {
-            s.verified_version = Some("codex-cli 0.165.0".into());
-        }
-    }
-    specs
+    agent_adapters::discover_specs()
 }
 
 #[cfg(all(test, unix))]

@@ -622,6 +622,12 @@ struct AgentProjectsBody {
 }
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
+struct DirectoryBody {
+    #[serde(default)]
+    path: Option<String>,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 struct ThreadMessagesBody {
     agent_id: String,
     thread_id: String,
@@ -633,7 +639,8 @@ async fn rpc(daemon: &Daemon, peer: &str, request: RpcRequest) -> Result<String>
             Ok(serde_json::json!([
                 "io_resume_offsets_v1",
                 "io_lease_replace_v1",
-                "io_ndjson_records_v1"
+                "io_ndjson_records_v1",
+                "list_directory_v1"
             ])
             .to_string())
         }
@@ -652,10 +659,21 @@ async fn rpc(daemon: &Daemon, peer: &str, request: RpcRequest) -> Result<String>
         "ListAgentModels" => {
             daemon.authorize(peer, &["view"])?;
             let args: AgentProjectsBody = body(&request.body_json)?;
-            json(&crate::agent_projects::list_agent_models(
-                &args.agent_id,
-                &dirs::home_dir().unwrap_or_default(),
-            ))
+            let spec = daemon
+                .adapters
+                .lock()
+                .unwrap()
+                .iter()
+                .find(|spec| spec.id == args.agent_id)
+                .cloned();
+            json(
+                &crate::agent_models::list(
+                    &args.agent_id,
+                    &dirs::home_dir().unwrap_or_default(),
+                    spec.as_ref(),
+                )
+                .await,
+            )
         }
         "ListAgentProjects" => {
             daemon.authorize(peer, &["view"])?;
@@ -665,6 +683,20 @@ async fn rpc(daemon: &Daemon, peer: &str, request: RpcRequest) -> Result<String>
                 &args.agent_id,
                 &base,
             ))
+        }
+        "ListDirectory" => {
+            daemon.authorize(peer, &["view"])?;
+            let args: DirectoryBody = body(&request.body_json)?;
+            let base = dirs::home_dir().unwrap_or_default();
+            match crate::directories::list_directory(args.path.as_deref(), &base) {
+                Ok(listing) => json(&listing),
+                Err(crate::directories::DirectoryError::Forbidden) => {
+                    Err(error("forbidden", "Only folders inside the home directory can be browsed."))
+                }
+                Err(crate::directories::DirectoryError::Unavailable) => {
+                    Err(error("not_found", "Folder not found or not readable."))
+                }
+            }
         }
         "GetThreadMessages" => {
             daemon.authorize(peer, &["view"])?;

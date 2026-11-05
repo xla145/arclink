@@ -6,7 +6,7 @@ const labels: Record<AgentInfo["status"], string> = {
   installed: "已安装",
   available: "就绪",
   running: "运行中",
-  version_mismatch: "未验证",
+  version_mismatch: "兼容性未知",
   probe_failed: "检测失败",
 };
 export function AgentList({
@@ -24,7 +24,7 @@ export function AgentList({
             ? "accent"
             : agent.status === "available"
               ? "success"
-              : agent.status === "not_found"
+              : agent.status === "not_found" || agent.status === "installed"
                 ? "muted"
                 : "warning";
         return (
@@ -34,6 +34,8 @@ export function AgentList({
                 <Icon name="check" size={12} />
               ) : agent.status === "running" ? (
                 "▶"
+              ) : agent.status === "installed" ? (
+                "·"
               ) : agent.status === "not_found" ? (
                 "−"
               ) : (
@@ -51,6 +53,11 @@ export function AgentList({
                     ? "未安装"
                     : "版本未知"}
               </div>
+              {!compact && agent.executable_path && (
+                <p className="diagnostic" style={{ overflowWrap: "anywhere" }}>
+                  路径：{agent.executable_path}
+                </p>
+              )}
               {!compact && agent.diagnostic && (
                 <p className="diagnostic">{agent.diagnostic}</p>
               )}

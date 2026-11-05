@@ -7,6 +7,7 @@ export interface AgentInfo {
   id: string;
   name: string;
   version: string | null;
+  executable_path?: string | null;
   status:
     | "not_found"
     | "installed"

@@ -5,6 +5,12 @@
 Applies to native desktop updates, React update presentation and GitHub release
 assembly. Repository: `xla145/arclink` (public). Apple Developer ID signing and
 notarization are intentionally disabled; Tauri update signatures remain required.
+The complete macOS app must still be ad-hoc signed using
+`bundle.macOS.signingIdentity: "-"` before DMG/updater packaging. CI must run
+`codesign --verify --deep --strict` on the bundle before uploading artifacts.
+Executable-only linker signatures do not seal app resources. Never re-sign or
+modify the app after packaging; rebuild all distribution artifacts together.
+Ad-hoc signing is not notarization and does not guarantee a Gatekeeper override.
 
 ## 2. Signatures
 
