@@ -43,6 +43,8 @@ jobs:
         working-directory: agent-bridge/desktop
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -58,6 +60,13 @@ jobs:
           REF_TYPE: ${{ github.ref_type }}
           REF_NAME: ${{ github.ref_name }}
         run: |
+          if [ "$REF_TYPE" = "tag" ]; then
+            git fetch --no-tags origin main
+            git merge-base --is-ancestor HEAD origin/main || {
+              echo "::error::Release tag must point to a commit on main"
+              exit 1
+            }
+          fi
           python3 - <<'PY'
           import json, os, re, tomllib
           from pathlib import Path

@@ -50,8 +50,12 @@ Secrets. Public key is committed; private key/password stay in ignored
 Never print or commit them. Signatures are generated with the app version by the
 locked Tauri CLI. Update keys are unrelated to Apple certificates.
 
-The workflow builds `app,dmg` for both architectures. Stable `arclink-vX.Y.Z` tags
-must match package.json, tauri.conf.json and Cargo workspace versions. Branch
+The workflow builds `app,dmg` for both architectures. Merge the tested feature
+branch into remote `main` before creating an annotated release tag on `main`.
+Never publish directly from a feature branch or move an already pushed release
+tag. Stable `arclink-vX.Y.Z` tags must match package.json, tauri.conf.json and
+Cargo workspace versions; CI fetches full history and rejects a tag whose commit
+is not reachable from `origin/main`. Branch
 pushes/manual runs upload artifacts only. Tag builds publish a draft only after
 both architectures succeed and all assets upload. `latest.json` uses versioned
 archive URLs and platform keys `darwin-aarch64`, `darwin-x86_64`. Keep stable DMG
@@ -70,6 +74,7 @@ filenames `ArcLink-macos-arm64.dmg` / `ArcLink-macos-x64.dmg` for the website.
 | Install fails after cleanup            | Error with `restart_required`, retry or exit |
 | Missing architecture or mixed versions | No complete manifest/public release          |
 | Missing signing Secrets                | Early build failure                          |
+| Release tag outside main history       | Fail version validation; do not publish      |
 | Published same/newer stable version    | Refuse publication; never overwrite          |
 
 ## 5. Good / Base / Bad Cases
@@ -85,7 +90,9 @@ Run frontend tests/build, Rust updater/lifecycle checks, and
 `python3 agent-bridge/scripts/test-release-assets.py`. Cover stale polling,
 confirmation cancellation, download retry, post-cleanup failure recovery, duplicate
 operations, missing/empty signatures and mismatched architecture versions. Validate
-workflow syntax with actionlint. Native two-version signed installation on both
+workflow syntax with actionlint. Verify the release ancestry guard in a temporary
+full-history Git fixture: reject a feature-only tag, then accept an annotated tag
+after merging the tested feature into main. Native two-version signed installation on both
 architectures is a separate smoke test; do not equate build/unit checks with it.
 
 ## 7. Wrong vs Correct
