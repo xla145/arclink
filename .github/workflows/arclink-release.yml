@@ -76,6 +76,9 @@ jobs:
           assert tomllib.loads(Path('../Cargo.toml').read_text())['workspace']['package']['version'] == version, 'Cargo workspace version mismatch'
           if os.environ['REF_TYPE'] == 'tag':
               assert os.environ['REF_NAME'] == f'arclink-v{version}', 'Tag must match application version'
+              notes_file = Path('../../doc/releases') / f'{os.environ["REF_NAME"]}.md'
+              assert notes_file.is_file(), f'Missing release notes: {notes_file}'
+              assert notes_file.read_text(encoding='utf-8').strip(), 'Release notes must not be empty'
           PY
       - name: Test release manifest assembly
         run: python3 ../scripts/test-release-assets.py
@@ -152,7 +155,8 @@ jobs:
           TAG: ${{ github.ref_name }}
         run: |
           set -euo pipefail
-          python3 ../agent-bridge/scripts/release-assets.py assemble --directory . --version "${TAG#arclink-v}" --repository "$GH_REPO"
+          NOTES_FILE="../doc/releases/$TAG.md"
+          python3 ../agent-bridge/scripts/release-assets.py assemble --directory . --version "${TAG#arclink-v}" --repository "$GH_REPO" --notes-file "$NOTES_FILE"
           # Never let an older release move the stable update/download pointer backwards.
           gh api --paginate "repos/$GH_REPO/releases?per_page=100" --jq '.[] | select(.draft == false and .prerelease == false) | .tag_name' > release-tags.txt
           python3 - <<'PY'
@@ -165,8 +169,9 @@ jobs:
           PY
           if gh release view "$TAG" --json isDraft > release-state.json; then
             python3 -c 'import json; assert json.load(open("release-state.json"))["isDraft"], "Refusing to overwrite a published release"'
+            gh release edit "$TAG" --notes-file "$NOTES_FILE"
           else
-            gh release create "$TAG" --verify-tag --draft --title "ArcLink ${TAG#arclink-v}" --generate-notes
+            gh release create "$TAG" --verify-tag --draft --title "ArcLink ${TAG#arclink-v}" --notes-file "$NOTES_FILE"
           fi
           gh release upload "$TAG" ./*.dmg ./*.app.tar.gz ./*.sig latest.json SHA256SUMS.txt --clobber
           gh release edit "$TAG" --draft=false --latest
