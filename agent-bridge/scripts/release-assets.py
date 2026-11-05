@@ -49,9 +49,19 @@ def prepare(bundle, output, arch, version):
     (output / f"build-{arch}.json").write_text(json.dumps({"version": version, "arch": arch}))
 
 
-def assemble(directory, version, repository):
+def read_release_notes(path):
+    notes = Path(path).read_text(encoding="utf-8")
+    if not notes.strip():
+        raise ValueError("Release notes must not be empty")
+    return notes
+
+
+def assemble(directory, version, repository, notes_file=None):
     version_parts(version)
     validate_repository(repository)
+    # Retain the legacy library default; publication through the CLI requires
+    # an explicit notes file and never falls back to this generic description.
+    notes = read_release_notes(notes_file) if notes_file is not None else f"ArcLink {version}"
     platforms = {}
     for arch, platform in ARCHITECTURES.items():
         build = json.loads((directory / f"build-{arch}.json").read_text())
@@ -70,11 +80,11 @@ def assemble(directory, version, repository):
         }
     manifest = {
         "version": version,
-        "notes": f"ArcLink {version}",
+        "notes": notes,
         "pub_date": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
         "platforms": platforms,
     }
-    (directory / "latest.json").write_text(json.dumps(manifest, indent=2) + "\n")
+    (directory / "latest.json").write_text(json.dumps(manifest, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     assets = sorted(path for path in directory.iterdir() if path.name.startswith("ArcLink-") or path.name == "latest.json")
     (directory / "SHA256SUMS.txt").write_text("".join(
         f"{hashlib.sha256(path.read_bytes()).hexdigest()}  {path.name}\n" for path in assets
@@ -94,11 +104,12 @@ def main():
     merge.add_argument("--directory", required=True, type=Path)
     merge.add_argument("--version", required=True)
     merge.add_argument("--repository", required=True)
+    merge.add_argument("--notes-file", required=True, type=Path)
     args = parser.parse_args()
     if args.command == "prepare":
         prepare(args.bundle, args.output, args.arch, args.version)
     else:
-        assemble(args.directory, args.version, args.repository)
+        assemble(args.directory, args.version, args.repository, args.notes_file)
 
 
 if __name__ == "__main__":

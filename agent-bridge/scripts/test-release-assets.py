@@ -2,6 +2,8 @@ import base64
 import importlib.util
 import json
 from pathlib import Path
+import subprocess
+import sys
 import tempfile
 import unittest
 
@@ -50,6 +52,57 @@ class ReleaseAssetsTests(unittest.TestCase):
                 release.assemble(self.directory, "1.2.3", repository)
         with self.assertRaises(ValueError):
             release.assemble(self.directory, "1.2.3/../bad", "o/r")
+
+    def test_manifest_preserves_exact_multiline_chinese_release_notes(self):
+        notes = "## 本次更新\n\n- 新增保持电脑活跃开关，允许正常熄屏和锁屏。\n- 支持日志查看、复制与导出。\n"
+        notes_file = self.directory / "notes.md"
+        notes_file.write_text(notes, encoding="utf-8")
+        manifest = release.assemble(self.directory, "1.2.3", "example/releases", notes_file)
+        self.assertEqual(manifest["notes"], notes)
+        self.assertEqual(json.loads((self.directory / "latest.json").read_text(encoding="utf-8"))["notes"], notes)
+
+    def test_explicit_missing_or_blank_notes_fail_before_manifest_is_written(self):
+        notes_file = self.directory / "missing.md"
+        with self.assertRaises(FileNotFoundError):
+            release.assemble(self.directory, "1.2.3", "example/releases", notes_file)
+        for text in ("", " \n\t\n"):
+            with self.subTest(text=text):
+                notes_file.write_text(text, encoding="utf-8")
+                with self.assertRaisesRegex(ValueError, "Release notes must not be empty"):
+                    release.assemble(self.directory, "1.2.3", "example/releases", notes_file)
+                self.assertFalse((self.directory / "latest.json").exists())
+                self.assertFalse((self.directory / "SHA256SUMS.txt").exists())
+
+    def run_assemble_cli(self, *notes_args):
+        return subprocess.run([
+            sys.executable, str(Path(release.__file__)), "assemble",
+            "--directory", str(self.directory), "--version", "1.2.3",
+            "--repository", "example/releases", *notes_args,
+        ], capture_output=True, text=True)
+
+    def test_cli_requires_a_nonempty_notes_file(self):
+        missing_argument = self.run_assemble_cli()
+        self.assertNotEqual(missing_argument.returncode, 0)
+        self.assertIn("--notes-file", missing_argument.stderr)
+        missing_file = self.run_assemble_cli("--notes-file", str(self.directory / "missing.md"))
+        self.assertNotEqual(missing_file.returncode, 0)
+        notes_file = self.directory / "empty.md"
+        for text in ("", " \n\t\n"):
+            with self.subTest(text=text):
+                notes_file.write_text(text, encoding="utf-8")
+                empty_file = self.run_assemble_cli("--notes-file", str(notes_file))
+                self.assertNotEqual(empty_file.returncode, 0)
+                self.assertIn("Release notes must not be empty", empty_file.stderr)
+        self.assertFalse((self.directory / "latest.json").exists())
+        self.assertFalse((self.directory / "SHA256SUMS.txt").exists())
+
+    def test_cli_embeds_supplied_notes_in_the_published_manifest(self):
+        notes = "## 功能更新\n\n保持电脑活跃；优化日志获取。\n\n允许熄屏和锁屏。\n"
+        notes_file = self.directory / "notes.md"
+        notes_file.write_text(notes, encoding="utf-8")
+        result = self.run_assemble_cli("--notes-file", str(notes_file))
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(json.loads((self.directory / "latest.json").read_text(encoding="utf-8"))["notes"], notes)
 
 
 class PrepareAssetsTests(unittest.TestCase):
