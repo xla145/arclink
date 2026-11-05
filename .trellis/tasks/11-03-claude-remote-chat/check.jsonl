@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/backend/agent-bridge-host.md", "reason": "Transport ownership, process lifecycle and adapter evidence"}
+{"file": ".trellis/spec/frontend/agent-bridge-ios.md", "reason": "iOS chat, device isolation and persistence contracts"}
+{"file": ".trellis/spec/frontend/agent-bridge-desktop.md", "reason": "Desktop status DTO and packaging boundary"}
+{"file": ".trellis/tasks/11-03-claude-remote-chat/design.md", "reason": "Agreed implementation boundaries and protocol evidence gate"}
