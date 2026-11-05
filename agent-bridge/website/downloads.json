@@ -4,12 +4,10 @@
     "minimumOS": "macOS 13+",
     "packages": {
       "arm64": {
-        "url": "https://download.classktv.com/releases/arclink-v0.1.3/ArcLink-macos-arm64.dmg",
-        "sizeBytes": 10354605
+        "url": "https://download.classktv.com/releases/arclink-v0.1.3/ArcLink-macos-arm64.dmg"
       },
       "x64": {
-        "url": "https://download.classktv.com/releases/arclink-v0.1.3/ArcLink-macos-x64.dmg",
-        "sizeBytes": 11022638
+        "url": "https://download.classktv.com/releases/arclink-v0.1.3/ArcLink-macos-x64.dmg"
       }
     }
   },
