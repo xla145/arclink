@@ -68,10 +68,11 @@ Single local connection, first 1 MiB of the identical arm64 archive, not a regio
 
 The first paired R2 sample was about 3.8 times the completed GitHub throughput; the sample count and network location do not justify a general acceleration claim.
 
-## Remaining deployment decisions
+## Deployment boundaries and final cache acceptance
 
-- Public headers still show CF-Cache-Status DYNAMIC. R2 delivery is live, but Cloudflare edge caching has not been proved enabled. User has been asked to add a free Cache Rule matching only hostname download.classktv.com and path prefix /releases/arclink-v, Eligible for cache, respecting origin Cache-Control. Root /latest.json must remain outside the cache rule. Await configuration or explicit deferral; do not claim edge HIT/MISS until tested.
+- After the user configured the free Cache Rule, actual public GETs at the AMS edge confirmed signature and versioned manifest MISS -> HIT, with Age 5/7 seconds on second requests. The arm64 DMG returned 206/HIT on both 1 MiB Range samples, with Age increasing 1324 -> 1329 seconds. Cached payload digests match the previously verified source bytes.
+- Root /latest.json returned 200/DYNAMIC with no-store/max-age=0 on both requests; its bytes match the current version manifest. This confirms immutable version objects are cacheable while the update pointer is not held in edge cache. Evidence: /tmp/arclink-r2-cache-validation/report.json and adjacent response headers/bodies.
 - Existing 0.1.3 distributed apps retain their original GitHub endpoint. Source code on main includes R2 primary and GitHub fallback; it takes a future client release to deploy that endpoint to users. No new binary/tag was published in this mirror-only validation.
 - Free tier assumptions and usage reminder instructions are documented; no dashboard billing controls were changed using object-only credentials.
 
-Task remains in_progress pending edge-cache verification or the user's explicit decision to defer that optional dashboard configuration.
+All implementation and live distribution acceptance is complete. Future client binary publication is explicitly separate from this mirror-only rollout. Current task is ready for archival; no historical tag or binary was republished.

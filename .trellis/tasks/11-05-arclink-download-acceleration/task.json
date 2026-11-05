@@ -21,6 +21,6 @@
   "children": [],
   "parent": null,
   "relatedFiles": [],
-  "notes": "R2 mirror41987638772 attempt3 succeeded, eight public assets and native R2 check/download/signatures/temp install verified; website deployed0.1.3 R2 links. Awaiting free Cloudflare Cache Rule configuration or explicit deferral; current CF-Cache-Status DYNAMIC. Existing0.1.3 binaries retain GitHub until future client release. See verification.md.",
+  "notes": "R2 mirror41987638772 attempt3, eight public assets, signed native check/download/temp install and website rollout verified. User Cache Rule verified: versioned signature/manifest MISS->HIT, DMG206/HIT, rootlatest200/DYNAMIC/no-store. All distribution acceptance complete. Existing0.1.3 binaries retain GitHub until future client release. See verification.md.",
   "meta": {}
 }
