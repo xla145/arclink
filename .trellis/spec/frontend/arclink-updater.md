@@ -65,6 +65,13 @@ both architectures succeed and all assets upload. `latest.json` uses versioned
 archive URLs and platform keys `darwin-aarch64`, `darwin-x86_64`. Keep stable DMG
 filenames `ArcLink-macos-arm64.dmg` / `ArcLink-macos-x64.dmg` for the website.
 
+R2 distribution follows [the R2 contract](./arclink-r2-distribution.md).
+GitHub remains the original published release. Mirror the exact binaries and
+signatures to the custom download domain after publication, using a distinct
+R2 manifest/checksum. New clients check R2 first and GitHub second; historical
+clients retain their existing compiled endpoint. Never equate metadata fallback
+with archive download failover or claim universal fallback for malformed JSON.
+
 Every release tag requires a committed UTF-8 `doc/releases/<TAG>.md` containing
 human-written feature notes. CI rejects missing or whitespace-only notes during
 tag/version validation before building installers. The publication CLI also
