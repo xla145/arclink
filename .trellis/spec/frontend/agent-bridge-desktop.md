@@ -119,3 +119,82 @@ so changing relay storage does not change the existing debug endpoint or grants.
 Non-macOS debug relay settings retain atomic 0600 development-file storage.
 Release retains Keychain exclusively. Legacy macOS development relay files are
 left untouched and no longer selected by the macOS runtime.
+
+## Desktop diagnostics and keep-awake
+
+### 1. Scope / Trigger
+
+Desktop-only settings, bounded local diagnostics and macOS idle-sleep prevention.
+Keep these DTOs and preferences out of the shared agentd/mobile wire settings.
+
+### 2. Signatures
+
+- `get_keep_awake() -> { enabled: bool, active: bool, supported: bool, error: BridgeError | null }`
+- `set_keep_awake(enabled: bool) -> Result<KeepAwakeStatus>`
+- `get_recent_logs() -> Result<{ text: string, truncated: bool }>`
+- `copy_recent_logs() -> Result<()>`
+- `export_recent_logs() -> Result<bool>` (`false` means native save was cancelled)
+
+### 3. Contracts
+
+The native controller owns one IOKit `PreventUserIdleSystemSleep` assertion named
+`ArcLink remote Agent availability`; never acquire a display-sleep assertion or
+simulate user input. `enabled` is saved intent; `active` reports the owned native
+assertion. Default off; restore from app-data `keep-awake-v1.json`, with payload
+`{ "version": 1, "enabled": false }`. Use atomic persistence and serialize native
+changes. A failed save must release a newly staged assertion. Preserve unreadable
+or corrupt preference files and surface errors. Hide/close retains ownership;
+confirmed exit and updater cleanup release it without clearing saved intent.
+Unsupported platforms report `supported: false` instead of simulated success.
+
+Settings show General first, then Connection, Diagnostics and Application;
+the existing updater belongs to Application. Both footer and Diagnostics open
+the same log view, whose Back/Escape return to its origin. Reconcile actual
+native state after switch errors and when the panel regains focus; failed initial
+reads end loading and offer an explicit read retry. Frontend timeouts never
+authorize replay.
+
+Only read app-scoped log files, never caller-provided paths or Agent transcripts.
+Bound candidate enumeration and total recent text to 256 KiB, tail-read files,
+handle rotation and UTF-8 boundaries, and skip symlinks. Copy/export re-read bounded
+recent logs; export selects a destination through a native save dialog. Cancellation
+is neutral. The save-dialog command is exempt from the usual 30-second bridge
+timeout because user interaction can take longer. Preserve loaded log text on
+refresh failure and label truncation.
+
+### 4. Validation & Error Matrix
+
+| Condition | Required behavior |
+| --- | --- |
+| Missing preference | Off, without creating a preference until explicit mutation |
+| Corrupt/unsupported-version preference | Preserve file and report `keep_awake_error` |
+| Native acquisition/persistence failure | Report error and actual owned state; no new leaked assertion |
+| Shutdown/update starts | Reject new keep-awake mutations and release ownership |
+| No logs | Empty state with refresh/folder guidance |
+| Logs exceed budget | Recent bounded text and `truncated: true` |
+| Refresh fails | Retain prior text and show actionable error |
+| Export cancelled | `false`, never success text |
+| Export/clipboard IO fails | Structured error, no success notice |
+
+### 5. Good / Base / Bad Cases
+
+Good: saved intent true restores one idle-system-sleep assertion after restart,
+while normal screen sleep and locking remain available. Base: browser preview
+labels example logs and rejects native mutations. Bad: using system-wide sleep
+status as proof, since unrelated applications may already own sleep assertions.
+
+### 6. Tests Required
+
+Cover duplicate-enable ownership stability, saved-true restoration, stop/release,
+failed-persistence rollback, corrupt-file preservation, bounded logs, symlink
+exclusion, refresh failure, switch-state reconciliation and export cancellation.
+On macOS verify the named assertion with `pmset -g assertions`, including release;
+use temporary test preferences, not the user's actual file. Check 320×480 settings
+and logs in both appearances, keyboard focus, long text and bounded scrolling.
+
+### 7. Wrong vs Correct
+
+Wrong: setting the switch locally and assuming the OS succeeded, or treating
+save-dialog cancellation as an exported file.
+Correct: use native status, preserve error feedback, and report export success
+only after a completed write.

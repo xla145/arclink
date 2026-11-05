@@ -4,7 +4,7 @@
 
 - [x] User approved task creation and confirmed idle-system-sleep-only behavior.
 - [x] PRD, design and manifests prepared; requirements convergence pass complete.
-- [ ] Present final summary and receive explicit implementation approval before `task.py start`.
+- [x] Presented final summary; user approved implementation with “开始阿宝”; task started.
 
 ## Implementation order
 
@@ -25,3 +25,13 @@ Render settings and logs at 320×480 in light/dark appearances, including loadin
 ## Integration and rollback
 
 Review shared App navigation, runtime lifecycle and updater stop paths carefully. Revert only task-owned hunks if integration fails. Finalize specs, follow repository commit/wrap-up process, and report validation plus any unverified native behavior.
+
+## Execution status
+
+- Implementation and full-scope Trellis checker completed; desktop spec synchronized.
+- 32 frontend tests, frontend build/typecheck/changed-file formatting, 11 desktop Rust tests and task-file rustfmt/diff checks passed. Task-crate Clippy passed with the documented pre-existing lint exemption; repository-wide failures remain outside scope.
+- Final macOS debug bundle rebuilt after review and strict codesign integrity verified.
+- Live updater verification added at user's request: public manifest/archive requests fail with 404; publication repair is not part of this read-only test request. Artifact-signature investigation recorded separately.
+- Native tray/save-dialog GUI smoke remains unverified; installed running production app was preserved.
+- Updater report complete in `research/updater-validation.md`; public distribution failure and unverified install/signature boundaries explicitly reported.
+- User approved the commit plan with “可以”. Implementation, review and spec work are complete; proceed with the approved feature commit, task archive and journal record.

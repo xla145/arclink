@@ -210,6 +210,16 @@ async fn stop_owned_host(app: &AppHandle) -> Result<()> {
         ));
     }
     state.stopping.store(true, Ordering::SeqCst);
+    if let Err(error) = app
+        .state::<crate::keep_awake::KeepAwake>()
+        .0
+        .lock()
+        .unwrap()
+        .stop()
+    {
+        state.shutdown_inflight.store(false, Ordering::SeqCst);
+        return Err(error);
+    }
     let daemon = state.daemon.read().await.clone();
     drop(lifecycle);
     if let Some(daemon) = daemon {

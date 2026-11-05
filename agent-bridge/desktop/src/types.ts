@@ -119,3 +119,14 @@ export interface UpdateStatus {
   error: BridgeError | null;
   restart_required: boolean;
 }
+
+export interface KeepAwakeStatus {
+  enabled: boolean;
+  active: boolean;
+  supported: boolean;
+  error: BridgeError | null;
+}
+export interface RecentLogs {
+  text: string;
+  truncated: boolean;
+}

@@ -17,6 +17,7 @@
       "id": "codex",
       "name": "Codex CLI",
       "version": "0.165.0",
+      "executable_path": null,
       "status": "available",
       "validation": "verified",
       "capabilities": ["stdio"],

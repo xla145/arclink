@@ -69,3 +69,23 @@ test("mutation timeout is uncertain and never automatically invokes again", asyn
   await vi.advanceTimersByTimeAsync(60_000);
   expect(native.invoke).toHaveBeenCalledOnce();
 });
+
+test("native save dialog can remain open past the normal command timeout", async () => {
+  native.enabled = true;
+  let finish!: (saved: boolean) => void;
+  native.invoke.mockImplementation(
+    () =>
+      new Promise<boolean>((resolve) => {
+        finish = resolve;
+      }),
+  );
+  vi.useFakeTimers();
+  const response = bridge.exportLogs();
+  await vi.advanceTimersByTimeAsync(60_000);
+  finish(false);
+  await expect(response).resolves.toBe(false);
+  expect(native.invoke).toHaveBeenCalledExactlyOnceWith(
+    "export_recent_logs",
+    undefined,
+  );
+});

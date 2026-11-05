@@ -832,3 +832,85 @@ a {
   max-height: 120px;
   overflow-y: auto;
 }
+
+.settings-heading {
+  font-size: 11px;
+  font-weight: 600;
+  opacity: 0.65;
+  letter-spacing: 0.06em;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+  margin: 2px 0 0;
+}
+.settings-heading:first-of-type {
+  border-top: 0;
+  padding-top: 0;
+}
+.settings-link {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: inherit;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+.settings-link strong,
+.settings-link small {
+  display: block;
+}
+.settings-link small {
+  margin-top: 4px;
+  font-size: 11px;
+  opacity: 0.65;
+}
+.setting-row > div {
+  min-width: 0;
+}
+.setting-row .switch {
+  flex-shrink: 0;
+}
+.log-view {
+  box-sizing: border-box;
+  width: 100%;
+  height: 210px;
+  overflow: auto;
+  padding: 10px;
+  margin: 12px 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: rgba(127, 127, 127, 0.06);
+  font:
+    10px/1.65 ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    monospace;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  user-select: text;
+}
+.log-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.logs-panel > .subtle {
+  line-height: 1.6;
+  margin: 8px 0;
+}
+.settings-content .subtle,
+.settings-content .setting-row p,
+.logs-panel > .subtle {
+  color: var(--secondary);
+}
+.settings-link:focus-visible,
+.log-view:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}

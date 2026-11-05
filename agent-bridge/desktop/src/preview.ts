@@ -122,6 +122,22 @@ export function previewBridge(state: string): Bridge {
     updateNetworkSettings: unavailable,
     getAutostart: async () => ({ enabled: false }),
     setAutostart: unavailable,
+    getKeepAwake: async () => ({
+      enabled: false,
+      active: false,
+      supported: true,
+      error: null,
+    }),
+    setKeepAwake: unavailable,
+    recentLogs: async () => ({
+      text:
+        state === "empty"
+          ? ""
+          : "[示例] ArcLink 本机服务已启动\n[示例] 等待设备连接\n",
+      truncated: false,
+    }),
+    copyLogs: unavailable,
+    exportLogs: unavailable,
     openLogs: unavailable,
     retry: unavailable,
     hide: unavailable,

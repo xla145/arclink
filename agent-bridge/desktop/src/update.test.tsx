@@ -39,6 +39,13 @@ test("startup announces an update but download and installation require user act
   expect(api.checkUpdate).toHaveBeenCalledWith(true);
   expect(api.downloadUpdate).not.toHaveBeenCalled();
   expect(api.installUpdate).not.toHaveBeenCalled();
+  const applicationHeading = screen.getByRole("heading", { name: "应用" });
+  const updatePanel = screen.getByLabelText("软件更新");
+  expect(
+    applicationHeading.compareDocumentPosition(updatePanel) &
+      Node.DOCUMENT_POSITION_FOLLOWING,
+  ).toBeTruthy();
+  expect(screen.getAllByLabelText("软件更新")).toHaveLength(1);
   await userEvent.click(screen.getByRole("button", { name: "下载更新" }));
   expect(api.downloadUpdate).toHaveBeenCalledExactlyOnceWith("0.2.0");
   expect(screen.getByRole("button", { name: "检查更新" })).toBeDisabled();

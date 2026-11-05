@@ -1,4 +1,6 @@
 mod commands;
+mod diagnostics;
+mod keep_awake;
 mod network_settings;
 mod runtime;
 mod tray;
@@ -25,6 +27,9 @@ pub fn run() {
                 .build(),
         )
         .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_clipboard_manager::init())
+        .manage(keep_awake::KeepAwake::default())
         .manage(updater::UpdateState::default())
         .manage(AppState::default())
         .invoke_handler(tauri::generate_handler![
@@ -45,12 +50,18 @@ pub fn run() {
             commands::get_autostart,
             commands::set_autostart,
             commands::open_logs,
+            diagnostics::get_recent_logs,
+            diagnostics::export_recent_logs,
+            diagnostics::copy_recent_logs,
+            keep_awake::get_keep_awake,
+            keep_awake::set_keep_awake,
             commands::retry_daemon,
             commands::hide_panel,
             commands::request_exit
         ])
         .setup(|app| {
             runtime::protect_log_directory(app.handle())?;
+            keep_awake::initialize(app.handle());
             #[cfg(target_os = "macos")]
             app.set_activation_policy(tauri::ActivationPolicy::Accessory);
             tray::install(app.handle())?;

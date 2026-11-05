@@ -15,6 +15,7 @@ import {
   relativeTime,
 } from "./components/Common";
 import { PairingPanel, type PairingHandle } from "./components/PairingPanel";
+import { LogsPanel } from "./components/LogsPanel";
 import { SettingsPanel } from "./components/SettingsPanel";
 
 export function App({
@@ -28,6 +29,7 @@ export function App({
 }) {
   const [tab, setTab] = useState<"devices" | "agents" | "processes">("devices");
   const [settings, setSettings] = useState(false);
+  const [logs, setLogs] = useState(false);
   const [pairing, setPairing] = useState(initialPairing);
   const [pairingBusy, setPairingBusy] = useState(false);
   const pairingRef = useRef<PairingHandle>(null);
@@ -38,7 +40,10 @@ export function App({
   const [confirmUpdate, setConfirmUpdate] = useState(false);
   const update = useUpdate(api, preview);
   const cancelUpdate = useCallback(() => setConfirmUpdate(false), []);
-  const openSettings = useCallback(() => setSettings(true), []);
+  const openSettings = useCallback(() => {
+    setLogs(false);
+    setSettings(true);
+  }, []);
   const confirmExit = useCallback(() => setExit(true), []);
   const {
     snapshot,
@@ -76,13 +81,14 @@ export function App({
   useEffect(() => {
     const keydown = (event: KeyboardEvent) => {
       if (event.key !== "Escape" || revoke || exit || confirmUpdate) return;
-      if (pairing) void pairingRef.current?.cancel();
+      if (logs) setLogs(false);
+      else if (pairing) void pairingRef.current?.cancel();
       else if (settings) setSettings(false);
       else void api.hide().catch((cause) => setError(normalizeError(cause)));
     };
     window.addEventListener("keydown", keydown);
     return () => window.removeEventListener("keydown", keydown);
-  }, [api, pairing, settings, revoke, exit, confirmUpdate]);
+  }, [api, pairing, settings, logs, revoke, exit, confirmUpdate]);
   const network = snapshot?.status.network;
   const running = snapshot?.status.running ?? false;
   const networkError =
@@ -110,15 +116,19 @@ export function App({
       <header className="panel header-panel">
         <div className="header">
           <div className="header-left">
-            {settings || pairing ? (
+            {settings || pairing || logs ? (
               <button
                 className="icon-button"
-                aria-label={pairing ? "返回设备列表" : "返回面板"}
+                aria-label={
+                  logs ? "返回上一页" : pairing ? "返回设备列表" : "返回面板"
+                }
                 disabled={pairingBusy}
                 onClick={() =>
-                  pairing
-                    ? void pairingRef.current?.cancel()
-                    : setSettings(false)
+                  logs
+                    ? setLogs(false)
+                    : pairing
+                      ? void pairingRef.current?.cancel()
+                      : setSettings(false)
                 }
               >
                 <Icon name="arrow" />
@@ -128,9 +138,17 @@ export function App({
                 <img src={arclinkIcon} width={28} height={28} alt="" />
               </div>
             )}
-            <h1>{pairing ? "配对新设备" : settings ? "设置" : "ArcLink"}</h1>
+            <h1>
+              {logs
+                ? "运行日志"
+                : pairing
+                  ? "配对新设备"
+                  : settings
+                    ? "设置"
+                    : "ArcLink"}
+            </h1>
           </div>
-          {!pairing && !settings && (
+          {!pairing && !settings && !logs && (
             <button
               className="icon-button"
               aria-label="设置"
@@ -140,7 +158,7 @@ export function App({
             </button>
           )}
         </div>
-        {!pairing && !settings && (
+        {!pairing && !settings && !logs && (
           <>
             <div className="status-bar" aria-live="polite">
               <span
@@ -190,6 +208,7 @@ export function App({
       <div className="scroll-content">
         {!pairing &&
           !settings &&
+          !logs &&
           ["available", "ready"].includes(update.status?.phase ?? "") && (
             <section className="panel">
               <button className="text-button" onClick={() => setSettings(true)}>
@@ -197,24 +216,7 @@ export function App({
               </button>
             </section>
           )}
-        {settings && !pairing && (
-          <section className="panel">
-            <UpdatePanel
-              status={update.status}
-              error={update.error}
-              disabled={preview}
-              onCheck={() => void update.run(() => api.checkUpdate())}
-              onDownload={() => {
-                if (update.status?.version)
-                  void update.run(() =>
-                    api.downloadUpdate(update.status!.version!),
-                  );
-              }}
-              onInstall={() => setConfirmUpdate(true)}
-            />
-          </section>
-        )}
-        {!pairing && shownError && (
+        {!pairing && !logs && shownError && (
           <section className="panel">
             <ErrorBanner
               error={shownError}
@@ -224,11 +226,13 @@ export function App({
                   await refresh();
                 })
               }
-              onLogs={() => void action("logs", api.openLogs)}
+              onLogs={() => setLogs(true)}
             />
           </section>
         )}
-        {pairing ? (
+        {logs ? (
+          <LogsPanel api={api} />
+        ) : pairing ? (
           <section className="panel">
             <PairingPanel
               ref={pairingRef}
@@ -246,6 +250,22 @@ export function App({
                 snapshot={snapshot}
                 onExit={() => setExit(true)}
                 onSaved={() => void refresh()}
+                onLogs={() => setLogs(true)}
+                application={
+                  <UpdatePanel
+                    status={update.status}
+                    error={update.error}
+                    disabled={preview}
+                    onCheck={() => void update.run(() => api.checkUpdate())}
+                    onDownload={() => {
+                      if (update.status?.version)
+                        void update.run(() =>
+                          api.downloadUpdate(update.status!.version!),
+                        );
+                    }}
+                    onInstall={() => setConfirmUpdate(true)}
+                  />
+                }
               />
             </section>
           ) : (
@@ -419,13 +439,13 @@ export function App({
           )
         )}
       </div>
-      {!pairing && (
+      {!pairing && !logs && (
         <footer className="panel footer">
           <span>agentd · {running ? `运行 ${uptimeLabel}` : "等待启动"}</span>
           <button
             className="text-button"
             disabled={!!busy}
-            onClick={() => void action("logs", api.openLogs)}
+            onClick={() => setLogs(true)}
           >
             查看日志
           </button>

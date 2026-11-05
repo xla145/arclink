@@ -1,6 +1,8 @@
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import type {
+  KeepAwakeStatus,
+  RecentLogs,
   UpdateStatus,
   NetworkSettings,
   NetworkUpdate,
@@ -43,6 +45,8 @@ async function call<T>(
     } satisfies BridgeError;
   let timer: ReturnType<typeof setTimeout> | undefined;
   try {
+    // A user may leave the native save dialog open beyond the normal IPC timeout.
+    if (command === "export_recent_logs") return await invoke<T>(command, args);
     return await Promise.race([
       invoke<T>(command, args),
       new Promise<never>((_, reject) => {
@@ -92,6 +96,12 @@ export const bridge = {
   getAutostart: () => call<AutostartStatus>("get_autostart"),
   setAutostart: (enabled: boolean) =>
     call<AutostartStatus>("set_autostart", { enabled }),
+  getKeepAwake: () => call<KeepAwakeStatus>("get_keep_awake"),
+  setKeepAwake: (enabled: boolean) =>
+    call<KeepAwakeStatus>("set_keep_awake", { enabled }),
+  recentLogs: () => call<RecentLogs>("get_recent_logs"),
+  copyLogs: () => call<void>("copy_recent_logs"),
+  exportLogs: () => call<boolean>("export_recent_logs"),
   openLogs: () => call<void>("open_logs"),
   retry: () => call<void>("retry_daemon"),
   hide: () => call<void>("hide_panel"),

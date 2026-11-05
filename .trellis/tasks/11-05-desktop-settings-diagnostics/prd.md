@@ -19,6 +19,7 @@ Make ArcLink desktop settings easier to scan, make local diagnostic logs easy to
 - R2: Provide recent local-log viewing, refresh, copy and export, while retaining open-folder access. Handle loading, empty logs and failures accurately; retain loaded content if refresh fails.
 - R3: Add a deliberate keep-awake switch, default off, with persisted preference and actual OS-state feedback. Prevent idle system sleep only; allow normal display sleep and locking, as explicitly chosen by the user. Continue while the panel is hidden; release the owned prevention mechanism when disabled or the application exits.
 - R4: Preserve the existing desktop design language, accessible labels and keyboard focus, and readable long values.
+- R5: Additional user request during implementation: verify version-update availability, including automated state/installation guards and live configured manifest/download/signature checks where possible. Report installation as unverified unless actually exercised; do not stop or overwrite the user's running app solely for this check.
 
 ## Acceptance Criteria
 
@@ -27,6 +28,7 @@ Make ArcLink desktop settings easier to scan, make local diagnostic logs easy to
 - [ ] AC3 / R3: Switching on acquires real native sleep prevention; switching off releases it. Reopening the panel reflects actual state; restart restores the preference.
 - [ ] AC4 / R3: Initialization, shutdown and failed persistence cannot leak owned sleep prevention or falsely report success.
 - [ ] AC5 / R1–R4: Relevant frontend tests/build and Rust checks pass. Check rendered views and native keep-awake behavior separately.
+- [ ] AC6 / R5: Report updater check, download, signature and install evidence separately, identifying any live endpoint failures or untested installation boundary.
 
 ## Out of Scope
 
@@ -35,4 +37,4 @@ Make ArcLink desktop settings easier to scan, make local diagnostic logs easy to
 
 ## Planning Status
 
-Requirements converged: keep-awake behavior explicitly confirmed by the user. PRD convergence pass completed. Design, implementation plan and context manifests prepared; awaiting approval of the final planning summary before implementation.
+Requirements converged: keep-awake behavior explicitly confirmed by the user. PRD convergence pass completed. Final summary approved with “开始阿宝”; implementation started.
