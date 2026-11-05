@@ -9,9 +9,9 @@ enum AgentKind: String, CaseIterable, Identifiable, Hashable, Codable {
 
     var tint: Color {
         switch self {
-        case .claude: Color(red: 0.69, green: 0.32, blue: 0.87)
-        case .codex: Color(red: 0.20, green: 0.78, blue: 0.35)
-        case .herdr: Color(red: 0.35, green: 0.78, blue: 0.98)
+        case .claude: ArcTheme.agentClaude
+        case .codex: ArcTheme.agentCodex
+        case .herdr: ArcTheme.agentHerdr
         }
     }
 
@@ -45,10 +45,10 @@ enum SessionStatus: String, Codable {
 
     var tint: Color {
         switch self {
-        case .waiting: .orange
-        case .running: .blue
-        case .done: .green
-        case .cancelled: .secondary
+        case .waiting: ArcTheme.warning
+        case .running: ArcTheme.live
+        case .done: ArcTheme.success
+        case .cancelled: ArcTheme.inkMuted
         }
     }
 }
@@ -121,6 +121,9 @@ enum SessionExecutionPolicy: String, CaseIterable, Codable, Identifiable {
 struct ChatSessionOptions: Codable, Hashable {
     var model: String? = nil
     var executionPolicy: SessionExecutionPolicy = .workspace
+    /// A Mac-side thread (e.g. a desktop-app conversation) this conversation is forked
+    /// from. Used only for the first native start; afterwards `codexThreadId` is the fork.
+    var forkFromThreadId: String? = nil
 }
 
 struct SessionItem: Identifiable, Hashable, Codable {
@@ -217,6 +220,8 @@ enum Route: Hashable {
     case approval(String)
     case project(String)
     case session(projectId: String, sessionId: String?)
+    /// A new conversation forked from a read-only desktop conversation.
+    case fork(projectId: String, sourceId: String)
     case terminal(String)
     case addProject(editing: String?)
     case settings

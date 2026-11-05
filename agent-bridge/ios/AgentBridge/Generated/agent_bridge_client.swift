@@ -658,6 +658,13 @@ public protocol BridgeConnectionProtocol: AnyObject, Sendable {
 
     func listAgents() async throws  -> [AgentInfo]
 
+    /**
+     * Subfolders of `path` (absolute, `~` or `~/…`; `None` = home) on the Mac.
+     * The Mac refuses anything outside the home directory with `forbidden`;
+     * a Mac without this request answers `unsupported`.
+     */
+    func listDirectory(path: String?) async throws  -> MacDirectoryListing
+
     func listProcesses() async throws  -> [ProcessInfo]
 
     func pathKind() async  -> String
@@ -940,6 +947,27 @@ open func listAgents()async throws  -> [AgentInfo]  {
             completeFunc: ffi_agent_bridge_client_rust_future_complete_rust_buffer,
             freeFunc: ffi_agent_bridge_client_rust_future_free_rust_buffer,
             liftFunc: FfiConverterSequenceTypeAgentInfo.lift,
+            errorHandler: FfiConverterTypeBridgeError_lift
+        )
+}
+
+    /**
+     * Subfolders of `path` (absolute, `~` or `~/…`; `None` = home) on the Mac.
+     * The Mac refuses anything outside the home directory with `forbidden`;
+     * a Mac without this request answers `unsupported`.
+     */
+open func listDirectory(path: String?)async throws  -> MacDirectoryListing  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_agent_bridge_client_fn_method_bridgeconnection_list_directory(
+                        self.uniffiCloneHandle(),FfiConverterOptionString.lower(path)
+                )
+            },
+            pollFunc: ffi_agent_bridge_client_rust_future_poll_rust_buffer,
+            completeFunc: ffi_agent_bridge_client_rust_future_complete_rust_buffer,
+            freeFunc: ffi_agent_bridge_client_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterTypeMacDirectoryListing_lift,
             errorHandler: FfiConverterTypeBridgeError_lift
         )
 }
@@ -1337,6 +1365,144 @@ public func FfiConverterTypeAgentInfo_lift(_ buf: RustBuffer) throws -> AgentInf
 #endif
 public func FfiConverterTypeAgentInfo_lower(_ value: AgentInfo) -> RustBuffer {
     return FfiConverterTypeAgentInfo.lower(value)
+}
+
+
+/**
+ * One subfolder of a folder on the Mac, for choosing a project path.
+ */
+public struct MacDirectoryEntry: Equatable, Hashable {
+    public var name: String
+    public var path: String
+    /**
+     * Contains `.git`; most likely a project root.
+     */
+    public var isProject: Bool
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(name: String, path: String,
+        /**
+         * Contains `.git`; most likely a project root.
+         */isProject: Bool) {
+        self.name = name
+        self.path = path
+        self.isProject = isProject
+    }
+
+
+
+
+}
+
+#if compiler(>=6)
+extension MacDirectoryEntry: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeMacDirectoryEntry: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> MacDirectoryEntry {
+        return
+            try MacDirectoryEntry(
+                name: FfiConverterString.read(from: &buf),
+                path: FfiConverterString.read(from: &buf),
+                isProject: FfiConverterBool.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: MacDirectoryEntry, into buf: inout [UInt8]) {
+        FfiConverterString.write(value.name, into: &buf)
+        FfiConverterString.write(value.path, into: &buf)
+        FfiConverterBool.write(value.isProject, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeMacDirectoryEntry_lift(_ buf: RustBuffer) throws -> MacDirectoryEntry {
+    return try FfiConverterTypeMacDirectoryEntry.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeMacDirectoryEntry_lower(_ value: MacDirectoryEntry) -> RustBuffer {
+    return FfiConverterTypeMacDirectoryEntry.lower(value)
+}
+
+
+/**
+ * A folder inside the Mac user's home directory and its visible subfolders.
+ */
+public struct MacDirectoryListing: Equatable, Hashable {
+    public var path: String
+    /**
+     * `None` at the home directory; browsing never goes above it.
+     */
+    public var parent: String?
+    public var entries: [MacDirectoryEntry]
+    public var truncated: Bool
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(path: String,
+        /**
+         * `None` at the home directory; browsing never goes above it.
+         */parent: String?, entries: [MacDirectoryEntry], truncated: Bool) {
+        self.path = path
+        self.parent = parent
+        self.entries = entries
+        self.truncated = truncated
+    }
+
+
+
+
+}
+
+#if compiler(>=6)
+extension MacDirectoryListing: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeMacDirectoryListing: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> MacDirectoryListing {
+        return
+            try MacDirectoryListing(
+                path: FfiConverterString.read(from: &buf),
+                parent: FfiConverterOptionString.read(from: &buf),
+                entries: FfiConverterSequenceTypeMacDirectoryEntry.read(from: &buf),
+                truncated: FfiConverterBool.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: MacDirectoryListing, into buf: inout [UInt8]) {
+        FfiConverterString.write(value.path, into: &buf)
+        FfiConverterOptionString.write(value.parent, into: &buf)
+        FfiConverterSequenceTypeMacDirectoryEntry.write(value.entries, into: &buf)
+        FfiConverterBool.write(value.truncated, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeMacDirectoryListing_lift(_ buf: RustBuffer) throws -> MacDirectoryListing {
+    return try FfiConverterTypeMacDirectoryListing.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeMacDirectoryListing_lower(_ value: MacDirectoryListing) -> RustBuffer {
+    return FfiConverterTypeMacDirectoryListing.lower(value)
 }
 
 
@@ -2660,6 +2826,31 @@ fileprivate struct FfiConverterSequenceTypeAgentInfo: FfiConverterRustBuffer {
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
+fileprivate struct FfiConverterSequenceTypeMacDirectoryEntry: FfiConverterRustBuffer {
+    typealias SwiftType = [MacDirectoryEntry]
+
+    public static func write(_ value: [MacDirectoryEntry], into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        for item in value {
+            FfiConverterTypeMacDirectoryEntry.write(item, into: &buf)
+        }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [MacDirectoryEntry] {
+        let len: Int32 = try readInt(&buf)
+        var seq = [MacDirectoryEntry]()
+        seq.reserveCapacity(Int(len))
+        for _ in 0 ..< len {
+            seq.append(try FfiConverterTypeMacDirectoryEntry.read(from: &buf))
+        }
+        return seq
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
 fileprivate struct FfiConverterSequenceTypeMacMessage: FfiConverterRustBuffer {
     typealias SwiftType = [MacMessage]
 
@@ -2945,6 +3136,9 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_agent_bridge_client_checksum_method_bridgeconnection_list_agents() != 32339) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_agent_bridge_client_checksum_method_bridgeconnection_list_directory() != 44879) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_agent_bridge_client_checksum_method_bridgeconnection_list_processes() != 44728) {

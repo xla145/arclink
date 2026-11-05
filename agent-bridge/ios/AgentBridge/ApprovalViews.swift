@@ -3,39 +3,64 @@ import SwiftUI
 struct ApprovalListView: View {
     @Environment(AppStore.self) private var store
     @Binding var path: NavigationPath
+    @State private var showingHistory = false
+
+    private var pending: [ApprovalItem] { store.approvals.filter(\.pending) }
+    private var history: [ApprovalItem] { store.approvals.filter { !$0.pending } }
 
     var body: some View {
-        List {
-            Section("待处理 · \(store.pendingCount)") {
-                ForEach(store.approvals.filter(\.pending)) { item in row(item) }
-                if store.pendingCount == 0 {
-                    Label("没有待处理的审批", systemImage: "checkmark.circle").foregroundStyle(.secondary)
+        ScrollView {
+            VStack(alignment: .leading, spacing: ArcTheme.Space.s3) {
+                Picker("审批范围", selection: $showingHistory) {
+                    Text("待处理 \(pending.count)").tag(false)
+                    Text("历史").tag(true)
+                }
+                .pickerStyle(.segmented)
+                let items = showingHistory ? history : pending
+                if items.isEmpty {
+                    VStack(spacing: ArcTheme.Space.s2) {
+                        Image(systemName: "checkmark.circle").font(.title2)
+                        Text(showingHistory ? "还没有审批记录" : "没有待处理的审批").font(.headline).foregroundStyle(ArcTheme.ink)
+                        if !showingHistory {
+                            Text("Agent 需要执行命令或写入文件时，会在这里请求你的批准。").font(.subheadline)
+                        }
+                    }
+                    .foregroundStyle(ArcTheme.inkMuted)
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: .infinity).padding(.vertical, ArcTheme.Space.s8)
+                } else {
+                    ArcListGroup(items) { item in row(item) }
+                    if !showingHistory {
+                        Text("“项目内读写”权限下，越界的命令和写入需要你批准；“完全访问”不会请求审批。")
+                            .font(.footnote).foregroundStyle(ArcTheme.inkMuted).padding(.horizontal, ArcTheme.Space.s1)
+                    }
                 }
             }
-            let history = store.approvals.filter { !$0.pending }
-            if !history.isEmpty {
-                Section("已处理") { ForEach(history) { item in row(item) } }
-            }
+            .padding(.horizontal, ArcTheme.Space.s4)
+            .padding(.bottom, ArcTheme.Space.s6)
         }
+        .background(ArcTheme.bg)
         .navigationTitle("审批")
         .navigationBarTitleDisplayMode(.inline)
     }
 
     private func row(_ item: ApprovalItem) -> some View {
         let project = store.sessions.first { $0.id == item.sessionId }.flatMap { store.project($0.projectId) }
+        let session = store.sessions.first { $0.id == item.sessionId }
         return Button { path.append(Route.approval(item.id)) } label: {
-            VStack(alignment: .leading, spacing: 8) {
-                HStack {
-                    Text(project.map { "\($0.agent.shortName) · \($0.name)" } ?? "项目已移除").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
-                    Spacer()
-                    Pill(text: item.pending ? "待审批" : (item.approved == true ? "已批准" : "已拒绝"), tint: item.pending ? .orange : (item.approved == true ? .green : .red))
-                    Image(systemName: "chevron.right").font(.caption).foregroundStyle(.tertiary)
+            ArcListRow(title: item.title,
+                       subtitle: [project.map { "\($0.agent.shortName) · \($0.name)" } ?? "项目已移除", session?.title]
+                           .compactMap { $0 }.joined(separator: " · ")) {
+                IconTile(symbol: project?.agent.symbolName ?? "folder", tint: project?.agent.tint)
+            } tags: {
+                if item.pending {
+                    StatusTag(kind: .waiting, text: "待审批")
+                } else if item.approved == true {
+                    StatusTag(kind: .done, text: "已允许")
+                } else {
+                    StatusTag(kind: .failed, text: "已拒绝")
                 }
-                Text(item.title).font(.body.weight(.medium)).foregroundStyle(.primary)
-                Text(item.detail).font(.caption).foregroundStyle(.secondary)
             }
-            .padding(.vertical, 6)
-            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier("approval-\(item.id)")
@@ -54,62 +79,97 @@ struct ApprovalDetailView: View {
     var body: some View {
         ScrollView {
             if let item {
-                VStack(alignment: .leading, spacing: 20) {
-                    HStack(spacing: 12) {
-                        Image(systemName: project?.agent.symbolName ?? "folder").font(.title2)
-                            .foregroundStyle(project?.agent.tint ?? .secondary)
-                            .frame(width: 36, height: 36).background((project?.agent.tint ?? .secondary).opacity(0.12), in: RoundedRectangle(cornerRadius: 10))
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(project?.agent.rawValue ?? "项目已移除").font(.headline)
-                            Text("\(project?.name ?? "未知项目") · \(session?.title ?? "对话已移除")").font(.caption).foregroundStyle(.secondary)
+                let writes = item.kind.contains("写入")
+                VStack(alignment: .leading, spacing: ArcTheme.Space.s4) {
+                    ArcCard(padding: ArcTheme.Space.s3) {
+                        HStack(spacing: ArcTheme.Space.s3) {
+                            IconTile(symbol: project?.agent.symbolName ?? "folder", tint: project?.agent.tint)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(session?.title ?? "对话已移除").font(.callout.weight(.medium)).foregroundStyle(ArcTheme.ink)
+                                Text("\(project?.agent.rawValue ?? "项目已移除") · \(project?.name ?? "未知项目")")
+                                    .font(.footnote).foregroundStyle(ArcTheme.inkMuted)
+                            }
                         }
                     }
-                    Divider()
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text(item.kind).font(.caption.weight(.semibold)).foregroundStyle(.secondary)
-                        Text(item.title).font(.title3.bold())
-                        Text(item.detail).font(.subheadline).foregroundStyle(.secondary)
-                    }
-                    Text(item.kind.contains("写入") ? "写入请求" : "命令预览").font(.headline)
-                    if item.kind.contains("写入") {
-                        VStack(alignment: .leading, spacing: 6) {
-                            Text("目标 \(item.target)").foregroundStyle(.secondary)
-                            Text(item.detail)
+                    VStack(alignment: .leading, spacing: ArcTheme.Space.s2) {
+                        if item.pending {
+                            StatusTag(kind: .waiting, text: "等待你批准 · \(item.kind)")
+                        } else {
+                            StatusTag(kind: item.approved == true ? .done : .failed, text: item.approved == true ? "已允许" : "已拒绝")
                         }
-                        .font(.footnote.monospaced())
-                        .padding(14).frame(maxWidth: .infinity, alignment: .leading)
-                        .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 12))
-                    } else {
-                        VStack(alignment: .leading, spacing: 12) {
-                            Text("$ \(item.target)").font(.footnote.monospaced()).foregroundStyle(.purple)
-                            Text(item.detail)
-                                .font(.footnote).foregroundStyle(.secondary)
-                        }
-                        .padding(14).frame(maxWidth: .infinity, alignment: .leading)
-                        .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 12))
+                        Text(writes ? "允许写入这个文件？" : "允许执行这条命令？")
+                            .font(.title2.bold()).foregroundStyle(ArcTheme.ink)
+                            .accessibilityAddTraits(.isHeader)
+                        Text(item.title).font(.subheadline).foregroundStyle(ArcTheme.inkMuted)
                     }
-                    Text(store.isRemoteChatSession(sessionId: item.sessionId) ? "审批决定将发送给 Mac 上的 Codex。" : "本地模拟审批 · 决定仅保存在手机，不会执行 Mac 操作。")
-                        .font(.caption).foregroundStyle(.secondary)
-                    LabeledContent("审批 ID", value: item.id)
-                    LabeledContent("状态", value: item.pending ? "待处理" : (item.approved == true ? "已批准" : "已拒绝"))
+                    VStack(alignment: .leading, spacing: 0) {
+                        HStack {
+                            Text(writes ? item.target : "命令")
+                            Spacer()
+                            Button("复制") {
+                                UIPasteboard.general.string = writes ? item.detail : item.target
+                                store.show("已复制")
+                            }
+                        }
+                        .font(.caption.weight(.medium)).foregroundStyle(ArcTheme.codeMuted)
+                        .padding(.horizontal, ArcTheme.Space.s3).frame(minHeight: 36)
+                        .overlay(alignment: .bottom) { Rectangle().fill(Color.white.opacity(0.07)).frame(height: 0.5) }
+                        Text(writes ? item.detail : "$ \(item.target)")
+                            .font(.footnote.monospaced()).foregroundStyle(ArcTheme.codeInk)
+                            .textSelection(.enabled)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(ArcTheme.Space.s3)
+                    }
+                    .arcBackground(ArcTheme.codeBg, radius: ArcTheme.Radius.md)
+                    if !writes && !item.detail.isEmpty {
+                        Text(item.detail).font(.subheadline).foregroundStyle(ArcTheme.inkMuted)
+                    }
+                    VStack(spacing: 0) {
+                        if let project {
+                            infoRow("工作目录", value: project.path, mono: true)
+                            ArcDivider(inset: ArcTheme.Space.s4)
+                        }
+                        infoRow("审批 ID", value: item.id, mono: true)
+                    }
+                    .arcBackground(ArcTheme.surface, radius: ArcTheme.Radius.lg)
+                    Text(store.isRemoteChatSession(sessionId: item.sessionId) ? "决定将发送给 Mac 上的 Codex。" : "本地模拟审批 · 决定仅保存在手机，不会执行 Mac 操作。")
+                        .font(.footnote).foregroundStyle(ArcTheme.inkMuted)
                 }
-                .padding(20)
+                .padding(.horizontal, ArcTheme.Space.s4).padding(.vertical, ArcTheme.Space.s3)
             }
         }
-        .background(Color(.systemGroupedBackground))
-        .navigationTitle("审批详情")
+        .background(ArcTheme.bg)
+        .navigationTitle("审批")
         .navigationBarTitleDisplayMode(.inline)
-        .safeAreaInset(edge: .bottom) {
-            if let item, item.pending, store.canApprove {
-                HStack(spacing: 12) {
-                    Button { resolve(false) } label: { Text("拒绝").frame(maxWidth: .infinity, minHeight: 28) }
-                        .buttonStyle(.bordered).tint(.red)
-                    Button { resolve(true) } label: { Text(item.kind.contains("写入") ? "批准写入" : "批准执行").frame(maxWidth: .infinity, minHeight: 28) }
-                        .buttonStyle(.borderedProminent).tint(.green)
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            if let item {
+                if item.pending && store.canApprove {
+                    HStack(spacing: ArcTheme.Space.s2) {
+                        Button("拒绝") { resolve(false) }.buttonStyle(.arc(.secondary, block: true))
+                        Button("允许") { resolve(true) }.buttonStyle(.arc(block: true))
+                    }
+                    .padding(.horizontal, ArcTheme.Space.s4).padding(.vertical, 10)
+                    .background(ArcTheme.bg)
+                    .overlay(alignment: .top) { Rectangle().fill(ArcTheme.line).frame(height: 0.5) }
+                } else if !item.pending {
+                    Text(item.approved == true ? "你已允许这次操作" : "你已拒绝这次操作")
+                        .font(.subheadline.weight(.medium)).foregroundStyle(ArcTheme.inkMuted)
+                        .frame(maxWidth: .infinity).padding(.vertical, ArcTheme.Space.s4)
+                        .background(ArcTheme.bg)
+                        .overlay(alignment: .top) { Rectangle().fill(ArcTheme.line).frame(height: 0.5) }
                 }
-                .padding(16).background(.bar)
             }
         }
+    }
+
+    private func infoRow(_ title: String, value: String, mono: Bool) -> some View {
+        HStack(alignment: .firstTextBaseline) {
+            Text(title).font(.body).foregroundStyle(ArcTheme.ink)
+            Spacer(minLength: ArcTheme.Space.s3)
+            Text(value).font(mono ? .footnote.monospaced() : .subheadline).foregroundStyle(ArcTheme.inkMuted)
+                .lineLimit(1).truncationMode(.middle)
+        }
+        .padding(.horizontal, ArcTheme.Space.s4).frame(minHeight: 48)
     }
 
     private func resolve(_ approved: Bool) {
@@ -163,20 +223,20 @@ struct TerminalView: View {
             VStack(alignment: .leading, spacing: 10) {
                 if session?.realProcessId != nil && !store.isRemoteChatSession(sessionId: sessionId) {
                     if case .failed(let message) = terminal.runState {
-                        Text("# \(message)").foregroundStyle(.red)
+                        Text("# \(message)").foregroundStyle(ArcTheme.codeDanger)
                     }
                     if terminal.liveLines.isEmpty {
                         Text("# 正在连接真实进程的输出…")
                     }
                     ForEach(Array(terminal.liveLines.enumerated()), id: \.offset) { _, line in
                         Text(line)
-                            .foregroundStyle(line.hasPrefix("!") ? Color.red : (line.hasPrefix("#") ? Color.orange : Color(white: 0.82)))
+                            .foregroundStyle(line.hasPrefix("!") ? ArcTheme.codeDanger : (line.hasPrefix("#") ? ArcTheme.codeMuted : ArcTheme.codeInk))
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
                 } else {
                     ForEach(Array(lines.enumerated()), id: \.offset) { _, line in
                         Text(line)
-                            .foregroundStyle(line.hasPrefix("#") ? Color.orange : Color(white: 0.82))
+                            .foregroundStyle(line.hasPrefix("#") ? ArcTheme.codeMuted : ArcTheme.codeInk)
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
                 }
@@ -185,10 +245,10 @@ struct TerminalView: View {
             .padding(16)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .background(Color(red: 0.05, green: 0.07, blue: 0.09))
+        .background(ArcTheme.codeBg)
         .navigationTitle("终端")
         .navigationBarTitleDisplayMode(.inline)
-        .toolbarBackground(Color(red: 0.09, green: 0.11, blue: 0.13), for: .navigationBar)
+        .toolbarBackground(ArcTheme.codeBg, for: .navigationBar)
         .toolbarColorScheme(.dark, for: .navigationBar)
         .toolbar {
             if !store.isRemoteChatSession(sessionId: sessionId) && (canRunReal || session?.realProcessId != nil) {
@@ -204,7 +264,7 @@ struct TerminalView: View {
     @ViewBuilder private var runControlButton: some View {
         switch terminal.runState {
         case .running, .attaching:
-            Button("停止") { Task { await stopReal() } }
+            Button("停止") { Task { await stopReal() } }.foregroundStyle(ArcTheme.codeDanger)
         case .starting, .stopping:
             ProgressView()
         default:

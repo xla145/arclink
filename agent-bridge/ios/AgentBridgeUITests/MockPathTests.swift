@@ -46,6 +46,71 @@ final class MockPathTests: XCTestCase {
         shot("浅色", "return-to-latest")
     }
 
+    /// A Codex desktop conversation is read-only here; forking opens a new conversation
+    /// with its own model and permission, created only by the first message.
+    func testDesktopCodexConversationForks() throws {
+        try launchFixture(theme: "浅色", history: [
+            ["role": "user", "text": "桌面上的问题", "timestamp": "2026-11-01T12:00:00Z"],
+            ["role": "assistant", "text": "桌面上的回答", "timestamp": "2026-11-01T12:00:01Z"]
+        ])
+        XCTAssertTrue(app.buttons["Codex"].waitForExistence(timeout: 10))
+        app.buttons["Codex"].tap()
+        app.buttons["project-p3"].tap()
+        app.buttons["session-s-codex-desktop"].tap()
+        XCTAssertTrue(app.descendants(matching: .any)["readonly-composer"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts["已在 Mac 桌面端打开"].exists)
+        XCTAssertFalse(input.exists)
+        app.buttons["fork-session"].tap()
+        XCTAssertTrue(app.staticTexts["分叉自「Codex desktop」"].waitForExistence(timeout: 3))
+        app.buttons["chat-new-permission"].tap()
+        app.buttons["只读"].tap()
+        input.tap(); input.typeText("在手机上继续")
+        app.buttons["发送"].tap()
+        XCTAssertTrue(app.staticTexts["在手机上继续"].firstMatch.waitForExistence(timeout: 3))
+        XCTAssertTrue(app.descendants(matching: .any)["权限，只读"].exists)
+        back(); back()
+        XCTAssertTrue(app.buttons.containing(.staticText, identifier: "分叉 · Codex desktop").firstMatch.waitForExistence(timeout: 3))
+        XCTAssertTrue(app.buttons["session-s-codex-desktop"].exists)
+    }
+
+    /// A project path can be picked by browsing the Mac's home folder.
+    func testAddProjectByBrowsingMacFolders() throws {
+        try launchFixture(theme: "浅色", directories: [
+            "~": ["path": "/Users/test", "entries": [["work", "/Users/test/work", false]]],
+            "/Users/test/work": ["path": "/Users/test/work", "parent": "/Users/test",
+                                 "entries": [["app", "/Users/test/work/app", true], ["notes", "/Users/test/work/notes", false]]],
+            "/Users/test/work/app": ["path": "/Users/test/work/app", "parent": "/Users/test/work", "entries": []]
+        ])
+        XCTAssertTrue(app.buttons["添加项目"].waitForExistence(timeout: 10))
+        app.buttons["添加项目"].tap()
+        app.buttons["browse-mac-folders"].tap()
+        XCTAssertTrue(app.buttons["folder-work"].waitForExistence(timeout: 3))
+        app.buttons["folder-work"].tap()
+        XCTAssertTrue(app.buttons["folder-app"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts["项目"].exists)
+        app.buttons["folder-app"].tap()
+        XCTAssertTrue(app.staticTexts["~/work/app"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.buttons["folder-up"].exists)
+        app.buttons["choose-folder"].tap()
+        XCTAssertTrue(app.textFields["~/path/to/project"].waitForExistence(timeout: 3))
+        XCTAssertEqual(app.textFields["~/path/to/project"].value as? String, "/Users/test/work/app")
+        app.buttons["save-project"].tap()
+        XCTAssertTrue(app.staticTexts["app"].waitForExistence(timeout: 3))
+    }
+
+    /// Pending requests are shown whole on the Workspace and leave it once decided.
+    func testHomeApprovalLeavesAfterDecision() throws {
+        try launchFixture(theme: "浅色")
+        let card = app.descendants(matching: .any)["home-approval-a1"]
+        XCTAssertTrue(card.waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["待你批准 · 1"].exists)
+        card.buttons["允许"].tap()
+        XCTAssertTrue(app.staticTexts["toast"].waitForExistence(timeout: 3))
+        XCTAssertEqual(app.staticTexts["toast"].label, "已批准")
+        XCTAssertTrue(card.waitForNonExistence(timeout: 3))
+        XCTAssertFalse(app.staticTexts["待你批准 · 1"].exists)
+    }
+
     func testLiveStepDetailRefreshesWhileOpen() throws {
         let initial: [String: Any] = ["id": "live-step", "sessionId": "s-rich", "isUser": false, "text": "", "time": "10:30",
             "executionStep": ["id": "call", "completed": false, "title": "执行命令", "input": "swift test"]]
@@ -222,7 +287,7 @@ final class MockPathTests: XCTestCase {
         defer { UIPasteboard.general.items = [] }
         try launchFixture(theme: theme)
         app.buttons["chat-fab"].tap()
-        XCTAssertTrue(app.navigationBars["开启对话"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.navigationBars["新对话"].waitForExistence(timeout: 3))
         XCTAssertFalse(app.buttons["start-conversation"].isEnabled)
         app.buttons["current-project-picker"].tap()
         app.buttons["service"].tap()
@@ -261,34 +326,48 @@ final class MockPathTests: XCTestCase {
             app.terminate()
             UIPasteboard.general.items = []
         }
+        // The chat composer attaches from the photo library only; pasting lives in
+        // the New-conversation sheet, which also sends image-only first messages.
         try launchFixture(theme: "浅色")
         XCTAssertTrue(app.buttons["project-p2"].waitForExistence(timeout: 10))
         app.buttons["project-p2"].tap()
-        app.buttons["新建 CLI 对话"].tap()
-        XCTAssertFalse(app.buttons["发送"].isEnabled)
+        app.buttons["project-new-chat"].tap()
+        XCTAssertTrue(app.buttons["从相册添加图片"].waitForExistence(timeout: 3))
+        XCTAssertFalse(app.buttons["粘贴图片"].exists)
+        back(); back()
+
+        app.buttons["chat-fab"].tap()
+        XCTAssertTrue(app.navigationBars["新对话"].waitForExistence(timeout: 3))
+        app.buttons["current-project-picker"].tap()
+        app.buttons["service"].tap()
+        XCTAssertFalse(app.buttons["start-conversation"].isEnabled)
         let paste = app.buttons["粘贴图片"]
-        XCTAssertTrue(paste.waitForExistence(timeout: 3))
+        reveal(paste, swipeUp: true)
         XCTAssertTrue(paste.isEnabled, "System image pasteboard should enable PasteButton")
         paste.tap()
-        let remove = app.buttons["移除图片"]
+        let remove = app.buttons["移除图片 1"]
         XCTAssertTrue(remove.waitForExistence(timeout: 5))
-        XCTAssertTrue(app.buttons["预览待发送图片"].exists)
-        XCTAssertTrue(app.buttons["发送"].isEnabled)
+        XCTAssertTrue(app.buttons["start-conversation"].isEnabled)
         shot("浅色", "pasted-image-draft")
+        // The sheet pins Start to the bottom; keep the remove button clear of it.
+        let start = app.buttons["start-conversation"]
+        for _ in 0..<4 where remove.frame.maxY > start.frame.minY - 8 { app.swipeUp() }
         remove.tap()
-        XCTAssertFalse(app.buttons["预览待发送图片"].exists)
-        XCTAssertFalse(app.buttons["发送"].isEnabled)
+        XCTAssertTrue(remove.waitForNonExistence(timeout: 3))
+        XCTAssertFalse(app.buttons["start-conversation"].isEnabled)
 
         paste.tap()
         XCTAssertTrue(remove.waitForExistence(timeout: 5))
-        app.buttons["发送"].tap() // Empty text with a real pasted image.
+        app.buttons["start-conversation"].tap() // Empty text with a real pasted image.
         let image = app.buttons["查看图片 1"]
+        XCTAssertTrue(image.waitForExistence(timeout: 5))
         reveal(image, swipeUp: false)
         image.tap()
         XCTAssertTrue(app.navigationBars["图片预览"].waitForExistence(timeout: 3))
         shot("浅色", "pasted-image-sent")
         app.buttons["完成"].tap()
         back()
+        app.buttons["project-p2"].tap()
         XCTAssertEqual(app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "session-")).count, 1)
         XCTAssertTrue(app.buttons.containing(.staticText, identifier: "图片对话").firstMatch.exists)
 
@@ -307,10 +386,11 @@ final class MockPathTests: XCTestCase {
 
     private func runPaths(theme: String) throws {
         try launchFixture(theme: theme)
-        XCTAssertTrue(app.navigationBars["ArcLink"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["device-switcher"].waitForExistence(timeout: 10))
         XCTAssertTrue(app.buttons["chat-fab"].isHittable)
         XCTAssertTrue(app.buttons["settings-entry"].isHittable)
         XCTAssertTrue(app.buttons["approval-entry"].isHittable)
+        XCTAssertTrue(app.descendants(matching: .any)["home-approval-a1"].exists)
         shot(theme, "home")
 
         // Fixed Agent tabs scope the visible projects and the chooser.
@@ -336,13 +416,13 @@ final class MockPathTests: XCTestCase {
         app.buttons["project-p1"].tap()
         XCTAssertTrue(app.buttons["session-s-rich"].waitForExistence(timeout: 3))
         XCTAssertTrue(app.buttons["session-s-desktop"].exists)
-        sourceButton("CLI").tap()
+        app.buttons["source-cli"].tap()
         XCTAssertTrue(app.buttons["session-s-rich"].exists)
         XCTAssertFalse(app.buttons["session-s-desktop"].exists)
-        sourceButton("桌面").tap()
+        app.buttons["source-desktop"].tap()
         XCTAssertFalse(app.buttons["session-s-rich"].exists)
         XCTAssertTrue(app.buttons["session-s-desktop"].exists)
-        sourceButton("全部").tap()
+        app.buttons["source-all"].tap()
         let search = app.textFields["conversation-search"]
         search.tap(); search.typeText("Images")
         XCTAssertTrue(app.buttons["session-s-image"].exists)
@@ -359,7 +439,7 @@ final class MockPathTests: XCTestCase {
         XCTAssertFalse(app.buttons["发送"].exists)
         XCTAssertFalse(app.buttons["终端"].exists)
         shot(theme, "desktop-readonly")
-        app.buttons["新建 CLI 对话"].tap()
+        app.buttons["readonly-new-chat"].tap()
         XCTAssertTrue(input.waitForExistence(timeout: 3))
         XCTAssertFalse(app.buttons["发送"].isEnabled)
         back() // Read-only history.
@@ -408,7 +488,7 @@ final class MockPathTests: XCTestCase {
         // The chooser can switch projects within the selected Agent. Merely
         // opening/backing out creates nothing; first send belongs to p2.
         app.buttons["chat-fab"].tap()
-        XCTAssertTrue(app.navigationBars["开启对话"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.navigationBars["新对话"].waitForExistence(timeout: 3))
         app.buttons["current-project-picker"].tap()
         app.buttons["service"].tap()
         XCTAssertFalse(app.buttons["start-conversation"].isEnabled)
@@ -416,7 +496,7 @@ final class MockPathTests: XCTestCase {
         app.buttons["project-p2"].tap()
         XCTAssertTrue(app.staticTexts["还没有对话"].waitForExistence(timeout: 3))
         XCTAssertEqual(app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "session-")).count, 0)
-        app.buttons["新建 CLI 对话"].tap()
+        app.buttons["project-new-chat"].tap()
         input.tap(); input.typeText("Review service")
         XCTAssertTrue(app.keyboards.firstMatch.exists)
         XCTAssertTrue(app.buttons["发送"].isHittable)
@@ -433,13 +513,13 @@ final class MockPathTests: XCTestCase {
         XCTAssertFalse(app.buttons.containing(.staticText, identifier: "Review service").firstMatch.exists)
         back()
 
-        // Bell leads to actionable approvals; explicit gear leads to real settings.
+        // The top-right bell leads to actionable approvals; the gear leads to real settings.
         app.buttons["approval-entry"].tap()
         XCTAssertTrue(app.buttons["approval-a1"].waitForExistence(timeout: 3))
         app.buttons["approval-a1"].tap()
-        XCTAssertTrue(app.navigationBars["审批详情"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts["允许写入这个文件？"].waitForExistence(timeout: 3))
         shot(theme, "approval")
-        app.buttons["批准写入"].tap()
+        app.buttons["允许"].tap()
         XCTAssertTrue(app.staticTexts["toast"].waitForExistence(timeout: 2))
         XCTAssertEqual(app.staticTexts["toast"].label, "已批准")
         back()
@@ -457,10 +537,6 @@ final class MockPathTests: XCTestCase {
     private var input: XCUIElement {
         let field = app.textFields["composer"]
         return field.exists ? field : app.textViews["composer"]
-    }
-
-    private func sourceButton(_ title: String) -> XCUIElement {
-        app.segmentedControls["conversation-source-filter"].buttons.matching(NSPredicate(format: "label BEGINSWITH %@", title)).firstMatch
     }
 
     private func disclosure(_ title: String) -> XCUIElement {
@@ -500,7 +576,7 @@ final class MockPathTests: XCTestCase {
         add(attachment)
     }
 
-    private func launchFixture(theme: String, history: [[String: String]]? = nil, largeText: Bool = false, liveMessages: [[String: Any]]? = nil, liveUpdate: [String: Any]? = nil) throws {
+    private func launchFixture(theme: String, history: [[String: String]]? = nil, largeText: Bool = false, liveMessages: [[String: Any]]? = nil, liveUpdate: [String: Any]? = nil, directories: [String: Any]? = nil) throws {
         let now = Date().timeIntervalSinceReferenceDate
         func project(_ id: String, _ name: String, _ path: String, _ agent: String) -> [String: Any] {
             ["id": id, "name": name, "path": path, "agent": agent, "createdAt": now]
@@ -530,7 +606,8 @@ final class MockPathTests: XCTestCase {
         var workspace: [String: Any] = [
             "selectedAgent": "Claude Code", "selectedProjectIDs": ["Claude Code": "p1", "Codex": "p3"],
             "projects": [project("p1", "my-app", "/ui/app", "Claude Code"), project("p2", "service", "/ui/service", "Claude Code"), project("p3", "codex-app", "/ui/codex", "Codex")],
-            "sessions": [session("s-rich", "Dashboard rich content", "CLI"), session("s-desktop", "Desktop history", "桌面"), session("s-image", "Images", "CLI")],
+            "sessions": [session("s-rich", "Dashboard rich content", "CLI"), session("s-desktop", "Desktop history", "桌面"), session("s-image", "Images", "CLI"),
+                         ["id": "s-codex-desktop", "projectId": "p3", "title": "Codex desktop", "status": "已完成", "detail": "Codex 对话", "source": "桌面", "createdAt": now]],
             "messages": [
                 ["id": "m-rich", "sessionId": "s-rich", "isUser": false, "text": markdown, "time": "10:30", "thinkingSummary": "先检查数据请求，再保留错误重试入口。", "toolOutput": "Read: src/Dashboard.tsx"],
                 ["id": "m-image", "sessionId": "s-image", "isUser": true, "text": "请查看这张图片", "time": "10:31", "imageAttachments": [png]]
@@ -546,6 +623,7 @@ final class MockPathTests: XCTestCase {
             app.launchEnvironment["ARCLINK_UI_TEST_MAC_MESSAGES"] = String(decoding: try JSONSerialization.data(withJSONObject: history), as: UTF8.self)
         }
         if let liveUpdate { app.launchEnvironment["ARCLINK_UI_TEST_LIVE_UPDATE"] = String(decoding: try JSONSerialization.data(withJSONObject: liveUpdate), as: UTF8.self) }
+        if let directories { app.launchEnvironment["ARCLINK_UI_TEST_DIRECTORIES"] = String(decoding: try JSONSerialization.data(withJSONObject: directories), as: UTF8.self) }
         app.launchArguments = ["-appearance", theme]
         if largeText { app.launchArguments += ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"] }
         app.launch()

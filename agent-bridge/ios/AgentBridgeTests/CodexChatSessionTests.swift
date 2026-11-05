@@ -24,6 +24,8 @@ final class CodexChatSessionTests: XCTestCase {
             switch method {
             case "initialize":
                 if !ignoreInitialize { emit(["id": id, "result": [:]]) }
+            case "thread/fork":
+                emit(["id": id, "result": ["thread": ["id": "thread-fork", "status": ["type": "idle"], "turns": []]]])
             case "thread/start", "thread/resume", "thread/read":
                 let params = message["params"] as? [String: Any] ?? [:]
                 let includeTurns = method == "thread/read" ? params["includeTurns"] as? Bool == true : method == "thread/resume" && params["excludeTurns"] as? Bool != true
@@ -191,6 +193,32 @@ final class CodexChatSessionTests: XCTestCase {
         let input = try XCTUnwrap(params["input"] as? [[String: String]])
         XCTAssertEqual(input, [["type": "text", "text": "第一条消息"]])
         XCTAssertEqual(events.last, .turnObserved(id: "turn-1", completed: false))
+        peer.driver.close()
+    }
+
+    func testForkStartsFromSourceThreadWithChosenOptions() async throws {
+        let peer = makePeer()
+        var events: [CodexChatEvent] = []
+        peer.driver.onEvent = { events.append($0) }
+        peer.driver.configure(options: ChatSessionOptions(model: "fixture-model", executionPolicy: .readOnly, forkFromThreadId: "desktop-thread"))
+        try await peer.driver.initialize(cwd: "/repo", threadId: nil)
+        XCTAssertEqual(peer.writes.compactMap { $0["method"] as? String }, ["initialize", "initialized", "thread/fork"])
+        let params = try XCTUnwrap(peer.writes.first { $0["method"] as? String == "thread/fork" }?["params"] as? [String: Any])
+        XCTAssertEqual(params["threadId"] as? String, "desktop-thread")
+        XCTAssertEqual(params["model"] as? String, "fixture-model")
+        XCTAssertEqual(params["sandbox"] as? String, "read-only")
+        XCTAssertEqual(params["cwd"] as? String, "/repo")
+        XCTAssertEqual(peer.driver.threadId, "thread-fork")
+        XCTAssertEqual(events.first, .thread(id: "thread-fork"))
+        peer.driver.close()
+    }
+
+    func testOwnThreadResumesInsteadOfForkingAgain() async throws {
+        let peer = makePeer()
+        peer.driver.configure(options: ChatSessionOptions(forkFromThreadId: "desktop-thread"))
+        try await peer.driver.initialize(cwd: "/repo", threadId: "thread-1")
+        XCTAssertFalse(peer.writes.contains { $0["method"] as? String == "thread/fork" })
+        XCTAssertTrue(peer.writes.contains { $0["method"] as? String == "thread/resume" })
         peer.driver.close()
     }
 

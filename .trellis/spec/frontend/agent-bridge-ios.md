@@ -44,7 +44,27 @@ The UserDefaults `appearance` key accepts `自动`, `浅色`, `深色`; apply it
 
 For a grouped row with `.buttonStyle(.plain)`, apply `.contentShape(Rectangle())` to the padded label. Otherwise a short title may leave the center of the apparent row untappable. Keep body text semantic instead of inheriting the list button tint.
 
-For inverse toasts, use explicit `Color.primary` for the background and `Color(.systemBackground)` for the text. A hierarchical `.primary` background combined with `.foregroundStyle(.background)` can resolve to the same foreground/background and produce an accessibility-visible but visually invisible toast. Verify the screenshot as well as the `toast` element's existence and label.
+For inverse toasts, use the explicit token pair `ArcTheme.ink` background / `ArcTheme.bg` text (`ToastBanner`). A hierarchical `.primary` background combined with `.foregroundStyle(.background)` can resolve to the same foreground/background and produce an accessibility-visible but visually invisible toast. Verify the screenshot as well as the `toast` element's existence and label.
+
+## Design system (ArcLink iOS)
+
+Source of truth: the published design system (tokens, brand book, components) mirrored in `.trellis/tasks/11-04-ios-redesign/research/design-system/`, and the clickable prototype `prototypes/arclink-ios/index.html`.
+
+- **Colors**: only `ArcTheme` (`ArcTheme.swift`), whose names match `tokens.json` (`bg`, `surface`, `surfaceSunken`, `line`, `ink`, `inkMuted`, `inkFaint`, `primary`/`onPrimary`/`primarySoft`, `live`, `success`/`warning`/`danger` + `*Soft`, `agent*`, `code*`). No `Color(.systemGroupedBackground)`, `.secondary`, `.orange`, `.green` etc. in views; `AgentKind.tint` and `SessionStatus.tint` already map to tokens. Exceptions: the full-screen camera scanner (black/white) and hairlines inside always-dark code blocks.
+- **Type**: Dynamic Type only; the smallest text is `.caption`. Never `.system(size: 8/9)`.
+- **Components** (`ArcComponents.swift`): `.buttonStyle(.arc(kind, block:, pill:))`, `ArcListGroup(items) { ArcListRow(...) }` (data-driven: iOS 17 has no `Group(subviews:)`), `StatusTag` (always icon/dot + word), `ArcBanner`, `IconTile`, `ArcCard`, `ArcSectionHeader`, `AgentSwitcher`. Native grouped lists use `.arcGroupedList()` plus `.listRowBackground(ArcTheme.surface)` per Section, otherwise dark rows fall back to system grey.
+- **Navigation**: one `NavigationStack`, no tab bar (user decision 2026-11-04). Workspace (`HomeView`) hides the system navigation bar and draws its own header (`device-switcher`, `approval-entry` bell with count, `settings-entry`) so it looks the same on iOS 18 and 26; the hidden `navigationTitle("工作台")` stays for VoiceOver and back buttons. Pending approvals are shown whole on the Workspace (`home-approval-<id>`) and leave once decided.
+- **New CLI conversation** (`ChatView` with `sessionId == nil`): the empty state is only a model + permission card; the choice is passed as `ChatSessionOptions` to `createSession` on the first send and is read-only afterwards (composer chips). The chat composer attaches images from the photo library only; pasting lives in `NewConversationSheet`.
+
+- **Desktop conversations** are read-only (`SessionItem.isReadOnly`, id = the Mac's native thread id). The bottom bar offers 创建分叉 for Codex: `Route.fork` → `ChatView(forkSourceId:)` → first send creates the session with `ChatSessionOptions.forkFromThreadId`, and `CodexChatSession.initialize` calls `thread/fork` (never on a session that already has its own `codexThreadId`). The returned thread id is stored as `codexThreadId`, so catalog sync does not add it again as a read-only row. Claude has no native fork path yet.
+
+### Gotcha: insets outside a NavigationStack do not reach its pages
+
+`safeAreaPadding`/`safeAreaInset` applied to a `NavigationStack` (or a `TabView` around it) did not move overlays or insets of the pages inside on iOS 26; a floating button ended up under a custom bar. Apply bottom insets on each page (or read the value from the environment there), and put floating buttons in the page's own `.safeAreaInset(edge: .bottom)` rather than an `.overlay`, since a `ScrollView`'s frame runs to the screen edge.
+
+### Gotcha: iOS 18 and 26 render system chrome differently
+
+The simulator here runs iOS 26+ (Liquid Glass toolbars, floating tab bar with animated selection); the user's iPhone runs iOS 18 (flat bars, no selection animation). Check real-device builds before judging a system control's look, and confirm the phone is running a fresh build (`xcrun devicectl device info apps`; builds land in `work/redesign-device`).
 
 ## Real iroh transport
 

@@ -30,8 +30,8 @@ struct MacMessageText: View {
                 .accessibilityAddTraits(.isHeader)
         case .quote(let text):
             HStack(alignment: .top, spacing: 10) {
-                RoundedRectangle(cornerRadius: 2).fill(Color.secondary.opacity(0.35)).frame(width: 3)
-                inline(text).foregroundStyle(.secondary).lineSpacing(4)
+                RoundedRectangle(cornerRadius: 2).fill(ArcTheme.line).frame(width: 3)
+                inline(text).foregroundStyle(ArcTheme.inkMuted).lineSpacing(4)
             }
             .fixedSize(horizontal: false, vertical: true)
             .padding(.vertical, 4)
@@ -39,10 +39,10 @@ struct MacMessageText: View {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 if let checked {
                     Image(systemName: checked ? "checkmark.square.fill" : "square")
-                        .foregroundStyle(checked ? Color.accentColor : .secondary)
+                        .foregroundStyle(checked ? ArcTheme.success : ArcTheme.inkMuted)
                         .accessibilityLabel(checked ? "已完成" : "未完成")
                 } else {
-                    Text(marker.first?.isNumber == true ? marker : "•").foregroundStyle(.secondary)
+                    Text(marker.first?.isNumber == true ? marker : "•").foregroundStyle(ArcTheme.inkMuted)
                 }
                 inline(text).frame(maxWidth: .infinity, alignment: .leading)
             }
@@ -80,7 +80,7 @@ struct MacMessageText: View {
                             .padding(10)
                     }
                 }
-                .background(Color.primary.opacity(0.06))
+                .background(ArcTheme.surfaceSunken)
                 ForEach(Array(rows.enumerated()), id: \.offset) { index, row in
                     GridRow {
                         ForEach(Array(row.enumerated()), id: \.offset) { _, cell in
@@ -89,13 +89,13 @@ struct MacMessageText: View {
                                 .padding(10)
                         }
                     }
-                    .background(index.isMultiple(of: 2) ? Color.clear : Color.primary.opacity(0.025))
+                    .background(index.isMultiple(of: 2) ? Color.clear : ArcTheme.bg)
                 }
             }
         }
-        .background(Color(.secondarySystemGroupedBackground))
-        .clipShape(RoundedRectangle(cornerRadius: 10))
-        .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(Color.primary.opacity(0.08)))
+        .background(ArcTheme.surface)
+        .clipShape(RoundedRectangle(cornerRadius: ArcTheme.Radius.md, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: ArcTheme.Radius.md, style: .continuous).strokeBorder(ArcTheme.line))
         .accessibilityLabel("表格，可横向滚动")
     }
 }
@@ -114,12 +114,13 @@ struct MessageDisclosure: View {
                 .padding(.top, 8)
         } label: {
             Label(title, systemImage: title.contains("思考") ? "sparkle" : "terminal")
-                .font(.caption.weight(.medium))
-                .foregroundStyle(.secondary)
+                .font(.footnote.weight(.medium))
+                .foregroundStyle(ArcTheme.inkMuted)
         }
         .disclosureGroupStyle(MessageDisclosureStyle())
         .padding(12)
-        .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 12))
+        .background(ArcTheme.surface, in: RoundedRectangle(cornerRadius: ArcTheme.Radius.md, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: ArcTheme.Radius.md, style: .continuous).stroke(ArcTheme.line))
     }
 }
 
@@ -150,6 +151,14 @@ struct MessageStep: Identifiable {
         if failed == true { return "exclamationmark.circle" }
         if completed == false { return "clock" }
         return failed == false ? "checkmark.circle" : "questionmark.circle"
+    }
+
+    /// Pairs with `statusSymbol`; the symbol and `statusLabel` carry the meaning, not the color.
+    var statusColor: Color {
+        if !isExecution { return ArcTheme.inkMuted }
+        if failed == true { return ArcTheme.danger }
+        if completed == false { return ArcTheme.live }
+        return failed == false ? ArcTheme.success : ArcTheme.inkMuted
     }
 
     static func preview(_ text: String) -> String {
@@ -232,14 +241,14 @@ struct AgentStepsDisclosure: View {
                         HStack(spacing: 10) {
                             Image(systemName: step.statusSymbol)
                                 .font(.caption).frame(width: 18)
-                                .foregroundStyle(step.failed == true ? ChatStyle.failure : ChatStyle.accent)
+                                .foregroundStyle(step.statusColor)
                                 .accessibilityHidden(true)
                             VStack(alignment: .leading, spacing: 4) {
-                                Text(step.title).font(.caption.weight(.semibold)).foregroundStyle(.primary)
-                                Text(step.summary).font(.caption).foregroundStyle(.secondary).lineLimit(2)
+                                Text(step.title).font(.footnote.weight(.semibold)).foregroundStyle(ArcTheme.ink)
+                                Text(step.summary).font(.caption.monospaced()).foregroundStyle(ArcTheme.inkMuted).lineLimit(2)
                             }
                             .frame(maxWidth: .infinity, alignment: .leading)
-                            Image(systemName: "chevron.right").font(.caption2).foregroundStyle(.secondary)
+                            Image(systemName: "chevron.right").font(.caption2.weight(.semibold)).foregroundStyle(ArcTheme.inkFaint)
                                 .accessibilityHidden(true)
                         }
                         .padding(.vertical, 10)
@@ -249,17 +258,17 @@ struct AgentStepsDisclosure: View {
                     .buttonStyle(.plain).accessibilityIdentifier(step.id)
                     .accessibilityValue(step.statusLabel)
                     .accessibilityHint("查看步骤输入和输出")
-                    if step.id != steps.last?.id { Divider() }
+                    if step.id != steps.last?.id { Rectangle().fill(ArcTheme.line).frame(height: 0.5) }
                 }
             }.padding(.top, 4)
         } label: {
             Label("工具步骤 · \(steps.count) 项", systemImage: "list.bullet.rectangle")
-                .font(.caption.weight(.medium)).foregroundStyle(.secondary)
+                .font(.footnote.weight(.medium)).foregroundStyle(ArcTheme.inkMuted)
         }
         .disclosureGroupStyle(MessageDisclosureStyle())
         .padding(.horizontal, 12)
-        .background(ChatStyle.surface, in: RoundedRectangle(cornerRadius: 12))
-        .overlay(RoundedRectangle(cornerRadius: 12).stroke(ChatStyle.border))
+        .background(ArcTheme.surface, in: RoundedRectangle(cornerRadius: ArcTheme.Radius.md, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: ArcTheme.Radius.md, style: .continuous).stroke(ArcTheme.line))
         .sheet(item: $selected) { selection in
             // Resolve identity against the latest projection, not a captured step snapshot.
             MessageStepDetail(step: steps.first { $0.id == selection.id }) { selected = nil }
@@ -279,9 +288,9 @@ struct MessageStepDetail: View {
                     LazyVStack(alignment: .leading, spacing: 22) {
                         Label(step.statusLabel, systemImage: step.statusSymbol)
                             .font(.caption.weight(.medium))
-                            .foregroundStyle(step.failed == true ? ChatStyle.failure : ChatStyle.accent)
+                            .foregroundStyle(step.statusColor)
                             .padding(.horizontal, 10).padding(.vertical, 7)
-                            .background(ChatStyle.user, in: Capsule())
+                            .background(ArcTheme.surfaceSunken, in: Capsule())
                             .accessibilityIdentifier("step-status")
                         if !step.isExecution {
                             detailSection(step.isSummary ? "摘要" : "过程说明", text: step.output, missing: "没有内容记录", code: false)
@@ -298,10 +307,10 @@ struct MessageStepDetail: View {
                     ContentUnavailableView("步骤已不可用", systemImage: "doc.questionmark", description: Text("这条步骤记录已不在当前对话中。"))
                 }
             }
-            .background(ChatStyle.background)
+            .background(ArcTheme.bg)
             .navigationTitle(step?.title ?? "步骤详情").navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("完成", action: dismiss) } }
-            .tint(ChatStyle.accent)
+            .tint(ArcTheme.primary)
         }
         .presentationDragIndicator(.visible)
     }
@@ -309,7 +318,7 @@ struct MessageStepDetail: View {
     private func detailSection(_ title: String, text: String?, missing: String, code: Bool) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
-                Text(title).font(.headline)
+                Text(title).font(.footnote.weight(.semibold)).foregroundStyle(ArcTheme.inkMuted)
                 Spacer()
                 if let text {
                     Button {
@@ -326,13 +335,17 @@ struct MessageStepDetail: View {
                 if let text {
                     if code {
                         Text(text.isEmpty ? "（空内容）" : text)
-                            .font(.system(.footnote, design: .monospaced)).textSelection(.enabled)
+                            .font(.system(.footnote, design: .monospaced)).foregroundStyle(ArcTheme.codeInk)
+                            .textSelection(.enabled)
                     } else { MacMessageText(text: text).font(.subheadline).textSelection(.enabled) }
-                } else { Text(missing).font(.subheadline).foregroundStyle(.secondary) }
+                } else { Text(missing).font(.subheadline).foregroundStyle(code ? ArcTheme.codeMuted : ArcTheme.inkMuted) }
             }
             .frame(maxWidth: .infinity, alignment: .leading).padding(14)
-            .background(ChatStyle.surface, in: RoundedRectangle(cornerRadius: 12))
-            .overlay(RoundedRectangle(cornerRadius: 12).stroke(ChatStyle.border))
+            .background(code ? ArcTheme.codeBg : ArcTheme.surface,
+                        in: RoundedRectangle(cornerRadius: ArcTheme.Radius.md, style: .continuous))
+            .overlay {
+                if !code { RoundedRectangle(cornerRadius: ArcTheme.Radius.md, style: .continuous).stroke(ArcTheme.line) }
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -385,22 +398,22 @@ private struct MessageCodeBlock: View {
                 .buttonStyle(.plain)
                 .accessibilityLabel(copied ? "已复制代码" : "复制代码")
             }
-            .font(.caption2.weight(.medium))
-            .foregroundStyle(Color.white.opacity(0.75))
+            .font(.caption.weight(.medium))
+            .foregroundStyle(ArcTheme.codeMuted)
             .padding(.horizontal, 12).padding(.vertical, 9)
-            .background(Color.white.opacity(0.05))
+            .overlay(alignment: .bottom) { Rectangle().fill(Color.white.opacity(0.07)).frame(height: 0.5) }
             ScrollView([.horizontal, .vertical]) {
                 Text(code)
                     .font(.system(.caption, design: .monospaced))
-                    .foregroundStyle(Color(white: 0.93))
+                    .foregroundStyle(ArcTheme.codeInk)
                     .textSelection(.enabled)
                     .fixedSize(horizontal: true, vertical: true)
                     .padding(12)
             }
             .frame(height: min(360, max(45, CGFloat(code.components(separatedBy: "\n").count) * 18 + 24)))
         }
-        .background(Color(white: 0.12), in: RoundedRectangle(cornerRadius: 11))
-        .clipShape(RoundedRectangle(cornerRadius: 11))
+        .background(ArcTheme.codeBg, in: RoundedRectangle(cornerRadius: ArcTheme.Radius.md, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: ArcTheme.Radius.md, style: .continuous))
         .task(id: copied) {
             if copied {
                 try? await Task.sleep(for: .seconds(2))
@@ -459,15 +472,16 @@ private struct MessageInlineImage: View {
                     Label(failed ? "图片加载失败 · 点击重试" : "外部图片 · 点击加载", systemImage: failed ? "arrow.clockwise" : "photo")
                         .font(.caption)
                         .frame(maxWidth: .infinity, minHeight: 70)
-                        .background(Color(.tertiarySystemFill), in: RoundedRectangle(cornerRadius: 10))
+                        .foregroundStyle(ArcTheme.inkMuted)
+                        .background(ArcTheme.surfaceSunken, in: RoundedRectangle(cornerRadius: ArcTheme.Radius.md, style: .continuous))
                 }
                 .buttonStyle(.plain)
             } else {
                 Label("无法显示图片：不支持的地址或图片格式", systemImage: "photo.badge.exclamationmark")
-                    .font(.caption).foregroundStyle(.secondary)
+                    .font(.caption).foregroundStyle(ArcTheme.inkMuted)
             }
             if !caption.isEmpty, image == nil || !Self.isGenericCaption(caption) {
-                Text(caption).font(.caption2).foregroundStyle(.secondary)
+                Text(caption).font(.caption).foregroundStyle(ArcTheme.inkMuted)
             }
         }
         .task(id: "\(source)-\(attempt)") { await load() }
@@ -477,7 +491,7 @@ private struct MessageInlineImage: View {
                     Image(uiImage: item.image).resizable().scaledToFit()
                         .containerRelativeFrame(.horizontal)
                 }
-                .background(Color(.systemBackground))
+                .background(ArcTheme.bg)
                 .navigationTitle(item.caption)
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar { ToolbarItem(placement: .confirmationAction) { Button("完成") { preview = nil } } }

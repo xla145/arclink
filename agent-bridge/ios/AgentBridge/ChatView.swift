@@ -8,6 +8,8 @@ struct ChatView: View {
     var projectId: String
     var sessionId: String?
     @Binding var path: NavigationPath
+    /// Set when this new conversation forks a read-only desktop conversation.
+    var forkSourceId: String? = nil
 
     @State private var liveId: String?
     @State private var draft = ""
@@ -27,11 +29,18 @@ struct ChatView: View {
     @State private var bottomPosition: CGFloat = 0
     @State private var viewportHeight: CGFloat = 0
     @State private var scrollRequest = 0
+    // Options for a conversation that has not been created yet; sent with the first message.
+    @State private var newModel = ""
+    @State private var newPolicy: SessionExecutionPolicy = .workspace
+    @State private var models: [MacModel] = []
 
     private var resolvedId: String? { liveId ?? sessionId }
     private var sessionRow: SessionItem? { store.sessions.first { $0.id == resolvedId && $0.projectId == projectId } }
     private var isMacThread: Bool { sessionRow?.isReadOnly == true }
     private var project: ProjectItem? { store.project(projectId) }
+    private var forkSource: SessionItem? { forkSourceId.flatMap { id in store.sessions.first { $0.id == id } } }
+    /// Forking needs the agent's own native fork; only Codex conversations have one today.
+    private var canFork: Bool { project?.agent == .codex && store.canSend }
     private var thread: [ChatMessage] { store.messages.filter { $0.sessionId == resolvedId } }
     private var requests: [ApprovalItem] { store.approvals.filter { $0.sessionId == resolvedId } }
     private var remoteChat: Bool { store.usesRemoteChat }
@@ -51,10 +60,7 @@ struct ChatView: View {
                     if isMacThread {
                         history
                     } else if thread.isEmpty {
-                        ContentUnavailableView("开始新的对话", systemImage: "bubble.left.and.bubble.right", description: Text(remoteChat ? "描述你的需求，消息会发送到 Mac 上的 \(project?.agent.rawValue ?? "Agent")。\n第一条消息发送后才会创建对话。" : "描述你的需求，或添加图片。\n第一条消息发送后才会创建对话。"))
-                        Button("查看项目结构") { draft = "查看项目结构"; composing = true }
-                            .buttonStyle(.bordered).frame(maxWidth: .infinity)
-                            .disabled(!canCompose)
+                        newConversationIntro
                     }
                     if !isMacThread {
                         ForEach(ConversationTurn.live(thread)) { message in
@@ -67,7 +73,7 @@ struct ChatView: View {
                     }
                     Color.clear.frame(height: 1).id("bottom")
                 }
-                .padding(.horizontal, 20).padding(.vertical, 22)
+                .padding(.horizontal, ArcTheme.Space.s4).padding(.vertical, ArcTheme.Space.s5)
                 .background(GeometryReader { geometry in
                     Color.clear.preference(key: ChatBottomPreference.self,
                         value: ChatScrollPosition(top: geometry.frame(in: .named("chat-scroll")).minY,
@@ -75,7 +81,7 @@ struct ChatView: View {
                 })
             }
             .coordinateSpace(name: "chat-scroll")
-            .background(ChatStyle.background)
+            .background(ArcTheme.bg)
             .background(GeometryReader { geometry in
                 Color.clear.onAppear { viewportHeight = geometry.size.height }
                     .onChange(of: geometry.size.height) { _, height in viewportHeight = height }
@@ -91,6 +97,7 @@ struct ChatView: View {
                 scrollState.followsLatest = bottomPosition <= viewportHeight + 32
             })
             .scrollDismissesKeyboard(.interactively)
+            .task(id: "\(store.online)") { if resolvedId == nil { await loadModels() } }
             .task(id: sessionId) {
                 await loadMacMessages()
                 if !Task.isCancelled { proxy.scrollTo("bottom", anchor: .bottom) }
@@ -120,10 +127,12 @@ struct ChatView: View {
                 if !followsLatest {
                     Button { scrollRequest += 1 } label: {
                         Label("回到最新", systemImage: "arrow.down")
-                            .font(.caption.weight(.medium)).padding(.horizontal, 14)
-                            .frame(minHeight: 44)
-                            .background(ChatStyle.surface, in: Capsule())
-                            .overlay(Capsule().stroke(ChatStyle.border))
+                            .font(.footnote.weight(.medium)).foregroundStyle(ArcTheme.ink)
+                            .padding(.horizontal, 14)
+                            .frame(minHeight: ArcTheme.tapMin)
+                            .background(ArcTheme.surface, in: Capsule())
+                            .overlay(Capsule().stroke(ArcTheme.line))
+                            .shadow(color: .black.opacity(0.12), radius: 10, y: 6)
                     }
                     .buttonStyle(.plain).accessibilityIdentifier("chat-latest")
                     .padding(16)
@@ -133,8 +142,8 @@ struct ChatView: View {
         }
         .navigationTitle(sessionRow?.title ?? "新对话")
         .navigationBarTitleDisplayMode(.inline)
-        .tint(ChatStyle.accent)
-        .toolbarBackground(ChatStyle.background, for: .navigationBar)
+        .tint(ArcTheme.primary)
+        .toolbarBackground(ArcTheme.bg, for: .navigationBar)
         .toolbarBackground(.visible, for: .navigationBar)
         .toolbar {
             ToolbarItem(placement: .principal) {
@@ -180,26 +189,125 @@ struct ChatView: View {
         .onDisappear { attachmentEpoch = UUID(); loadingImages = false }
     }
 
+    // MARK: New conversation
+
+    /// A new CLI conversation inside a project only needs a model and a permission;
+    /// the project and Mac are already in the navigation bar.
+    private var newConversationIntro: some View {
+        VStack(alignment: .leading, spacing: ArcTheme.Space.s2) {
+            ArcSectionHeader(forkSource.map { "分叉自「\($0.title)」" } ?? "新对话设置")
+            VStack(alignment: .leading, spacing: 0) {
+                HStack(spacing: ArcTheme.Space.s3) {
+                    Text("项目").foregroundStyle(ArcTheme.ink)
+                    Spacer(minLength: ArcTheme.Space.s2)
+                    VStack(alignment: .trailing, spacing: 2) {
+                        Text(project?.name ?? "项目不存在").foregroundStyle(ArcTheme.inkMuted).lineLimit(1)
+                        if let project {
+                            Text(project.path).font(.caption.monospaced()).foregroundStyle(ArcTheme.inkMuted)
+                                .lineLimit(1).truncationMode(.head)
+                        }
+                    }
+                }
+                .padding(.horizontal, ArcTheme.Space.s4).frame(minHeight: 56)
+                .accessibilityElement(children: .combine)
+                ArcDivider(inset: ArcTheme.Space.s4)
+                settingRow("模型") {
+                    Picker("模型", selection: $newModel) {
+                        Text("跟随 Mac 设置").tag("")
+                        ForEach(models, id: \.id) { Text($0.name).tag($0.id) }
+                    }
+                    .accessibilityIdentifier("chat-new-model")
+                }
+                ArcDivider(inset: ArcTheme.Space.s4)
+                settingRow("权限") {
+                    Picker("权限", selection: $newPolicy) {
+                        ForEach(SessionExecutionPolicy.allCases) { Text($0.rawValue).tag($0) }
+                    }
+                    .accessibilityIdentifier("chat-new-permission")
+                }
+            }
+            .arcBackground(ArcTheme.surface, radius: ArcTheme.Radius.lg)
+            .disabled(!canCompose)
+        }
+        .padding(.top, ArcTheme.Space.s2)
+    }
+
+    private func settingRow(_ title: String, @ViewBuilder picker: () -> some View) -> some View {
+        HStack {
+            Text(title).foregroundStyle(ArcTheme.ink)
+            Spacer()
+            picker().pickerStyle(.menu).tint(ArcTheme.primary)
+        }
+        .padding(.leading, ArcTheme.Space.s4).padding(.trailing, ArcTheme.Space.s2).frame(minHeight: 52)
+    }
+
+
+    /// The model this conversation was created with.
+    private var currentModelName: String {
+        let id = sessionRow?.chatOptions?.model ?? ""
+        if id.isEmpty { return "跟随 Mac" }
+        return models.first { $0.id == id }?.name ?? id
+    }
+
+    private var currentPolicy: SessionExecutionPolicy { sessionRow?.chatOptions?.executionPolicy ?? .workspace }
+
+    /// Read-only reminders of what this conversation runs with; chosen before the first message.
+    private var modelChip: some View {
+        chipLabel(currentModelName, symbol: project?.agent.symbolName ?? "sparkle", tint: project?.agent.tint)
+            .accessibilityLabel("模型，\(currentModelName)")
+    }
+
+    private var policyChip: some View {
+        let short = switch currentPolicy { case .readOnly: "只读"; case .workspace: "读写"; case .fullAccess: "完全" }
+        return chipLabel(short, symbol: currentPolicy == .fullAccess ? "exclamationmark.shield" : "shield", tint: nil)
+            .accessibilityLabel("权限，\(currentPolicy.rawValue)")
+    }
+
+    private func chipLabel(_ text: String, symbol: String, tint: Color?) -> some View {
+        HStack(spacing: 4) {
+            Image(systemName: symbol).foregroundStyle(tint ?? ArcTheme.inkMuted)
+            Text(text).foregroundStyle(ArcTheme.inkMuted).lineLimit(1)
+        }
+        .font(.footnote.weight(.medium))
+        .padding(.horizontal, 10).frame(minHeight: 28)
+        .background(ArcTheme.surfaceSunken, in: Capsule())
+        .accessibilityElement(children: .ignore)
+    }
+
+    private func loadModels() async {
+        guard let bridge = store.macBridge, let agent = project?.agent else { return }
+        let device = store.selectedDeviceID
+        guard let result = try? await bridge.listAgentModels(agentId: agent.agentId),
+              !Task.isCancelled, device == store.selectedDeviceID else { return }
+        models = result
+    }
+
     private var contextHeader: some View {
         Text("\(project?.name ?? "项目不存在") · \(store.hostName.isEmpty ? "本地" : store.hostName)\(isMacThread ? " · 只读" : "")")
-            .font(.caption2).foregroundStyle(.secondary).lineLimit(typeSize.isAccessibilitySize ? nil : 1)
+            .font(.caption).foregroundStyle(ArcTheme.inkMuted).lineLimit(typeSize.isAccessibilitySize ? nil : 1)
             .accessibilityIdentifier("chat-context")
     }
 
     private func approvalCard(_ request: ApprovalItem) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
+        let pending = request.pending
+        let approved = request.approved == true
+        return VStack(alignment: .leading, spacing: ArcTheme.Space.s3) {
             Button { composing = false; path.append(Route.approval(request.id)) } label: {
                 VStack(alignment: .leading, spacing: 10) {
                     HStack {
-                        Label(request.pending ? "需要你的确认" : (request.approved == true ? "已批准" : "已拒绝"),
-                              systemImage: request.pending ? "hand.raised" : (request.approved == true ? "checkmark.circle" : "xmark.circle"))
+                        Label(pending ? "等待你批准" : (approved ? "你已允许" : "你已拒绝"),
+                              systemImage: pending ? "clock" : (approved ? "checkmark" : "xmark"))
                             .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(pending ? ArcTheme.warning : ArcTheme.inkMuted)
                         Spacer()
-                        Image(systemName: "chevron.right").font(.caption)
+                        Image(systemName: "chevron.right").font(.caption.weight(.semibold))
+                            .foregroundStyle(pending ? ArcTheme.warning : ArcTheme.inkFaint)
                     }
-                    Text(request.title).font(.subheadline)
-                    Text(request.target).font(.caption.monospaced()).lineLimit(3)
-                    Text("查看完整请求").font(.caption).foregroundStyle(ChatStyle.accent)
+                    Text(request.title).font(.subheadline).foregroundStyle(ArcTheme.ink)
+                    Text(request.target).font(.footnote.monospaced()).foregroundStyle(ArcTheme.ink).lineLimit(3)
+                        .padding(.horizontal, 10).padding(.vertical, ArcTheme.Space.s2)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .arcBackground(pending ? ArcTheme.surface : ArcTheme.surfaceSunken, radius: ArcTheme.Radius.sm)
                 }
                 .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
                 .contentShape(Rectangle())
@@ -209,15 +317,14 @@ struct ChatView: View {
                 Text(request.detail).font(.footnote.monospaced()).textSelection(.enabled)
                     .frame(maxWidth: .infinity, alignment: .leading).padding(.top, 8)
             }
-            .font(.caption)
-            if request.pending && store.canApprove {
-                HStack(spacing: 10) {
+            .font(.footnote).foregroundStyle(ArcTheme.inkMuted)
+            if pending && store.canApprove {
+                HStack(spacing: ArcTheme.Space.s2) {
                     Button("拒绝") { store.resolve(request.id, approved: false) }
-                        .buttonStyle(.bordered)
-                    Button("允许本次") { store.resolve(request.id, approved: true) }
-                        .buttonStyle(.borderedProminent)
+                        .buttonStyle(ArcButtonStyle(kind: .secondary, block: true))
+                    Button("允许") { store.resolve(request.id, approved: true) }
+                        .buttonStyle(.arc(block: true))
                 }
-                .controlSize(.large)
                 .disabled(store.isApprovalSubmitting(request.id, sessionId: request.sessionId)
                           || store.isChatSendBlocked(sessionId: request.sessionId))
                 if store.isApprovalSubmitting(request.id, sessionId: request.sessionId) {
@@ -225,8 +332,12 @@ struct ChatView: View {
                 }
             }
         }
-        .padding(16).background(ChatStyle.surface, in: RoundedRectangle(cornerRadius: 16))
-        .overlay(RoundedRectangle(cornerRadius: 16).stroke(ChatStyle.border))
+        .padding(ArcTheme.Space.s4)
+        .background(pending ? ArcTheme.warningSoft : ArcTheme.surface,
+                    in: RoundedRectangle(cornerRadius: ArcTheme.Radius.lg, style: .continuous))
+        .overlay {
+            if !pending { RoundedRectangle(cornerRadius: ArcTheme.Radius.lg, style: .continuous).stroke(ArcTheme.line) }
+        }
     }
 
     @ViewBuilder private var history: some View {
@@ -235,7 +346,7 @@ struct ChatView: View {
         } else if let macError {
             ContentUnavailableView("无法读取对话", systemImage: "wifi.exclamationmark", description: Text(macError))
             Button("重试") { Task { await loadMacMessages() } }
-                .buttonStyle(.bordered).frame(maxWidth: .infinity)
+                .buttonStyle(.arc(.secondary)).frame(maxWidth: .infinity)
         } else if macMessages.isEmpty {
             ContentUnavailableView("暂无消息", systemImage: "bubble.left.and.bubble.right", description: Text("Mac 上的这条对话还没有可显示的消息。"))
         } else {
@@ -265,38 +376,41 @@ struct ChatView: View {
                             Button { expandedImage = ChatImagePreview(image: image) } label: {
                                 Image(uiImage: image).resizable().scaledToFit()
                                     .frame(maxHeight: 200)
-                                    .clipShape(RoundedRectangle(cornerRadius: 10))
+                                    .clipShape(RoundedRectangle(cornerRadius: ArcTheme.Radius.md, style: .continuous))
                             }
                             .buttonStyle(.plain).accessibilityLabel("查看图片 \(index + 1)")
                         }
                     }
                 }
+                .foregroundStyle(ArcTheme.ink)
                 .padding(.horizontal, 14).padding(.vertical, 10)
-                .background(ChatStyle.user, in: RoundedRectangle(cornerRadius: 18))
-                Text(time).font(.caption2).foregroundStyle(.tertiary).monospacedDigit()
+                .background(ArcTheme.primarySoft, in: UnevenRoundedRectangle(
+                    topLeadingRadius: ArcTheme.Radius.lg, bottomLeadingRadius: ArcTheme.Radius.lg,
+                    bottomTrailingRadius: 6, topTrailingRadius: ArcTheme.Radius.lg, style: .continuous))
+                Text(time).font(.caption).foregroundStyle(ArcTheme.inkMuted).monospacedDigit()
                     .padding(.trailing, 4)
             }
             .frame(maxWidth: .infinity, alignment: .trailing)
             .padding(.leading, typeSize.isAccessibilitySize ? 16 : 44)
         } else {
             // Agent message: left-aligned
-            VStack(alignment: .leading, spacing: 14) {
+            VStack(alignment: .leading, spacing: ArcTheme.Space.s3) {
                 VStack(alignment: .leading, spacing: 6) {
-                    HStack(spacing: 8) {
+                    HStack(spacing: ArcTheme.Space.s2) {
                         Image(systemName: project?.agent.symbolName ?? "sparkle")
-                            .font(.system(size: 14))
-                            .foregroundStyle(project?.agent.tint ?? .accentColor)
-                            .frame(width: 28, height: 28)
-                            .background((project?.agent.tint ?? .accentColor).opacity(0.1), in: RoundedRectangle(cornerRadius: 8))
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(project?.agent.tint ?? ArcTheme.primary)
+                            .frame(width: 24, height: 24)
+                            .arcBackground(ArcTheme.surfaceSunken, radius: 7)
                             .accessibilityHidden(true)
-                        Text(project?.agent.rawValue ?? "Agent").fontWeight(.semibold)
+                        Text(project?.agent.rawValue ?? "Agent").fontWeight(.medium)
                             .fixedSize(horizontal: false, vertical: true)
+                        if !typeSize.isAccessibilitySize { Text("· \(time)").monospacedDigit() }
                         Spacer(minLength: 0)
-                        if !typeSize.isAccessibilitySize { Text(time).font(.caption2).monospacedDigit() }
                     }
-                    if typeSize.isAccessibilitySize { Text(time).font(.caption2).monospacedDigit() }
+                    if typeSize.isAccessibilitySize { Text(time).monospacedDigit() }
                 }
-                .font(.caption).foregroundStyle(.secondary)
+                .font(.caption).foregroundStyle(ArcTheme.inkMuted)
                 if !steps.isEmpty { AgentStepsDisclosure(steps: steps) }
                 if !text.isEmpty {
                     MacMessageText(text: text).textSelection(.enabled)
@@ -306,7 +420,7 @@ struct ChatView: View {
                         Button { expandedImage = ChatImagePreview(image: image) } label: {
                             Image(uiImage: image).resizable().scaledToFit()
                                 .frame(maxWidth: .infinity, maxHeight: 300)
-                                .clipShape(RoundedRectangle(cornerRadius: 12))
+                                .clipShape(RoundedRectangle(cornerRadius: ArcTheme.Radius.md, style: .continuous))
                         }
                         .buttonStyle(.plain).accessibilityLabel("查看图片 \(index + 1)")
                     }
@@ -316,8 +430,8 @@ struct ChatView: View {
                         UIPasteboard.general.string = text
                         store.show("已复制回复的 Markdown")
                     } label: {
-                        Label("复制", systemImage: "doc.on.doc").font(.caption)
-                            .foregroundStyle(.secondary).frame(minWidth: 44, minHeight: 44)
+                        Label("复制", systemImage: "doc.on.doc").font(.footnote)
+                            .foregroundStyle(ArcTheme.inkMuted).frame(minWidth: 44, minHeight: 44)
                             .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain).accessibilityLabel("复制回复的 Markdown")
@@ -330,17 +444,7 @@ struct ChatView: View {
 
     @ViewBuilder private var composer: some View {
         if isMacThread {
-            let layout = typeSize.isAccessibilitySize
-                ? AnyLayout(VStackLayout(alignment: .leading, spacing: 10))
-                : AnyLayout(HStackLayout(spacing: 8))
-            layout {
-                Label("导入历史仅供查看", systemImage: "lock.fill")
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                Button("新建 CLI 对话") { path.append(Route.session(projectId: projectId, sessionId: nil)) }
-                    .disabled(!store.canSend)
-            }
-            .font(.caption).padding(14).background(.bar)
-            .accessibilityIdentifier("readonly-composer")
+            desktopSessionBar
         } else {
             VStack(alignment: .leading, spacing: 8) {
                 if !attachments.isEmpty {
@@ -351,13 +455,13 @@ struct ChatView: View {
                                     ZStack(alignment: .topTrailing) {
                                         Button { expandedImage = ChatImagePreview(image: image) } label: {
                                             Image(uiImage: image).resizable().scaledToFill().frame(width: 68, height: 68)
-                                                .clipShape(RoundedRectangle(cornerRadius: 10))
+                                                .clipShape(RoundedRectangle(cornerRadius: ArcTheme.Radius.sm, style: .continuous))
                                         }.buttonStyle(.plain).accessibilityLabel("预览待发送图片")
                                         Button {
                                             attachments.removeAll { $0.id == item.id }
                                         } label: {
                                             Image(systemName: "xmark.circle.fill").symbolRenderingMode(.palette)
-                                                .foregroundStyle(.white, .black.opacity(0.7)).frame(width: 28, height: 28)
+                                                .foregroundStyle(ArcTheme.bg, ArcTheme.ink).frame(width: 28, height: 28)
                                         }.accessibilityLabel("移除图片")
                                     }
                                 }
@@ -366,32 +470,39 @@ struct ChatView: View {
                     }
                 }
                 if let id = resolvedId, let label = store.chatRecoveryLabel(sessionId: id) {
-                    HStack {
-                        if store.isChatRecovering(sessionId: id) { ProgressView() }
-                        Text(label).font(.caption)
-                        Spacer()
+                    HStack(spacing: ArcTheme.Space.s2) {
+                        if store.isChatRecovering(sessionId: id) { ProgressView() } else {
+                            Image(systemName: "wifi.exclamationmark").accessibilityHidden(true)
+                        }
+                        Text(label).frame(maxWidth: .infinity, alignment: .leading)
                         Button("重试连接") { store.retryChatConnection(sessionId: id) }
+                            .font(.footnote.weight(.semibold)).foregroundStyle(ArcTheme.ink)
+                            .padding(.horizontal, 10).frame(minHeight: 32)
+                            .arcBackground(ArcTheme.surface, radius: ArcTheme.Radius.sm)
                             .disabled(store.isChatRecovering(sessionId: id))
                     }
+                    .font(.footnote.weight(.medium)).foregroundStyle(ArcTheme.inkMuted)
+                    .padding(.leading, ArcTheme.Space.s3).padding(.trailing, ArcTheme.Space.s2).padding(.vertical, ArcTheme.Space.s2)
+                    .arcBackground(ArcTheme.surfaceSunken, radius: ArcTheme.Radius.md)
                     .accessibilityIdentifier("chat-recovery")
                 }
                 if let id = resolvedId, let error = store.chatError(sessionId: id) {
-                    Text(error).font(.caption).foregroundStyle(.red).accessibilityIdentifier("remote-chat-error")
+                    ArcBanner(text: error).accessibilityIdentifier("remote-chat-error")
                 }
                 if busy && resolvedId.flatMap({ store.chatRecoveryLabel(sessionId: $0) }) == nil {
                     HStack {
                         ProgressView()
-                        Text("正在等待 Mac 上的 \(project?.agent.rawValue ?? "Agent")…").font(.caption)
+                        Text("正在等待 Mac 上的 \(project?.agent.rawValue ?? "Agent")…").font(.footnote).foregroundStyle(ArcTheme.inkMuted)
                         Spacer()
 
                     }
                 }
                 if !store.canSend {
                     Text("当前权限仅可查看\(store.canApprove ? "和审批" : "")，不能发送新任务。")
-                        .font(.caption).foregroundStyle(.secondary)
+                        .font(.footnote).foregroundStyle(ArcTheme.warning)
                 }
-                VStack(alignment: .leading, spacing: 8) {
-                    TextField("继续描述你的需求…", text: $draft, axis: .vertical)
+                VStack(alignment: .leading, spacing: 4) {
+                    TextField("给 \(project?.agent.shortName ?? "Agent") 发消息…", text: $draft, axis: .vertical)
                         .focused($composing).lineLimit(2...5).padding(.horizontal, 6).padding(.top, 6)
                         .accessibilityIdentifier("composer").disabled(!canCompose)
                     HStack(spacing: 4) {
@@ -401,53 +512,80 @@ struct ChatView: View {
                         .accessibilityLabel("从相册添加图片")
                         .disabled(!canCompose || loadingImages || attachments.count >= ChatAttachment.maximumCount)
                         .onChange(of: picked) { _, items in loadImages(items) }
-                        imagePasteButton
-                        Text(project?.agent.rawValue ?? "Agent").font(.caption).foregroundStyle(.secondary)
-                            .lineLimit(1).minimumScaleFactor(0.8)
+                        if resolvedId != nil {
+                            modelChip
+                            policyChip
+                        }
                         Spacer(minLength: 0)
                         if loadingImages { ProgressView().frame(width: 24, height: 44) }
                         Button {
                             if busy, let id = resolvedId { store.stopSession(id: id) }
                             else { send() }
                         } label: {
+                            let active = busy || canSubmit
                             Image(systemName: busy ? "stop.fill" : "arrow.up")
-                                .font(.body.weight(.semibold)).foregroundStyle(ChatStyle.onAccent)
-                                .frame(width: 44, height: 44)
-                                .background(ChatStyle.accent.opacity(busy || canSubmit ? 1 : 0.35), in: Circle())
+                                .font(.body.weight(.semibold))
+                                .foregroundStyle(active ? ArcTheme.onPrimary : ArcTheme.inkFaint)
+                                .frame(width: ArcTheme.sendButton, height: ArcTheme.sendButton)
+                                .background(active ? ArcTheme.primary : ArcTheme.surfaceSunken, in: Circle())
+                                .frame(width: ArcTheme.tapMin, height: ArcTheme.tapMin)
+                                .contentShape(Circle())
                         }
                         .accessibilityLabel(busy ? "停止" : "发送")
                         .disabled(submitting || (busy ? resolvedId == nil : !canSubmit))
                     }
                 }
-                .padding(8).background(ChatStyle.surface, in: RoundedRectangle(cornerRadius: 22))
-                .overlay(RoundedRectangle(cornerRadius: 22).stroke(ChatStyle.border))
+                .padding(.leading, ArcTheme.Space.s2).padding(.trailing, 2).padding(.vertical, 4)
+                .background(ArcTheme.surface, in: RoundedRectangle(cornerRadius: ArcTheme.Radius.xl, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: ArcTheme.Radius.xl, style: .continuous).stroke(ArcTheme.line))
 
-                Text(remoteChat ? "文字和图片发送到 Mac · 最多 4 张，自动压缩" : "本地模拟 · 图片最多 4 张，每张不超过 10 MB")
-                    .font(.caption2).foregroundStyle(.secondary)
             }
-            .padding(.horizontal, 16).padding(.vertical, 10).background(ChatStyle.background)
+            .padding(.horizontal, ArcTheme.Space.s3).padding(.vertical, ArcTheme.Space.s2).background(ArcTheme.bg)
 
         }
     }
 
-    private var imagePasteButton: some View {
-        PasteButton(supportedContentTypes: [.image]) { providers in
-            guard canCompose, !loadingImages else { return }
-            let epoch = attachmentEpoch
-            for provider in providers.prefix(max(0, ChatAttachment.maximumCount - attachments.count)) {
-                _ = provider.loadObject(ofClass: UIImage.self) { object, _ in
-                    let data = (object as? UIImage)?.jpegData(compressionQuality: 0.85)
-                    Task { @MainActor in
-                        guard epoch == attachmentEpoch, let data, canCompose else { return }
-                        appendImage(data)
-                    }
+    /// A desktop-app conversation can only be read here; continuing means forking it
+    /// into a new ArcLink conversation (Codex), or starting a fresh one (Claude for now).
+    private var desktopSessionBar: some View {
+        let compact = typeSize.isAccessibilitySize
+        return HStack(spacing: ArcTheme.Space.s3) {
+            Image(systemName: "lock")
+                .font(.body.weight(.medium)).foregroundStyle(ArcTheme.inkMuted)
+                .accessibilityHidden(true)
+            // At accessibility sizes the bar keeps to one row so the conversation's
+            // last rows can still scroll clear of it; the nav subtitle says 只读.
+            if !compact {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("已在 Mac 桌面端打开").font(.subheadline.weight(.semibold)).foregroundStyle(ArcTheme.ink)
+                    Text(canFork ? "这里只能查看，创建分叉后在手机上继续。" : "Claude 对话暂不支持分叉，可新建对话继续。")
+                        .font(.footnote).foregroundStyle(ArcTheme.inkMuted)
+                }
+                Spacer(minLength: 0)
+                Rectangle().fill(ArcTheme.line).frame(width: 0.5, height: 28)
+            }
+            Group {
+                if canFork, let id = resolvedId {
+                    Button("创建分叉") { path.append(Route.fork(projectId: projectId, sourceId: id)) }
+                        .accessibilityIdentifier("fork-session")
+                } else {
+                    Button("新建对话") { path.append(Route.session(projectId: projectId, sessionId: nil)) }
+                        .disabled(!store.canSend)
+                        .accessibilityIdentifier("readonly-new-chat")
                 }
             }
+            .font(.subheadline.weight(.semibold))
+            .foregroundStyle(ArcTheme.primary)
+            .frame(minHeight: compact ? nil : ArcTheme.tapMin)
+            if compact { Spacer(minLength: 0) }
         }
-        .labelStyle(.iconOnly)
-        .frame(width: 44, height: 44)
-        .accessibilityLabel("粘贴图片")
-        .disabled(!canCompose || loadingImages || attachments.count >= ChatAttachment.maximumCount)
+        .padding(.horizontal, ArcTheme.Space.s4).padding(.vertical, compact ? ArcTheme.Space.s1 : 10)
+        .background(ArcTheme.surface, in: RoundedRectangle(cornerRadius: ArcTheme.Radius.lg, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: ArcTheme.Radius.lg, style: .continuous).stroke(ArcTheme.line))
+        .padding(.horizontal, ArcTheme.Space.s3).padding(.vertical, ArcTheme.Space.s1)
+        .background(ArcTheme.bg)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("readonly-composer")
     }
 
     private var canSubmit: Bool {
@@ -484,7 +622,10 @@ struct ChatView: View {
     private func send() {
         guard canSubmit, !busy else { return }
         let text = draft.trimmingCharacters(in: .whitespacesAndNewlines)
-        let id = resolvedId ?? store.createSession(projectId: projectId, title: text.isEmpty ? "图片对话" : String(text.prefix(24)))
+        let title = forkSource.map { "分叉 · \($0.title)" } ?? (text.isEmpty ? "图片对话" : String(text.prefix(24)))
+        let id = resolvedId ?? store.createSession(projectId: projectId, title: String(title.prefix(32)),
+                                                   options: ChatSessionOptions(model: newModel.isEmpty ? nil : newModel, executionPolicy: newPolicy,
+                                                                               forkFromThreadId: forkSourceId))
         guard !id.isEmpty else { return }
         liveId = id
         let deviceID = store.selectedDeviceID

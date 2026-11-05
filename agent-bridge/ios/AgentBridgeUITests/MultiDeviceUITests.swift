@@ -22,7 +22,7 @@ final class MultiDeviceUITests: XCTestCase {
                                  "ARCLINK_UI_TEST_STATE": String(decoding: try JSONSerialization.data(withJSONObject: state), as: UTF8.self)]
         app.launchArguments = ["-appearance", theme]
         app.launch()
-        XCTAssertTrue(app.navigationBars["ArcLink"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["device-switcher"].waitForExistence(timeout: 10))
         XCTAssertTrue(app.staticTexts["A 的测试项目"].exists)
         XCTAssertTrue(app.buttons["device-switcher"].label.contains("测试 Mac A"))
         XCTAssertTrue(app.buttons["device-switcher"].label.contains("重新扫码"))
@@ -34,7 +34,7 @@ final class MultiDeviceUITests: XCTestCase {
         XCTAssertTrue(app.buttons["add-device"].exists)
         shot("\(theme)-devices", app)
         app.buttons["device-b"].tap()
-        XCTAssertTrue(app.navigationBars["ArcLink"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.buttons["device-switcher"].waitForExistence(timeout: 3))
         XCTAssertTrue(app.staticTexts["B 的测试项目"].exists)
         XCTAssertTrue(app.buttons["device-switcher"].label.contains("测试 Mac B"))
         XCTAssertFalse(app.staticTexts["A 的测试项目"].exists)
@@ -54,6 +54,11 @@ final class MultiDeviceUITests: XCTestCase {
             XCTAssertTrue(app.buttons["device-b"].waitForExistence(timeout: 3))
         }
         app.buttons["device-a"].tap()
+        // A tap right after the scanner closes can be consumed by the camera
+        // permission interruption; retry once if the picker is still showing.
+        if app.buttons["device-a"].waitForExistence(timeout: 1.5), app.buttons["device-a"].isHittable {
+            app.buttons["device-a"].tap()
+        }
         let project = app.buttons["project-shared-project"]
         XCTAssertTrue(project.waitForExistence(timeout: 5))
         let selectedProject = NSPredicate(format: "label CONTAINS %@", "A 的测试项目")

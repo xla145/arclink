@@ -115,10 +115,10 @@ struct UserMessageBody: View {
                 case .answers(let replies):
                     VStack(alignment: .leading, spacing: 12) {
                         Label("补充信息", systemImage: "text.bubble")
-                            .font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+                            .font(.caption.weight(.semibold)).foregroundStyle(ArcTheme.inkMuted)
                         ForEach(replies.indices, id: \.self) { reply in
                             VStack(alignment: .leading, spacing: 5) {
-                                Text(replies[reply].question).font(.caption).foregroundStyle(.secondary)
+                                Text(replies[reply].question).font(.caption).foregroundStyle(ArcTheme.inkMuted)
                                 Text(replies[reply].answer).font(.body.weight(.medium))
                             }
                             .fixedSize(horizontal: false, vertical: true)

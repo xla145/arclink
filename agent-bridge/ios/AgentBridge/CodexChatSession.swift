@@ -271,6 +271,11 @@ final class CodexChatSession: CodexChatDriving {
                 method = "thread/resume"
                 params["threadId"] = threadId
                 params["excludeTurns"] = true
+            } else if let source = options.forkFromThreadId, !source.isEmpty {
+                // A new thread carrying the source's history; the source is left untouched.
+                method = "thread/fork"
+                params["threadId"] = source
+                params["excludeTurns"] = true
             } else { method = "thread/start" }
             let result = try await request(method, params: params)
             guard let thread = result["thread"] as? [String: Any], let id = thread["id"] as? String, !id.isEmpty else {

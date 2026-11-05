@@ -33,45 +33,18 @@ struct NewConversationSheet: View {
 
     var body: some View {
         NavigationStack {
+            // Content first, settings below, Start in the top-right corner.
             Form {
                 Section {
-                    if projects.isEmpty {
-                        Text("请先添加或导入一个项目。").foregroundStyle(.secondary)
-                    } else {
-                        Picker("项目", selection: $projectID) {
-                            ForEach(projects) { Text($0.name).tag($0.id) }
-                        }
-                        .accessibilityIdentifier("current-project-picker")
-                        if let project { Text(project.path).font(.caption).foregroundStyle(.secondary) }
-                    }
-                    Picker("权限", selection: $policy) {
-                        ForEach(SessionExecutionPolicy.allCases) { Text($0.rawValue).tag($0) }
-                    }
-                    .accessibilityIdentifier("new-chat-permission")
-                    Picker("模型", selection: $selectedModel) {
-                        Text("跟随 Mac 设置").tag("")
-                        ForEach(models, id: \.id) { Text($0.name).tag($0.id) }
-                    }
-                    .accessibilityIdentifier("new-chat-model")
-                    if loadingModels { ProgressView("正在读取模型…").font(.caption) }
-                    if let modelHint { Text(modelHint).font(.caption).foregroundStyle(.secondary) }
-                } header: {
-                    Text("\(store.selectedAgent.rawValue) · \(store.hostName)")
-                } footer: {
-                    Text(policy == .readOnly ? "只读取文件，不修改项目或执行需要写入的操作。" : policy == .workspace ? "允许项目内读写，需要额外权限的操作会请求审批。" : "允许访问项目外文件并执行命令，无需逐项审批。")
-                }
-                .disabled(submitting || pendingSessionID.map { !store.canConfigureUnsentSession($0) } == true)
-
-                Section("首条消息") {
                     ZStack(alignment: .topLeading) {
                         TextEditor(text: $text)
-                            .frame(height: 140)
+                            .frame(minHeight: 120)
                             .focused($messageFocused)
                             .accessibilityLabel("首条消息")
                             .accessibilityIdentifier("new-chat-message")
                         if text.isEmpty {
                             Text("描述你想完成的任务…")
-                                .foregroundStyle(.tertiary)
+                                .foregroundStyle(ArcTheme.inkMuted)
                                 .padding(.top, 8).padding(.leading, 5)
                                 .allowsHitTesting(false).accessibilityHidden(true)
                         }
@@ -84,7 +57,7 @@ struct NewConversationSheet: View {
                                         VStack(spacing: 4) {
                                             Image(uiImage: image).resizable().scaledToFill()
                                                 .frame(width: 80, height: 80).clipped()
-                                                .clipShape(RoundedRectangle(cornerRadius: 8))
+                                                .clipShape(RoundedRectangle(cornerRadius: ArcTheme.Radius.sm, style: .continuous))
                                             Button("移除", role: .destructive) { images.remove(at: index) }
                                                 .font(.caption).accessibilityLabel("移除图片 \(index + 1)")
                                         }
@@ -122,36 +95,72 @@ struct NewConversationSheet: View {
                     }
                     if loadingImages { ProgressView("正在读取图片…") }
                 }
+                .listRowBackground(ArcTheme.surface)
                 .disabled(submitting)
+
                 Section {
-                    if let error { Text(error).foregroundStyle(.red).accessibilityIdentifier("new-chat-error") }
-                    if !store.canSend { Text("当前设备权限不能创建对话。").foregroundStyle(.secondary) }
-                    if store.usesRemoteChat && project?.agent != .codex {
-                        Text("远程图文对话目前支持 Codex，请选择 Codex 项目。").foregroundStyle(.secondary)
+                    if projects.isEmpty {
+                        Text("请先添加或导入一个项目。").foregroundStyle(ArcTheme.inkMuted)
+                    } else {
+                        Picker("项目", selection: $projectID) {
+                            ForEach(projects) { Text($0.name).tag($0.id) }
+                        }
+                        .accessibilityIdentifier("current-project-picker")
+                        if let project {
+                            Text(project.path).font(.footnote.monospaced()).foregroundStyle(ArcTheme.inkMuted)
+                                .lineLimit(1).truncationMode(.middle)
+                        }
                     }
-                } footer: { Text("支持文字或图片单独发送，最多 4 张图片，每张原图不超过 10 MB。") }
+                    Picker("模型", selection: $selectedModel) {
+                        Text("跟随 Mac 设置").tag("")
+                        ForEach(models, id: \.id) { Text($0.name).tag($0.id) }
+                    }
+                    .accessibilityIdentifier("new-chat-model")
+                    Picker("权限", selection: $policy) {
+                        ForEach(SessionExecutionPolicy.allCases) { Text($0.rawValue).tag($0) }
+                    }
+                    .accessibilityIdentifier("new-chat-permission")
+                    if loadingModels { ProgressView("正在读取模型…").font(.caption) }
+                    if let modelHint { Text(modelHint).font(.caption).foregroundStyle(ArcTheme.inkMuted) }
+                } header: {
+                    Text("设置")
+                }
+                .listRowBackground(ArcTheme.surface)
+                .disabled(submitting || pendingSessionID.map { !store.canConfigureUnsentSession($0) } == true)
+
+                if error != nil || !store.canSend || (store.usesRemoteChat && project?.agent != .codex) {
+                    Section {
+                        if let error { Text(error).foregroundStyle(ArcTheme.danger).accessibilityIdentifier("new-chat-error") }
+                        if !store.canSend { Text("当前手机权限不能新建对话。").foregroundStyle(ArcTheme.warning) }
+                        if store.usesRemoteChat && project?.agent != .codex {
+                            Text("远程图文对话目前支持 Codex，请选择 Codex 项目。").foregroundStyle(ArcTheme.inkMuted)
+                        }
+                    }
+                    .listRowBackground(ArcTheme.surface)
+                }
             }
-            .navigationTitle("开启对话")
+            .scrollContentBackground(.hidden)
+            .background(ArcTheme.bg)
+            .navigationTitle("新对话")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("取消") { dismiss() }.disabled(submitting) }
+                ToolbarItem(placement: .confirmationAction) {
+                    if submitting {
+                        ProgressView().accessibilityLabel("正在开始")
+                    } else {
+                        Button("开始", action: start)
+                            .fontWeight(.semibold)
+                            .disabled(!canStart)
+                            .accessibilityIdentifier("start-conversation")
+                    }
+                }
                 ToolbarItemGroup(placement: .keyboard) {
                     Spacer()
                     Button("完成") { messageFocused = false }
                 }
             }
-            .safeAreaInset(edge: .bottom) {
-                Button(action: start) {
-                    HStack {
-                        if submitting { ProgressView().tint(.white) }
-                        Text(submitting ? "正在开启…" : "开启对话").fontWeight(.semibold)
-                    }
-                    .frame(maxWidth: .infinity, minHeight: 48)
-                }
-                .buttonStyle(.borderedProminent).disabled(!canStart)
-                .accessibilityIdentifier("start-conversation")
-                .padding(.horizontal, 16).padding(.vertical, 10).background(.bar)
-            }
+
         }
         .presentationDetents([.large])
         .presentationDragIndicator(.visible)

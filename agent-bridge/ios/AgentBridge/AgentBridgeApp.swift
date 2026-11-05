@@ -26,34 +26,18 @@ struct RootView: View {
     @AppStorage("appearance") private var appearance = "自动"
 
     var body: some View {
-        NavigationStack(path: $path) {
-            Group {
-                if store.paired {
+        Group {
+            if store.paired {
+                // One stack: Workspace is home; approvals and settings are pushed
+                // from its top-right buttons, so there is no bottom bar to manage.
+                NavigationStack(path: $path) {
                     HomeView(path: $path)
                         .id(store.selectedDeviceID)
-                } else {
-                    UnpairedView()
+                        .routeDestinations(path: $path)
                 }
-            }
-            .navigationDestination(for: Route.self) { route in
-                switch route {
-                case .approvals:
-                    ApprovalListView(path: $path)
-                case .approval(let id):
-                    ApprovalDetailView(id: id)
-                case .project(let id):
-                    ProjectDetailView(projectId: id, path: $path)
-                case .session(let projectId, let sessionId):
-                    ChatView(projectId: projectId, sessionId: sessionId, path: $path)
-                case .terminal(let sessionId):
-                    TerminalView(sessionId: sessionId)
-                case .addProject(let editing):
-                    AddProjectView(editingId: editing)
-                case .settings:
-                    SettingsView(path: $path)
-                case .devices:
-                    DeviceListView(path: $path)
-                }
+                .tint(ArcTheme.primary)
+            } else {
+                NavigationStack { UnpairedView() }
             }
         }
         .onChange(of: store.selectedDeviceID) { _, _ in path = NavigationPath() }
@@ -72,52 +56,83 @@ struct RootView: View {
     }
 }
 
+private struct RouteDestinations: ViewModifier {
+    @Binding var path: NavigationPath
+
+    func body(content: Content) -> some View {
+        content.navigationDestination(for: Route.self) { route in
+            switch route {
+            case .approvals:
+                ApprovalListView(path: $path)
+            case .approval(let id):
+                ApprovalDetailView(id: id)
+            case .project(let id):
+                ProjectDetailView(projectId: id, path: $path)
+            case .session(let projectId, let sessionId):
+                ChatView(projectId: projectId, sessionId: sessionId, path: $path)
+            case .fork(let projectId, let sourceId):
+                ChatView(projectId: projectId, sessionId: nil, path: $path, forkSourceId: sourceId)
+            case .terminal(let sessionId):
+                TerminalView(sessionId: sessionId)
+            case .addProject(let editing):
+                AddProjectView(editingId: editing)
+            case .settings:
+                SettingsView(path: $path)
+            case .devices:
+                DeviceListView(path: $path)
+            }
+        }
+    }
+}
+
+extension View {
+    func routeDestinations(path: Binding<NavigationPath>) -> some View {
+        modifier(RouteDestinations(path: path))
+    }
+}
+
 struct UnpairedView: View {
     @Environment(AppStore.self) private var store
-    /// Gates the camera behind an explicit tap, matching the prototype's
-    /// "扫码配对" button (`#v-empty .btn-large`) — scanning opens as its own
+    /// Gates the camera behind an explicit tap; scanning opens as its own
     /// full-screen step, not inline content on this page.
     @State private var isScanning = false
 
     var body: some View {
         ScrollView {
-            VStack(spacing: 20) {
-                VStack(spacing: 8) {
+            VStack(spacing: ArcTheme.Space.s6) {
+                VStack(spacing: 10) {
                     Image("ArcLinkLogo")
                         .resizable()
                         .scaledToFit()
-                        .frame(width: 72, height: 72)
-                        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                        .frame(width: 88, height: 88)
+                        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
                         .accessibilityHidden(true)
-                    Text("连接你的桌面主机")
-                        .font(.title2.bold())
-                    Text("扫描桌面端 ArcLink 显示的二维码，即可远程查看和控制 Agent。")
+                    Text("连接你的电脑")
+                        .font(.title.bold()).foregroundStyle(ArcTheme.ink)
+                        .padding(.top, ArcTheme.Space.s2)
+                    Text("在手机上查看电脑上 Claude、Codex 的进展，继续对话，随时批准它们的操作。")
                         .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(ArcTheme.inkMuted)
                         .multilineTextAlignment(.center)
+                        .frame(maxWidth: 300)
                 }
-                .padding(.top, 12)
-
-                Button {
-                    isScanning = true
-                } label: {
-                    HStack(spacing: 8) {
-                        Image(systemName: "qrcode.viewfinder")
-                        Text("扫码配对")
-                    }
-                    .font(.body.weight(.semibold))
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 14)
-                    .foregroundStyle(Color(.systemBackground))
-                    .background(Color.primary, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-                }
-                .buttonStyle(.plain)
-
+                .padding(.top, ArcTheme.Space.s8)
                 UsageStepsCard()
             }
-            .padding(16)
+            .padding(.horizontal, ArcTheme.Space.s4)
+            .padding(.bottom, ArcTheme.Space.s6)
         }
-        .navigationTitle("ArcLink")
+        .background(ArcTheme.bg)
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            Button { isScanning = true } label: {
+                Label("扫描二维码", systemImage: "qrcode.viewfinder")
+            }
+            .buttonStyle(.arc(block: true))
+            .accessibilityIdentifier("scan-pair")
+            .padding(.horizontal, ArcTheme.Space.s4).padding(.vertical, 10)
+            .background(ArcTheme.bg)
+        }
+        .toolbar(.hidden, for: .navigationBar)
         .fullScreenCover(isPresented: $isScanning) {
             QRScanScreen { code in
                 await store.pair(from: code)
@@ -126,43 +141,32 @@ struct UnpairedView: View {
     }
 }
 
-/// The empty state's "使用方式" card group, matching `doc/agent-bridge-mobile.html`'s
-/// three numbered steps (`#v-empty .card-group`).
+/// The three numbered first-run steps.
 private struct UsageStepsCard: View {
-    private let steps: [(number: String, title: String, subtitle: String, tint: Color)] = [
-        ("1", "在桌面安装 ArcLink", "支持 macOS、Windows 和 Linux", .accentColor),
-        ("2", "扫码配对", "P2P 加密连接，无需公网服务器", .purple),
-        ("3", "远程控制 Agent", "提交任务、审批操作、查看终端", .green),
+    private struct Step: Identifiable { let id: String; let title: String; let subtitle: String }
+    private let steps = [
+        Step(id: "1", title: "在电脑上安装 ArcLink", subtitle: "支持 macOS、Windows 和 Linux"),
+        Step(id: "2", title: "扫描屏幕上的二维码", subtitle: "直连与私有中继一次配好，端到端加密"),
+        Step(id: "3", title: "开始使用", subtitle: "项目与历史对话自动同步，审批随时处理"),
     ]
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Text("使用方式")
-                .font(.footnote.weight(.medium))
-                .foregroundStyle(.secondary)
-                .padding(.horizontal, 4)
-                .padding(.bottom, 6)
-            VStack(spacing: 0) {
-                ForEach(Array(steps.enumerated()), id: \.offset) { index, step in
-                    HStack(spacing: 12) {
-                        Text(step.number)
-                            .font(.subheadline.weight(.bold))
-                            .foregroundStyle(step.tint)
-                            .frame(width: 28, height: 28)
-                            .background(step.tint.opacity(0.15), in: Circle())
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(step.title).font(.body.weight(.medium))
-                            Text(step.subtitle).font(.caption).foregroundStyle(.secondary)
-                        }
-                        Spacer()
-                    }
-                    .padding(14)
-                    if index != steps.count - 1 {
-                        Divider().padding(.leading, 54)
-                    }
+        ArcListGroup(steps) { step in
+            HStack(spacing: ArcTheme.Space.s3) {
+                Text(step.id)
+                    .font(.subheadline.weight(.semibold)).foregroundStyle(ArcTheme.primary)
+                    .frame(width: ArcTheme.iconTile, height: ArcTheme.iconTile)
+                    .arcBackground(ArcTheme.primarySoft, radius: ArcTheme.Radius.md)
+                    .accessibilityHidden(true)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(step.title).font(.callout.weight(.medium)).foregroundStyle(ArcTheme.ink)
+                    Text(step.subtitle).font(.footnote).foregroundStyle(ArcTheme.inkMuted)
                 }
+                Spacer(minLength: 0)
             }
-            .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .padding(.horizontal, ArcTheme.Space.s4).padding(.vertical, ArcTheme.Space.s3)
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel("第 \(step.id) 步，\(step.title)，\(step.subtitle)")
         }
     }
 }

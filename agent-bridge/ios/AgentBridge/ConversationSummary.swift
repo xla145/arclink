@@ -49,7 +49,7 @@ struct ConversationSummaryView: View {
             }
             if summary.unknownCount > 0 {
                 Text("\(summary.unknownCount) 项结果未知")
-                    .font(.caption2).foregroundStyle(.secondary)
+                    .font(.caption).foregroundStyle(ArcTheme.inkMuted)
             }
         }
         .accessibilityElement(children: .ignore)
@@ -62,8 +62,8 @@ struct ConversationSummaryView: View {
             Image(systemName: icon).accessibilityHidden(true)
             Text("\(title) \(value)").monospacedDigit()
         }
-        .font(.caption2)
-        .foregroundStyle(failed ? ChatStyle.failure : Color.secondary)
+        .font(.caption)
+        .foregroundStyle(failed ? ArcTheme.danger : ArcTheme.inkMuted)
         .fixedSize(horizontal: false, vertical: true)
 
     }

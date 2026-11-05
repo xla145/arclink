@@ -16,13 +16,20 @@ struct SettingsView: View {
                 Button {
                     choosingDevice = true
                 } label: {
-                    HStack {
-                        Label("Mac", systemImage: "desktopcomputer")
+                    HStack(spacing: ArcTheme.Space.s3) {
+                        IconTile(symbol: "desktopcomputer", accent: true)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(store.hostName).font(.callout.weight(.medium)).foregroundStyle(ArcTheme.ink)
+                            HStack(spacing: 6) {
+                                Circle().fill(store.online ? ArcTheme.live : ArcTheme.inkFaint).frame(width: 7, height: 7)
+                                Text("\(store.connectionStateLabel) · \(store.devices.count) 台已配对")
+                            }
+                            .font(.footnote).foregroundStyle(ArcTheme.inkMuted)
+                        }
                         Spacer()
-                        Circle().fill(store.online ? Color.green : Color.secondary).frame(width: 8, height: 8)
-                        Text(store.hostName).foregroundStyle(.secondary)
-                        Image(systemName: "chevron.right").font(.caption).foregroundStyle(.tertiary)
+                        Image(systemName: "chevron.right").font(.caption.weight(.semibold)).foregroundStyle(ArcTheme.inkFaint)
                     }
+                    .contentShape(Rectangle())
                 }
                 if store.connectionState != nil {
                     LabeledContent("连接状态", value: store.connectionStateLabel)
@@ -31,6 +38,7 @@ struct SettingsView: View {
                     LabeledContent("Mac 上的 Agent", value: "\(store.macAgents.count) 个")
                 }
             }
+            .listRowBackground(ArcTheme.surface)
             Section("智能体") {
                 Picker("权限", selection: $store.permission) {
                     Text("完全访问").tag("完全访问")
@@ -38,6 +46,7 @@ struct SettingsView: View {
                     Text("仅查看").tag("仅查看")
                 }
             }
+            .listRowBackground(ArcTheme.surface)
             Section {
                 Toggle("需要批准", isOn: $store.notifyApproval)
                 Toggle("已完成", isOn: $store.notifyDone)
@@ -46,6 +55,7 @@ struct SettingsView: View {
             } header: { Text("通知") } footer: {
                 Text("通知偏好保存在本机；暂未接入系统推送。")
             }
+            .listRowBackground(ArcTheme.surface)
             Section("ArcLink") {
                 Picker("外观", selection: $appearance) {
                     ForEach(["自动", "浅色", "深色"], id: \.self) { Text($0).tag($0) }
@@ -59,15 +69,19 @@ struct SettingsView: View {
                 }
                 Button("清除会话历史", role: .destructive) { clearHistory = true }
             }
+            .listRowBackground(ArcTheme.surface)
             Section("记录") {
                 NavigationLink(value: Route.approvals) {
                     Label("审批记录", systemImage: "bell.badge")
                 }
             }
+            .listRowBackground(ArcTheme.surface)
             Section("关于") {
                 LabeledContent("版本", value: "0.1.0")
             }
+            .listRowBackground(ArcTheme.surface)
         }
+        .arcGroupedList()
         .navigationTitle("设置")
         .navigationBarTitleDisplayMode(.inline)
         .sheet(isPresented: $choosingDevice) { DevicePickerSheet() }
@@ -124,20 +138,22 @@ struct DeviceListView: View {
                             onSelection?()
                         }
                     } label: {
-                        HStack(spacing: 12) {
-                            Image(systemName: "desktopcomputer").foregroundStyle(.secondary)
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text(device.displayName).foregroundStyle(.primary)
-                                Text(store.connectionLabel(for: device.id))
-                                    .font(.caption).foregroundStyle(.secondary)
+                        HStack(spacing: ArcTheme.Space.s3) {
+                            IconTile(symbol: "desktopcomputer", accent: device.id == store.selectedDeviceID)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(device.displayName).font(.callout.weight(.medium)).foregroundStyle(ArcTheme.ink)
+                                HStack(spacing: 6) {
+                                    Circle().fill(store.isOnline(device.id) ? ArcTheme.live : ArcTheme.inkFaint).frame(width: 7, height: 7)
+                                    Text(store.connectionLabel(for: device.id))
+                                }
+                                .font(.footnote).foregroundStyle(ArcTheme.inkMuted)
                                 if let endpoint = device.endpointID {
-                                    Text(String(endpoint.prefix(10))).font(.caption2.monospaced()).foregroundStyle(.tertiary)
+                                    Text(String(endpoint.prefix(10))).font(.caption.monospaced()).foregroundStyle(ArcTheme.inkMuted)
                                 }
                             }
                             Spacer()
-                            Circle().fill(store.isOnline(device.id) ? Color.green : Color.secondary).frame(width: 7, height: 7)
                             if device.id == store.selectedDeviceID {
-                                Image(systemName: "checkmark").foregroundStyle(Color.accentColor)
+                                Image(systemName: "checkmark").font(.body.weight(.semibold)).foregroundStyle(ArcTheme.primary)
                                     .accessibilityLabel("当前设备")
                             }
                         }
@@ -149,7 +165,7 @@ struct DeviceListView: View {
                     .swipeActions {
                         Button("移除", role: .destructive) { removeID = device.id }
                     }
-                    Button("重新扫码连接 \(device.displayName)") {
+                    Button("重新扫码连接 \(device.displayName)", systemImage: "qrcode.viewfinder") {
                             repairingDeviceID = device.id
                             showQR = true
                     }
@@ -158,18 +174,21 @@ struct DeviceListView: View {
                 Text("扫码即可同时设置直连和中继，优先直连，不可用时自动使用中继。重新扫码会更新连接信息，保留项目和会话。")
                 Text("多台电脑可同时连接。点选设备切换项目和会话，其他连接会保留。")
             }
+            .listRowBackground(ArcTheme.surface)
             Section {
                 Button { repairingDeviceID = nil; showQR = true } label: {
                     Label("添加设备", systemImage: "plus")
                 }
                 .accessibilityIdentifier("add-device")
             }
+            .listRowBackground(ArcTheme.surface)
             if !store.macAgents.isEmpty {
                 Section("\(store.hostName) 上的 Agent") {
                     ForEach(store.macAgents, id: \.id) { agent in
                         LabeledContent(agent.name, value: Self.agentStatusLabel(agent.status))
                     }
                 }
+            .listRowBackground(ArcTheme.surface)
             }
             Section {
                 Button("移除当前设备", role: .destructive) { removeID = store.selectedDeviceID }
@@ -177,7 +196,9 @@ struct DeviceListView: View {
             } footer: {
                 Text("仅移除这台手机保存的设备与本机记录。Mac 上的访问授权可在桌面端撤销。")
             }
+            .listRowBackground(ArcTheme.surface)
         }
+        .arcGroupedList()
         .navigationTitle("我的设备")
         .navigationBarTitleDisplayMode(.inline)
         .task { await store.refreshMacStatus() }
@@ -215,5 +236,15 @@ struct DeviceListView: View {
         case "probe_failed": "检测失败"
         default: status
         }
+    }
+}
+
+extension View {
+    /// Native grouped list on the design system's surfaces instead of the system greys.
+    func arcGroupedList() -> some View {
+        scrollContentBackground(.hidden)
+            .background(ArcTheme.bg)
+            .environment(\.defaultMinListRowHeight, ArcTheme.tapMin)
+            .tint(ArcTheme.primary)
     }
 }

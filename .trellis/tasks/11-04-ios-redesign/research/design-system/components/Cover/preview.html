@@ -1,0 +1,43 @@
+<!-- @dsCard height=288 -->
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8">
+<style>
+  html, body { margin: 0; background: var(--bg); }
+  .cv { position: relative; width: 960px; height: 288px; overflow: hidden; background: var(--bg); }
+  .cv svg { position: absolute; inset: 0; }
+  .slab { fill: var(--primary); }
+  .teal { fill: var(--brand-teal); }
+  .soft { fill: var(--primary-soft); }
+  .arc { fill: none; stroke: var(--brand-navy); stroke-width: 24px; stroke-linecap: round; }
+  .arc.t { stroke: var(--brand-teal); }
+  .txt { position: absolute; left: 40px; bottom: 32px; max-width: 440px; }
+  .name { font: 700 96px/.95 var(--font-display); letter-spacing: -2px; color: var(--ink); margin: 0; }
+  .tag { margin: 16px 0 0; font: 400 14px/20px var(--font-sans); color: var(--ink-muted); }
+</style></head>
+<body>
+<div class="cv">
+  <svg width="960" height="288" viewBox="0 0 960 288" aria-hidden="true">
+    <!--
+      blocks: primary slab 224×288 (bleeds top+bottom) · brand-teal pill 96×48 · primary-soft tile 88×88 at radius-lg · brand-teal disc r=24
+      arrangement: one tall slab with satellites, slab and tile bleeding off the edges
+      pattern: literal motif (the icon's arcs) — the README calls the brand "取自图标的深蓝与弧光蓝"; three navy arcs cut into the slab, one teal arc crossing out of it
+      scales: stroke = space-6 (24), arc radii 72/120/168 (space-6 × 3/5/7), pill rx = radius-xl (24), tile rx = radius-lg (18)
+    -->
+    <defs><clipPath id="s"><rect x="632" y="0" width="224" height="288"/></clipPath></defs>
+    <rect class="slab" x="632" y="0" width="224" height="288"/>
+    <g clip-path="url(#s)">
+      <path class="arc" d="M672 300 A72 72 0 0 1 816 300"/>
+      <path class="arc" d="M624 300 A120 120 0 0 1 864 300"/>
+      <path class="arc" d="M576 300 A168 168 0 0 1 912 300"/>
+    </g>
+    <rect class="teal" x="512" y="40" width="96" height="48" rx="24"/>
+    <rect class="soft" x="880" y="40" width="96" height="88" rx="18"/>
+    <circle class="teal" cx="904" cy="216" r="24"/>
+    <path class="arc t" d="M520 248 C 580 268 640 220 700 160"/>
+  </svg>
+  <div class="txt">
+    <h1 class="name">ArcLink<br>iOS</h1>
+    <p class="tag">在手机上接续 Mac 上的 Agent 对话，随时处理审批。</p>
+  </div>
+</div>
+</body></html>

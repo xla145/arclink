@@ -1,22 +1,6 @@
 import AVFoundation
 import SwiftUI
 
-struct Pill: View {
-    var text: String
-    var tint: Color
-
-    var body: some View {
-        Text(text)
-            .font(.caption2.weight(.semibold))
-            .foregroundStyle(tint)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 3)
-            .background(tint.opacity(0.15), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
-    }
-}
-
-
-
 /// Full-screen scan page, presented modally (e.g. `.fullScreenCover`) so
 /// scanning reads as its own step rather than content inlined on whatever
 /// page requested it. Dismisses itself once `onCode` reports success.
@@ -65,7 +49,7 @@ struct QRScanScreen: View {
                     }
                     .foregroundStyle(.white)
                     .padding(24)
-                    .background(.black.opacity(0.8), in: RoundedRectangle(cornerRadius: 16))
+                    .background(.black.opacity(0.8), in: RoundedRectangle(cornerRadius: ArcTheme.Radius.lg, style: .continuous))
                     .padding(32)
                     .accessibilityIdentifier("pairingProgress")
                 }
@@ -187,11 +171,11 @@ private struct QRViewfinderOverlay: View {
                     .frame(width: side, height: side)
                 ZStack {
                     LinearGradient(
-                        colors: [.clear, Color.green.opacity(0.95), .clear],
+                        colors: [.clear, ArcTheme.brandTeal, .clear],
                         startPoint: .leading, endPoint: .trailing
                     )
                     .frame(height: 2.5)
-                    .shadow(color: .green.opacity(0.8), radius: 6)
+                    .shadow(color: ArcTheme.brandTeal.opacity(0.8), radius: 6)
                     .padding(.horizontal, 10)
                     .offset(y: sweepDown ? travel : -travel)
                 }
@@ -421,8 +405,11 @@ struct ToastBanner: View {
             .font(.subheadline.weight(.medium))
             .padding(.horizontal, 16)
             .padding(.vertical, 10)
-            .background(Color.primary, in: Capsule())
-            .foregroundStyle(Color(.systemBackground))
+            // Explicit token pair: a hierarchical .primary background with a
+            // .background foreground can resolve to the same color.
+            .background(ArcTheme.ink, in: Capsule())
+            .foregroundStyle(ArcTheme.bg)
+            .shadow(color: .black.opacity(0.14), radius: 10, y: 6)
             .padding(.bottom, 24)
             .accessibilityIdentifier("toast")
     }
