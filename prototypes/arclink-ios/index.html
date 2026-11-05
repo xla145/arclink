@@ -1,0 +1,991 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ArcLink iOS 交互原型</title>
+<style>
+/* Tokens: ArcLink iOS design system (tokens.json) */
+:root, [data-theme="light"] {
+  --brand-navy:#171c38; --brand-teal:#50e3d4; --brand-blue:#568bff;
+  --bg:#f5f6fa; --surface:#ffffff; --surface-sunken:#eceef5; --line:#e1e4ee;
+  --ink:#171c38; --ink-muted:#585e76; --ink-faint:#8b91a7;
+  --primary:#2f62e0; --on-primary:#ffffff; --primary-soft:#e7edfd;
+  --live:#0b7f7b; --success:#1d7f4e; --success-soft:#e4f3ea; --warning:#a8540f; --warning-soft:#fcf0e1;
+  --danger:#c2362b; --danger-soft:#fbe9e7;
+  --agent-claude:#9a3fc9; --agent-codex:#1f8a43; --agent-herdr:#0b78b0;
+  --code-bg:#141932; --code-ink:#e3e7f5; --code-muted:#8e95b3;
+  --scrim:rgba(15,19,38,.45); --shadow-float:0 6px 20px rgba(23,28,56,.12);
+  --chrome:#dfe2ea;
+}
+[data-theme="dark"] {
+  --bg:#0f1326; --surface:#181d33; --surface-sunken:#232944; --line:#2b3046;
+  --ink:#f3f5fc; --ink-muted:#a3aabd; --ink-faint:#6f7692;
+  --primary:#6b9aff; --on-primary:#0f1326; --primary-soft:#1f2a52;
+  --live:#50e3d4; --success:#5fd49a; --success-soft:#173326; --warning:#f5b76f; --warning-soft:#3a2a17;
+  --danger:#ff8a7a; --danger-soft:#3d1f1d;
+  --agent-claude:#c98af0; --agent-codex:#5fd47e; --agent-herdr:#6cd0fb;
+  --code-bg:#0a0d1c; --scrim:rgba(0,0,0,.6); --shadow-float:0 6px 20px rgba(0,0,0,.5);
+  --chrome:#05070f;
+}
+:root { --s1:4px; --s2:8px; --s3:12px; --s4:16px; --s5:20px; --s6:24px; --s8:32px;
+  --r-sm:8px; --r-md:12px; --r-lg:18px; --r-xl:24px;
+  --sans:-apple-system,"SF Pro Text","PingFang SC",system-ui,sans-serif;
+  --display:-apple-system,"SF Pro Display","PingFang SC",system-ui,sans-serif;
+  --mono:ui-monospace,"SF Mono",Menlo,monospace; }
+*,*::before,*::after { box-sizing:border-box; }
+html,body { margin:0; height:100%; }
+body { background:var(--chrome); color:var(--ink); font-family:var(--sans); -webkit-font-smoothing:antialiased; }
+button { font:inherit; color:inherit; background:none; border:0; padding:0; cursor:pointer; text-align:inherit; }
+input,textarea { font:inherit; color:inherit; }
+
+/* Page layout: guide + phone */
+.page { min-height:100%; display:flex; gap:40px; justify-content:center; align-items:flex-start; padding:32px 16px; }
+.guide { width:300px; flex:none; color:var(--ink); position:sticky; top:32px; }
+.guide h1 { font:700 22px/28px var(--display); margin:0 0 4px; }
+.guide p { margin:0 0 16px; font:400 14px/20px var(--sans); color:var(--ink-muted); }
+.guide h2 { font:600 12px/16px var(--sans); color:var(--ink-muted); margin:20px 0 8px; text-transform:none; }
+.guide .ctl { display:flex; gap:6px; flex-wrap:wrap; }
+.guide .ctl button { height:32px; padding:0 12px; border-radius:999px; background:var(--surface); border:1px solid var(--line); font:500 13px/1 var(--sans); }
+.guide .ctl button[aria-pressed="true"] { background:var(--primary); color:var(--on-primary); border-color:var(--primary); }
+.guide ol { margin:0; padding-left:18px; font:400 13px/20px var(--sans); color:var(--ink-muted); }
+.guide ol li { margin-bottom:4px; }
+.guide ol button { color:var(--primary); font-weight:500; }
+@media (max-width:760px) { .guide { display:none; } .page { padding:0; } .phone { border-radius:0; border:0; height:100vh; width:100vw; } }
+
+/* Phone */
+.phone { position:relative; width:390px; height:844px; flex:none; border-radius:48px; background:var(--bg); border:10px solid #0b0d18; overflow:hidden; display:flex; flex-direction:column; box-shadow:0 20px 60px rgba(0,0,0,.25); }
+.statusbar { height:50px; flex:none; display:flex; justify-content:space-between; align-items:flex-end; padding:0 30px 8px; font:600 15px/1 var(--sans); position:relative; z-index:5; }
+.statusbar.inv { color:#fff; }
+.island { position:absolute; top:11px; left:50%; transform:translateX(-50%); width:120px; height:34px; border-radius:20px; background:#000; z-index:6; }
+.viewport { flex:1; position:relative; overflow:hidden; }
+.screen { position:absolute; inset:0; display:flex; flex-direction:column; background:var(--bg); }
+.screen.enter { animation:push .28s cubic-bezier(.2,.8,.2,1); }
+.screen.back { animation:pop .24s cubic-bezier(.2,.8,.2,1); }
+@keyframes push { from { transform:translateX(30%); opacity:.4 } to { transform:none; opacity:1 } }
+@keyframes pop { from { transform:translateX(-12%); opacity:.6 } to { transform:none; opacity:1 } }
+@media (prefers-reduced-motion:reduce) { .screen.enter,.screen.back,.sheet,.toast { animation:none !important; } }
+.scroll { flex:1; overflow-y:auto; overflow-x:hidden; padding:0 var(--s4) var(--s6); display:flex; flex-direction:column; gap:var(--s3); scrollbar-width:none; }
+.scroll::-webkit-scrollbar { display:none; }
+.scroll > * { flex-shrink:0; }
+.home-ind { position:absolute; bottom:8px; left:50%; transform:translateX(-50%); width:134px; height:5px; border-radius:3px; background:var(--ink); opacity:.8; z-index:30; pointer-events:none; }
+
+/* Icons */
+.i { width:20px; height:20px; flex:none; stroke:currentColor; fill:none; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
+.i.sm { width:16px; height:16px; } .i.xs { width:12px; height:12px; stroke-width:2.2; } .i.lg { width:24px; height:24px; }
+.i.fill { fill:currentColor; stroke:none; }
+
+/* Nav */
+.nav { height:48px; flex:none; display:grid; grid-template-columns:96px minmax(0,1fr) 96px; align-items:center; padding:0 6px; }
+.nav .t { text-align:center; min-width:0; }
+.nav .t b { display:block; font:600 16px/20px var(--sans); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.nav .t span { display:block; font:500 12px/16px var(--sans); color:var(--ink-muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.nav .l { display:flex; justify-content:flex-start; } .nav .r { display:flex; justify-content:flex-end; }
+.ib { position:relative; width:44px; height:44px; display:inline-flex; align-items:center; justify-content:center; border-radius:999px; color:var(--ink); }
+.ib.primary { color:var(--primary); }
+.ib:active { background:var(--surface-sunken); }
+.back { display:inline-flex; align-items:center; height:44px; padding:0 4px; color:var(--primary); font:400 16px/1 var(--sans); max-width:96px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.back .i { flex:none; margin-right:-2px; }
+.textbtn { height:44px; padding:0 10px; color:var(--primary); font:400 16px/1 var(--sans); }
+.textbtn.b { font-weight:600; } .textbtn:disabled { color:var(--ink-faint); }
+.header { padding:4px var(--s4) 8px; display:flex; align-items:center; justify-content:space-between; gap:8px; }
+.large { font:700 32px/38px var(--display); letter-spacing:-.4px; margin:0; }
+.dot { width:8px; height:8px; border-radius:50%; background:var(--live); flex:none; }
+.dot.off { background:var(--ink-faint); }
+.dot.pulse { box-shadow:0 0 0 0 var(--live); animation:pulse 1.6s infinite; }
+@keyframes pulse { 0% { box-shadow:0 0 0 0 color-mix(in srgb,var(--live) 50%,transparent) } 100% { box-shadow:0 0 0 7px transparent } }
+.devpill { display:inline-flex; align-items:center; gap:8px; height:36px; padding:0 12px 0 12px; border-radius:999px; background:var(--surface); border:1px solid var(--line); font:600 14px/1 var(--sans); max-width:230px; }
+.devpill small { font:500 12px/1 var(--sans); color:var(--ink-muted); white-space:nowrap; }
+.devpill .n { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+
+/* Tabbar */
+.tabbar { flex:none; display:grid; grid-template-columns:repeat(3,1fr); padding:6px 8px 26px; background:color-mix(in srgb,var(--bg) 88%,transparent); backdrop-filter:blur(16px); border-top:1px solid var(--line); }
+.tab { display:flex; flex-direction:column; align-items:center; gap:3px; color:var(--ink-faint); font:500 11px/13px var(--sans); position:relative; padding-top:4px; }
+.tab[aria-current="page"] { color:var(--primary); }
+.tab .badge { position:absolute; top:0; left:calc(50% + 6px); }
+.badge { min-width:18px; height:18px; padding:0 5px; border-radius:999px; background:var(--warning); color:var(--surface); font:700 11px/18px var(--sans); text-align:center; }
+
+/* Buttons */
+.btn { display:inline-flex; align-items:center; justify-content:center; gap:8px; min-height:44px; padding:0 16px; border-radius:var(--r-md); font:600 16px/1 var(--sans); text-align:center; }
+.btn.primary { background:var(--primary); color:var(--on-primary); }
+.btn.secondary { background:var(--surface-sunken); color:var(--ink); }
+.btn.danger { background:var(--danger-soft); color:var(--danger); }
+.btn.ghost { color:var(--primary); padding:0 8px; font-weight:500; }
+.btn.block { width:100%; min-height:50px; }
+.btn.pill { border-radius:999px; }
+.btn.float { box-shadow:var(--shadow-float); }
+.btn:disabled { opacity:.4; cursor:default; }
+.btn:active:not(:disabled) { filter:brightness(.94); }
+.btn.sm { min-height:34px; padding:0 12px; font-size:14px; border-radius:10px; }
+
+/* Segmented */
+.seg { display:grid; grid-auto-flow:column; grid-auto-columns:1fr; gap:2px; padding:3px; border-radius:var(--r-md); background:var(--surface-sunken); }
+.seg button { display:flex; align-items:center; justify-content:center; gap:6px; height:36px; border-radius:9px; color:var(--ink-muted); font:500 15px/1 var(--sans); text-align:center; }
+.seg button[aria-pressed="true"] { background:var(--surface); color:var(--ink); font-weight:600; box-shadow:0 1px 3px rgba(0,0,0,.08); }
+.seg button.off { opacity:.55; }
+.seg.small button { height:30px; font-size:13px; }
+.c-claude { color:var(--agent-claude); } .c-codex { color:var(--agent-codex); } .c-herdr { color:var(--agent-herdr); }
+
+/* Chips */
+.chips { display:flex; gap:8px; overflow-x:auto; scrollbar-width:none; }
+.chip { flex:none; height:32px; padding:0 12px; border-radius:999px; background:var(--surface); border:1px solid var(--line); font:500 14px/1 var(--sans); color:var(--ink-muted); display:inline-flex; align-items:center; gap:6px; }
+.chip[aria-pressed="true"] { background:var(--ink); color:var(--bg); border-color:var(--ink); }
+.chip small { font:500 12px/1 var(--sans); opacity:.75; }
+
+/* Sections, groups, rows */
+.sh { display:flex; align-items:center; justify-content:space-between; margin-top:var(--s3); padding:0 4px; min-height:28px; }
+.sh h3 { margin:0; font:600 13px/18px var(--sans); color:var(--ink-muted); }
+.sh .acts { display:flex; gap:0; margin-right:-10px; color:var(--ink-muted); }
+.sh .acts .ib { width:36px; height:36px; color:var(--ink-muted); }
+.foot { font:400 13px/18px var(--sans); color:var(--ink-muted); padding:0 4px; }
+.group { background:var(--surface); border-radius:var(--r-lg); overflow:hidden; }
+.row { display:flex; align-items:center; gap:var(--s3); min-height:60px; padding:12px var(--s4); position:relative; width:100%; }
+button.row:active, .row.tap:active { background:var(--surface-sunken); }
+.row + .row::before { content:""; position:absolute; top:0; left:64px; right:0; border-top:1px solid var(--line); }
+.row.plain + .row.plain::before, .row.inset0 + .row::before { left:16px; }
+.tile { width:36px; height:36px; flex:none; display:grid; place-items:center; border-radius:var(--r-md); background:var(--surface-sunken); color:var(--ink-muted); }
+.tile.accent { background:var(--primary-soft); color:var(--primary); }
+.tile.warn { background:var(--warning-soft); color:var(--warning); }
+.tile.num { font:600 15px/1 var(--sans); }
+.main { flex:1; min-width:0; }
+.top { display:flex; align-items:baseline; gap:8px; }
+.name { flex:1; min-width:0; font:500 16px/21px var(--sans); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.time { font:500 12px/16px var(--sans); color:var(--ink-muted); flex:none; font-variant-numeric:tabular-nums; }
+.sub { margin-top:2px; font:400 13px/18px var(--sans); color:var(--ink-muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.sub.mono, .mono { font-family:var(--mono); }
+.meta { display:flex; gap:6px; margin-top:6px; flex-wrap:wrap; }
+.chev { color:var(--ink-faint); }
+.val { color:var(--ink-muted); font:400 15px/20px var(--sans); display:inline-flex; align-items:center; gap:6px; white-space:nowrap; }
+.label { flex:1; font:400 16px/21px var(--sans); }
+.row.danger .label { color:var(--danger); }
+.row.link .label { color:var(--primary); }
+
+/* Tags */
+.tag { display:inline-flex; align-items:center; gap:4px; height:22px; padding:0 8px; border-radius:var(--r-sm); font:500 12px/1 var(--sans); white-space:nowrap; }
+.tag.running { background:var(--primary-soft); color:var(--live); }
+.tag.waiting { background:var(--warning-soft); color:var(--warning); }
+.tag.done { background:var(--success-soft); color:var(--success); }
+.tag.failed, .tag.cancelled { background:var(--danger-soft); color:var(--danger); }
+.tag.neutral { background:var(--surface-sunken); color:var(--ink-muted); }
+.tag .dot { width:6px; height:6px; }
+
+/* Cards */
+.card { background:var(--surface); border-radius:var(--r-lg); padding:var(--s4); }
+.attn { display:flex; align-items:center; gap:12px; background:var(--warning-soft); border-radius:var(--r-lg); padding:14px var(--s4); width:100%; }
+.attn b { display:block; font:600 15px/20px var(--sans); color:var(--warning); }
+.attn span { display:block; font:400 13px/18px var(--sans); color:var(--ink); }
+.attn .chev { color:var(--warning); }
+.offline { display:flex; align-items:center; gap:10px; background:var(--surface-sunken); border-radius:var(--r-md); padding:10px 12px; font:500 13px/18px var(--sans); color:var(--ink-muted); }
+.offline .btn { margin-left:auto; }
+.live-card { display:flex; flex-direction:column; gap:10px; width:100%; }
+.live-line { font:400 13px/18px var(--mono); color:var(--ink-muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.hero .eyebrow { font:500 12px/16px var(--sans); color:var(--ink-muted); }
+.hero .title { font:600 17px/22px var(--sans); }
+.hero .path { font:400 13px/18px var(--mono); color:var(--ink-muted); margin-top:10px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; direction:rtl; text-align:left; }
+.resume { display:flex; align-items:center; gap:10px; margin-top:12px; padding:12px; border-radius:var(--r-md); background:var(--bg); width:100%; }
+.resume .q { flex:1; min-width:0; font:400 15px/20px var(--sans); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.resume .go { font:600 15px/1 var(--sans); color:var(--primary); display:inline-flex; align-items:center; gap:2px; }
+.search { display:flex; align-items:center; gap:8px; height:40px; padding:0 12px; border-radius:var(--r-md); background:var(--surface-sunken); color:var(--ink-muted); }
+.search input { flex:1; border:0; outline:0; background:transparent; font-size:16px; color:var(--ink); min-width:0; }
+.search input::placeholder { color:var(--ink-muted); }
+.empty { text-align:center; padding:var(--s8) var(--s4); display:flex; flex-direction:column; align-items:center; gap:8px; color:var(--ink-muted); }
+.empty b { color:var(--ink); font:600 17px/22px var(--sans); }
+.empty p { margin:0; font:400 14px/20px var(--sans); max-width:260px; }
+.fab-wrap { position:absolute; left:0; right:0; bottom:16px; display:flex; justify-content:center; pointer-events:none; z-index:4; }
+.fab-wrap .btn { pointer-events:auto; }
+
+/* Chat */
+.turn { display:flex; flex-direction:column; gap:6px; }
+.turn.me { align-items:flex-end; }
+.bubble { max-width:84%; padding:10px 14px; border-radius:var(--r-lg); border-bottom-right-radius:6px; background:var(--primary-soft); font:400 16px/23px var(--sans); white-space:pre-wrap; word-break:break-word; }
+.who { display:flex; align-items:center; gap:8px; font:500 12px/16px var(--sans); color:var(--ink-muted); }
+.avatar { width:22px; height:22px; display:grid; place-items:center; border-radius:7px; background:var(--surface-sunken); }
+.prose { font:400 16px/24px var(--sans); }
+.prose p { margin:0 0 8px; } .prose p:last-child { margin:0; }
+.prose code { font:400 13.5px/1 var(--mono); background:var(--surface-sunken); padding:2px 5px; border-radius:5px; }
+.caret { display:inline-block; width:7px; height:16px; background:var(--live); vertical-align:-2px; margin-left:2px; animation:blink 1s steps(2) infinite; border-radius:1px; }
+@keyframes blink { 50% { opacity:0 } }
+.ts { font:500 12px/16px var(--sans); color:var(--ink-muted); font-variant-numeric:tabular-nums; }
+.racts { display:flex; gap:2px; margin-left:-10px; }
+.racts .ib { width:36px; height:36px; color:var(--ink-muted); }
+.steps { border:1px solid var(--line); background:var(--surface); border-radius:var(--r-md); overflow:hidden; }
+.steps .sum { display:flex; align-items:center; gap:8px; min-height:44px; padding:0 12px; font:500 13px/18px var(--sans); color:var(--ink-muted); width:100%; }
+.steps .sum span { flex:1; }
+.step { display:flex; gap:10px; padding:9px 12px; border-top:1px solid var(--line); width:100%; align-items:flex-start; }
+.step:active { background:var(--surface-sunken); }
+.step .ic { color:var(--success); padding-top:1px; } .step.fail .ic { color:var(--danger); } .step.run .ic { color:var(--live); }
+.step .st { flex:1; min-width:0; }
+.step b { display:block; font:600 13px/18px var(--sans); }
+.step span { display:block; font:400 12.5px/18px var(--mono); color:var(--ink-muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.spin { animation:spin 1s linear infinite; } @keyframes spin { to { transform:rotate(360deg) } }
+.code { border-radius:var(--r-md); background:var(--code-bg); color:var(--code-ink); overflow:hidden; }
+.code .bar { display:flex; justify-content:space-between; align-items:center; height:32px; padding:0 12px; font:500 12px/1 var(--sans); color:var(--code-muted); border-bottom:1px solid rgba(255,255,255,.07); }
+.code .bar button { color:var(--code-muted); font:500 12px/1 var(--sans); height:32px; }
+.code pre { margin:0; padding:12px; font:400 12.5px/19px var(--mono); white-space:pre; overflow-x:auto; }
+.code .cm { color:var(--code-muted); } .code .add { color:#7ee0a5; } .code .del { color:#ff9c8f; }
+.approval { border-radius:var(--r-lg); background:var(--warning-soft); padding:var(--s4); display:flex; flex-direction:column; gap:10px; }
+.approval .h { display:flex; align-items:center; gap:8px; font:600 15px/20px var(--sans); color:var(--warning); }
+.approval .what { font:400 15px/21px var(--sans); }
+.approval .cmd { font:400 12.5px/19px var(--mono); background:var(--surface); border-radius:var(--r-sm); padding:8px 10px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; width:100%; text-align:left; }
+.approval .btns { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+.approval .btns .secondary { background:var(--surface); }
+.approval.resolved { background:var(--surface); border:1px solid var(--line); }
+.approval.resolved .h { color:var(--ink-muted); }
+.readonly { display:flex; gap:10px; align-items:flex-start; padding:12px; border-radius:var(--r-md); background:var(--surface-sunken); font:400 13px/18px var(--sans); color:var(--ink-muted); }
+.jump { position:absolute; right:16px; bottom:12px; z-index:3; width:40px; height:40px; border-radius:999px; background:var(--surface); border:1px solid var(--line); box-shadow:var(--shadow-float); display:grid; place-items:center; color:var(--ink); }
+.dock { flex:none; padding:8px 12px 28px; background:var(--bg); position:relative; }
+.banner { display:flex; align-items:center; gap:8px; padding:8px 8px 8px 12px; border-radius:var(--r-md); background:var(--danger-soft); color:var(--danger); font:500 13px/18px var(--sans); margin-bottom:8px; }
+.banner .btn { margin-left:auto; background:var(--surface); color:var(--ink); }
+.composer { display:flex; flex-direction:column; gap:4px; padding:10px 8px 6px 14px; border-radius:var(--r-xl); background:var(--surface); border:1px solid var(--line); }
+.composer textarea { border:0; outline:0; background:transparent; resize:none; font:400 16px/23px var(--sans); min-height:23px; max-height:120px; padding:2px 0; }
+.composer textarea::placeholder { color:var(--ink-muted); }
+.composer .tools { display:flex; align-items:center; gap:4px; margin-left:-8px; }
+.composer .tools .ib { width:36px; height:36px; color:var(--ink-muted); }
+.mchip { display:inline-flex; align-items:center; gap:4px; height:28px; padding:0 10px; border-radius:999px; background:var(--surface-sunken); color:var(--ink-muted); font:500 13px/1 var(--sans); }
+.send { margin-left:auto; width:36px; height:36px; border-radius:999px; display:grid; place-items:center; background:var(--primary); color:var(--on-primary); }
+.send:disabled { background:var(--surface-sunken); color:var(--ink-faint); }
+.thumbs { display:flex; gap:8px; padding-top:4px; }
+.thumb { width:56px; height:56px; border-radius:var(--r-sm); background:linear-gradient(135deg,var(--primary-soft),var(--surface-sunken)); position:relative; display:grid; place-items:center; color:var(--ink-muted); }
+.thumb .x { position:absolute; top:-6px; right:-6px; width:20px; height:20px; border-radius:999px; background:var(--ink); color:var(--bg); display:grid; place-items:center; }
+
+/* Approval detail */
+.q { font:700 22px/28px var(--display); margin:4px 0 0; }
+.lead { font:400 15px/21px var(--sans); color:var(--ink-muted); margin:0; }
+.dock2 { flex:none; display:grid; grid-template-columns:1fr 1fr; gap:8px; padding:10px 16px 30px; background:var(--bg); border-top:1px solid var(--line); }
+.decided { flex:none; padding:14px 16px 32px; text-align:center; font:500 14px/20px var(--sans); color:var(--ink-muted); border-top:1px solid var(--line); }
+
+/* Terminal */
+.term { flex:1; background:var(--code-bg); color:var(--code-ink); font:400 12.5px/19px var(--mono); padding:12px 14px; overflow-y:auto; white-space:pre-wrap; }
+.term .w { color:var(--warning); } .term .e { color:#ff9c8f; } .term .m { color:var(--code-muted); }
+
+/* Pairing & scan */
+.pairhero { display:flex; flex-direction:column; align-items:center; text-align:center; gap:10px; padding-top:28px; }
+.appicon { width:88px; height:88px; border-radius:20px; background:var(--brand-navy); display:grid; place-items:center; }
+.pairhero h2 { margin:8px 0 0; font:700 26px/32px var(--display); }
+.pairhero p { margin:0; font:400 15px/21px var(--sans); color:var(--ink-muted); max-width:290px; }
+.scan { position:absolute; inset:0; background:#0b0d18; color:#fff; display:flex; flex-direction:column; z-index:20; }
+.scan .cam { flex:1; position:relative; background:radial-gradient(ellipse at 50% 45%,#2a2f45 0%,#0b0d18 70%); }
+.scan .vf { position:absolute; left:50%; top:44%; width:250px; height:250px; transform:translate(-50%,-50%); border-radius:24px; box-shadow:0 0 0 2000px rgba(0,0,0,.45); }
+.scan .vf::before,.scan .vf::after { content:""; position:absolute; inset:-2px; border-radius:24px; border:3px solid rgba(255,255,255,.95); clip-path:polygon(0 0,22% 0,22% 3%,3% 3%,3% 22%,0 22%,0 78%,3% 78%,3% 97%,22% 97%,22% 100%,0 100%); }
+.scan .vf::after { transform:scaleX(-1); }
+.scan .line { position:absolute; left:14px; right:14px; height:2px; top:16px; background:linear-gradient(90deg,transparent,var(--brand-teal),transparent); box-shadow:0 0 10px var(--brand-teal); animation:sweep 1.8s ease-in-out infinite alternate; }
+@keyframes sweep { to { top:232px } }
+.scan .qr { position:absolute; inset:58px; display:grid; grid-template-columns:repeat(9,1fr); gap:3px; opacity:.85; }
+.scan .qr i { background:#fff; border-radius:2px; }
+.scan .qr i.o { background:transparent; }
+.scan .topbtns { position:absolute; top:58px; left:16px; right:16px; display:flex; justify-content:space-between; }
+.scan .rb { width:40px; height:40px; border-radius:999px; background:rgba(255,255,255,.18); display:grid; place-items:center; color:#fff; }
+.scan .hint { position:absolute; left:24px; right:24px; bottom:110px; text-align:center; font:500 15px/21px var(--sans); }
+.scan .hint small { display:block; font:400 13px/18px var(--sans); opacity:.7; margin-top:4px; }
+.scan .sim { position:absolute; left:24px; right:24px; bottom:40px; }
+.progress { position:absolute; left:50%; top:44%; transform:translate(-50%,-50%); width:250px; padding:22px; border-radius:18px; background:rgba(10,12,24,.86); text-align:center; display:flex; flex-direction:column; gap:12px; align-items:center; font:500 15px/21px var(--sans); }
+.ok { width:44px; height:44px; border-radius:999px; background:var(--brand-teal); color:#0b0d18; display:grid; place-items:center; }
+
+/* Sheets */
+.scrimbg { position:absolute; inset:0; background:var(--scrim); z-index:40; animation:fade .2s; }
+@keyframes fade { from { opacity:0 } }
+.sheet { position:absolute; left:0; right:0; bottom:0; z-index:41; background:var(--bg); border-radius:var(--r-xl) var(--r-xl) 0 0; max-height:92%; display:flex; flex-direction:column; animation:up .3s cubic-bezier(.2,.8,.2,1); }
+.sheet.full { top:58px; max-height:none; }
+@keyframes up { from { transform:translateY(100%) } }
+.grab { width:36px; height:5px; border-radius:3px; background:var(--ink-faint); opacity:.5; margin:8px auto 0; flex:none; }
+.sheet .nav { grid-template-columns:80px 1fr 80px; }
+.sheet .scroll { padding-bottom:16px; }
+.sheet .dockb { flex:none; padding:10px 16px 30px; border-top:1px solid var(--line); }
+.opt { display:flex; align-items:center; gap:12px; padding:12px 16px; width:100%; min-height:56px; position:relative; }
+.opt + .opt::before { content:""; position:absolute; top:0; left:16px; right:0; border-top:1px solid var(--line); }
+.opt .check { color:var(--primary); }
+.opt b { display:block; font:500 16px/21px var(--sans); }
+.opt span { display:block; font:400 13px/18px var(--sans); color:var(--ink-muted); }
+.field { background:var(--surface); border-radius:var(--r-lg); padding:12px 16px; }
+.field textarea, .field input { width:100%; border:0; outline:0; background:transparent; font:400 16px/23px var(--sans); resize:none; }
+.field textarea { min-height:110px; }
+.field input::placeholder,.field textarea::placeholder { color:var(--ink-muted); }
+.toggle { width:51px; height:31px; border-radius:999px; background:var(--surface-sunken); position:relative; flex:none; transition:background .2s; }
+.toggle::after { content:""; position:absolute; top:2px; left:2px; width:27px; height:27px; border-radius:999px; background:#fff; box-shadow:0 2px 4px rgba(0,0,0,.2); transition:transform .2s; }
+.toggle[aria-checked="true"] { background:var(--primary); }
+.toggle[aria-checked="true"]::after { transform:translateX(20px); }
+.alert { position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); width:290px; z-index:42; background:var(--surface); border-radius:16px; overflow:hidden; text-align:center; animation:fade .18s; }
+.alert .b { padding:20px 18px 16px; }
+.alert h4 { margin:0 0 6px; font:600 17px/22px var(--sans); }
+.alert p { margin:0; font:400 14px/20px var(--sans); color:var(--ink-muted); }
+.alert .acts { display:grid; grid-template-columns:1fr 1fr; border-top:1px solid var(--line); }
+.alert .acts button { height:46px; text-align:center; font:400 17px/1 var(--sans); color:var(--primary); }
+.alert .acts button + button { border-left:1px solid var(--line); }
+.alert .acts .d { color:var(--danger); font-weight:600; }
+.menu { position:absolute; top:96px; right:12px; z-index:42; width:230px; background:var(--surface); border-radius:14px; box-shadow:0 10px 40px rgba(0,0,0,.25); overflow:hidden; animation:fade .15s; }
+.menu button { display:flex; align-items:center; justify-content:space-between; width:100%; height:46px; padding:0 16px; font:400 16px/1 var(--sans); }
+.menu button + button { border-top:1px solid var(--line); }
+.menu .d { color:var(--danger); }
+.menuscrim { position:absolute; inset:0; z-index:41; }
+
+/* Toast */
+.toast { position:absolute; left:50%; bottom:100px; transform:translateX(-50%); z-index:50; display:inline-flex; align-items:center; gap:8px; padding:10px 16px; border-radius:999px; background:var(--ink); color:var(--bg); font:500 15px/20px var(--sans); box-shadow:var(--shadow-float); white-space:nowrap; animation:toast .25s; }
+@keyframes toast { from { opacity:0; transform:translate(-50%,10px) } }
+</style>
+</head>
+<body>
+<div class="page">
+  <aside class="guide">
+    <h1>ArcLink iOS 交互原型</h1>
+    <p>按业务重新设计的完整流程。所有按钮都可点击，数据为示例。</p>
+    <h2>外观</h2>
+    <div class="ctl" id="ctl-theme"></div>
+    <h2>Mac 连接</h2>
+    <div class="ctl" id="ctl-online"></div>
+    <h2>体验路线</h2>
+    <ol id="tour"></ol>
+  </aside>
+  <div class="phone" id="phone">
+    <div class="island"></div>
+    <div class="statusbar" id="statusbar"><span>9:41</span><span>5G · 100%</span></div>
+    <div class="viewport" id="vp"></div>
+    <div class="home-ind"></div>
+  </div>
+</div>
+
+<script>
+// ---------- icons ----------
+const P = {
+  chevR:'M9 6l6 6-6 6', chevD:'M6 9l6 6 6-6', chevL:'M15 6l-6 6 6 6', chevU:'M6 15l6-6 6 6',
+  bell:'M6 9a6 6 0 0 1 12 0c0 6 2 7 2 7H4s2-1 2-7M10 20a2 2 0 0 0 4 0',
+  gear:'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19 12a7 7 0 0 0-.1-1.2l2-1.6-2-3.4-2.4 1a7 7 0 0 0-2-1.2L14 3h-4l-.5 2.6a7 7 0 0 0-2 1.2l-2.4-1-2 3.4 2 1.6a7 7 0 0 0 0 2.4l-2 1.6 2 3.4 2.4-1a7 7 0 0 0 2 1.2L10 21h4l.5-2.6a7 7 0 0 0 2-1.2l2.4 1 2-3.4-2-1.6c.1-.4.1-.8.1-1.2z',
+  folder:'M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z',
+  sparkle:'M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z',
+  code:'M8 8l-4 4 4 4M16 8l4 4-4 4', grid:'M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z',
+  plus:'M12 5v14M5 12h14', up:'M12 19V5M6 11l6-6 6 6', down:'M12 5v14M6 13l6 6 6-6',
+  search:'M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14zM20 20l-4-4',
+  check:'M5 12l5 5 9-10', x:'M6 6l12 12M18 6L6 18',
+  clock:'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 7v5l3 2',
+  bubble:'M4 5h16v11H9l-5 4z', bubbles:'M3 4h12v9H7l-4 3zM9 16v1h8l4 3V9h-4',
+  copy:'M9 9h10v10H9zM5 15V5h10',
+  qr:'M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h2v2h-2zM18 18h2v2h-2zM18 14h2M14 18h2',
+  mac:'M3 5h18v11H3zM8 20h8M12 16v4', alert:'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 8v5M12 16v.5',
+  more:'M5 12h.01M12 12h.01M19 12h.01', spin:'M12 3a9 9 0 1 0 9 9',
+  photo:'M4 5h16v14H4zM4 15l5-5 4 4 3-3 4 4', stop:'M7 7h10v10H7z',
+  refresh:'M20 11a8 8 0 1 0-2.3 5.7M20 5v6h-6', terminal:'M4 6l5 5-5 5M12 18h8',
+  lock:'M6 11h12v9H6zM8 11V8a4 4 0 0 1 8 0v3', home:'M4 11l8-7 8 7v9h-5v-6H9v6H4z',
+  bolt:'M13 3L5 14h6l-1 7 8-11h-6z', trash:'M5 7h14M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3',
+  edit:'M4 20h4L19 9l-4-4L4 16zM14 6l4 4', pin:'M12 21s-7-6-7-11a7 7 0 0 1 14 0c0 5-7 11-7 11zM12 12a2 2 0 1 0 0-4 2 2 0 0 0 0 4z',
+  file:'M6 3h8l4 4v14H6zM14 3v4h4', play:'M8 5v14l11-7z', shield:'M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z',
+  list:'M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01', layers:'M12 3l9 5-9 5-9-5zM3 13l9 5 9-5',
+};
+const I = (n, c='') => `<svg class="i ${c}" viewBox="0 0 24 24" aria-hidden="true"><path d="${P[n]}"/></svg>`;
+const AG = { claude:{name:'Claude', icon:'sparkle'}, codex:{name:'Codex', icon:'code'}, herdr:{name:'Herdr', icon:'grid'} };
+const agIcon = (a, c='sm') => `<span class="c-${a}">${I(AG[a].icon, c)}</span>`;
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+// ---------- data ----------
+function seed() {
+  return {
+    paired: true, theme: 'light', online: true,
+    deviceId: 'mbp',
+    devices: [
+      { id:'mbp', name:'MacBook Pro', online:true, via:'直连', agents:['claude','codex'] },
+      { id:'studio', name:'Mac Studio', online:false, via:'中继', agents:['claude'] },
+    ],
+    agent: 'claude',
+    installed: { claude:true, codex:true, herdr:false },
+    projects: [
+      { id:'p1', agent:'claude', name:'agent-bridge', path:'~/mac-dev/agent-bridge' },
+      { id:'p2', agent:'claude', name:'ArcLink 官网', path:'~/mac-dev/agent-bridge/website' },
+      { id:'p3', agent:'claude', name:'quchi-platform-admin', path:'~/work/quchi/admin-backend' },
+      { id:'p4', agent:'codex', name:'agent-bridge', path:'~/mac-dev/agent-bridge' },
+      { id:'p5', agent:'codex', name:'TokenEconomizer', path:'~/mac-dev/TokenEconomizer' },
+    ],
+    macProjects: { claude:[
+        { path:'~/mac-dev/prototypes', name:'prototypes' },
+        { path:'~/work/quchi/admin-web', name:'admin-web' },
+      ], codex:[ { path:'~/mac-dev/agent-bridge/desktop', name:'desktop' } ] },
+    sessions: [
+      { id:'s1', project:'p1', title:'首页从后台回来不刷新', status:'waiting', source:'cli', mins:2, perm:'项目内读写', model:'Sonnet 5.5', live:'等待批准：rm -rf ios/work/rich-ui/Build' },
+      { id:'s2', project:'p1', title:'修复配对后的自动重连', status:'running', source:'cli', mins:0, perm:'项目内读写', model:'Opus 5.5', live:'$ cargo test -p agentd network::reconnect' },
+      { id:'s3', project:'p1', title:'整理发布流程文档', status:'done', source:'cli', mins:180, perm:'只读', model:'Sonnet 5.5', live:'' },
+      { id:'s4', project:'p1', title:'Tauri 托盘菜单重构', status:'done', source:'desktop', mins:1440, perm:'—', model:'—', live:'' },
+      { id:'s5', project:'p2', title:'下载页加双架构按钮', status:'waiting', source:'cli', mins:9, perm:'项目内读写', model:'Sonnet 5.5', live:'等待批准：写入 website/index.html' },
+      { id:'s6', project:'p3', title:'导出接口加分页', status:'done', source:'cli', mins:2880, perm:'项目内读写', model:'Sonnet 5.5', live:'' },
+      { id:'s7', project:'p4', title:'Codex 图片输入压缩', status:'done', source:'cli', mins:300, perm:'项目内读写', model:'gpt-5.4', live:'' },
+      { id:'s8', project:'p5', title:'统计每日 token 用量', status:'cancelled', source:'cli', mins:4320, perm:'只读', model:'gpt-5.4', live:'' },
+    ],
+    approvals: [
+      { id:'a1', session:'s1', kind:'command', title:'运行一条命令', target:'rm -rf ios/work/rich-ui/Build', why:'删除本地构建缓存目录，可重新生成。', cwd:'~/mac-dev/agent-bridge', status:'pending', mins:2 },
+      { id:'a2', session:'s5', kind:'write', title:'写入一个文件', target:'website/index.html', why:'在下载区加入 Apple 芯片与 Intel 两个按钮。', cwd:'~/mac-dev/agent-bridge', status:'pending', mins:9,
+        diff:[['m','@@ 42,6 +42,10 @@'],[' ','<section id="download">'],['-','  <a class="btn" href="/dl/latest">下载</a>'],['+','  <a class="btn" href="/dl/arm64">Apple 芯片</a>'],['+','  <a class="btn ghost" href="/dl/x64">Intel</a>'],[' ','</section>']] },
+      { id:'a3', session:'s3', kind:'command', title:'运行一条命令', target:'git log --oneline -20', why:'读取最近提交记录。', cwd:'~/mac-dev/agent-bridge', status:'approved', mins:200 },
+      { id:'a4', session:'s8', kind:'command', title:'运行一条命令', target:'curl -s https://api.example.com/usage', why:'请求外部接口获取用量。', cwd:'~/mac-dev/TokenEconomizer', status:'denied', mins:4330 },
+    ],
+    messages: {
+      s1: [
+        { r:'me', t:'首页从后台回来时不会刷新项目列表，帮我看看', at:'10:42' },
+        { r:'agent', at:'10:43', steps:[ {k:'读取文件', d:'ios/AgentBridge/HomeView.swift', s:'ok', out:'315 行 · 找到 .task(id:) 于第 45 行'}, {k:'搜索代码', d:'refreshConversationList', s:'ok', out:'AppModel.swift:1204, HomeView.swift:45, ProjectViews.swift:79'}, {k:'编辑文件', d:'HomeView.swift', s:'fail', out:'找不到要替换的内容（文件在读取后被修改）'} ],
+          text:['原因是 <code>.task(id:)</code> 只在设备或 Agent 变化时触发，从别的页面返回首页不会重新拉取。','我在 <code>onAppear</code> 里补一次刷新，缓存未过期时是空操作：'],
+          code:{ lang:'swift', body:'<span class="cm">// 返回首页时补一次刷新</span>\n.onAppear {\n  Task { await store.refreshConversationList(\n    agent: store.selectedAgent, force: false) }\n}' } },
+        { r:'approval', id:'a1' },
+      ],
+      s2: [
+        { r:'me', t:'配对成功后切到后台再回来，连接不会自动恢复。查一下 reconnect 的逻辑并修好', at:'10:30' },
+        { r:'agent', at:'10:31', steps:[ {k:'读取文件', d:'crates/agentd/src/network.rs', s:'ok', out:'812 行'}, {k:'编辑文件', d:'crates/agentd/src/network.rs', s:'ok', out:'+18 −4'}, {k:'运行命令', d:'cargo test -p agentd network::reconnect', s:'run', out:'running 6 tests…'} ],
+          text:['问题在于 ScenePhase 变为 active 时只重连了当前设备。我改为遍历所有已配对设备，并加了退避。正在跑相关测试…'], streaming:true },
+      ],
+      s3: [ { r:'me', t:'把 RELEASING.md 整理成步骤清单', at:'昨天' }, { r:'agent', at:'昨天', steps:[{k:'运行命令', d:'git log --oneline -20', s:'ok', out:'20 条提交'}], text:['已整理为 6 个步骤，签名与公证放在第 4 步。文件未修改（只读权限），内容如下可直接复制。'] } ],
+      s4: [ { r:'me', t:'托盘菜单的状态项太多了，合并一下', at:'周一' }, { r:'agent', at:'周一', text:['已将连接状态与设备数合并为一行，并把“退出”移到最后。'] } ],
+      s5: [ { r:'me', t:'下载页要区分 Apple 芯片和 Intel', at:'10:33' }, { r:'agent', at:'10:34', steps:[{k:'读取文件', d:'website/index.html', s:'ok', out:'212 行'}], text:['我会把单个下载按钮拆成两个，默认高亮 Apple 芯片。需要你批准写入。'] }, { r:'approval', id:'a2' } ],
+      s6: [ { r:'me', t:'导出接口加上分页参数', at:'11-01' }, { r:'agent', at:'11-01', text:['已在 ExportController 增加 pageNum / pageSize，默认 1 / 50，并补了单元测试。'] } ],
+      s7: [ { r:'me', t:'图片上传前压缩到 2MB 以内', at:'09:12' }, { r:'agent', at:'09:13', text:['已改为最长边 2048 的 JPEG，质量 0.85。'] } ],
+      s8: [ { r:'me', t:'统计每天的 token 用量', at:'10-31' }, { r:'agent', at:'10-31', text:['需要访问外部接口，你拒绝了该请求，对话已停止。'] }, { r:'approval', id:'a4' } ],
+    },
+    // ui
+    tab:'home', stack:[], sheet:null, menu:null, alert:null, toast:null,
+    scope:'all', projQuery:'', projSearch:false, approvalsTab:'pending', sourceFilter:'all',
+    openSteps:{}, drafts:{}, sendError:{}, newChat:null, scan:null, notify:{approval:true, done:true, failed:true, onMac:false}, retention:'7 天', perm:'完全访问',
+  };
+}
+let S = seed();
+let anim = '';
+const cur = () => S.stack.length ? S.stack[S.stack.length-1] : { name:S.paired ? S.tab : 'pair' };
+const dev = () => S.devices.find(d => d.id === S.deviceId);
+const online = () => dev() && dev().online;
+const proj = id => S.projects.find(p => p.id === id);
+const sess = id => S.sessions.find(s => s.id === id);
+const appr = id => S.approvals.find(a => a.id === id);
+const pending = () => S.approvals.filter(a => a.status === 'pending');
+const sessionsOf = pid => S.sessions.filter(s => s.project === pid).sort((a,b) => a.mins - b.mins);
+const ago = m => m <= 0 ? '刚刚' : m < 60 ? `${m} 分钟前` : m < 1440 ? `${Math.round(m/60)} 小时前` : m < 2880 ? '昨天' : `${Math.round(m/1440)} 天前`;
+const projActivity = p => Math.min(...sessionsOf(p.id).map(s => s.mins).concat([99999]));
+const STATUS = { waiting:['waiting','clock','待审批'], running:['running',null,'运行中'], done:['done','check','已完成'], cancelled:['cancelled','x','已停止'] };
+const tag = st => { const [c, ic, w] = STATUS[st]; return `<span class="tag ${c}">${ic ? I(ic,'xs') : '<span class="dot"></span>'}${w}</span>`; };
+
+// ---------- shared pieces ----------
+function navbar({ back, title, sub, right='' }) {
+  return `<div class="nav"><div class="l">${back ? `<button class="back" data-act="pop">${I('chevL')}${esc(back)}</button>` : ''}</div>
+    <div class="t"><b>${esc(title||'')}</b>${sub ? `<span>${esc(sub)}</span>` : ''}</div><div class="r">${right}</div></div>`;
+}
+function tabbar() {
+  const n = pending().length;
+  const t = (k, ic, label, badge='') => `<button class="tab" data-act="tab" data-v="${k}" ${S.tab===k?'aria-current="page"':''}>${I(ic,'lg')}${label}${badge}</button>`;
+  return `<nav class="tabbar">${t('home','layers','工作台')}${t('approvals','bell','审批', n ? `<span class="badge">${n}</span>` : '')}${t('settings','gear','设置')}</nav>`;
+}
+function devPill() {
+  const d = dev();
+  return `<button class="devpill" data-act="sheet" data-v="devices" aria-label="切换 Mac">${d.online?'<span class="dot"></span>':'<span class="dot off"></span>'}<span class="n">${esc(d.name)}</span><small>${d.online?'在线':'离线'}</small>${I('chevD','xs')}</button>`;
+}
+function offlineBar() {
+  if (online()) return '';
+  return `<div class="offline">${I('alert','sm')}<span>${esc(dev().name)} 离线，显示的是上次同步的内容</span><button class="btn secondary sm" data-act="reconnect">重连</button></div>`;
+}
+function stepsBlock(sid, i, steps, streaming) {
+  const key = sid+':'+i; const open = S.openSteps[key] ?? streaming;
+  const fails = steps.filter(s => s.s==='fail').length; const run = steps.some(s => s.s==='run');
+  const head = run ? `${I('spin','sm spin')}<span>正在执行第 ${steps.length} 步…</span>` : `${I(fails?'alert':'check','sm')}<span>执行了 ${steps.length} 个步骤${fails?` · ${fails} 个失败`:''}</span>`;
+  const rows = open ? steps.map((s,j) => `<button class="step ${s.s==='fail'?'fail':s.s==='run'?'run':''}" data-act="stepDetail" data-v="${sid}:${i}:${j}"><span class="ic">${I(s.s==='fail'?'x':s.s==='run'?'spin':'check', 'sm'+(s.s==='run'?' spin':''))}</span><span class="st"><b>${s.k}</b><span>${esc(s.d)}</span></span><span class="chev">${I('chevR','sm')}</span></button>`).join('') : '';
+  return `<div class="steps"><button class="sum" data-act="toggleSteps" data-v="${key}">${head}${I(open?'chevU':'chevD','sm')}</button>${rows}</div>`;
+}
+function approvalCard(a, inChat=true) {
+  const s = sess(a.session); const p = proj(s.project);
+  if (a.status !== 'pending') {
+    const ok = a.status === 'approved';
+    return `<div class="approval resolved"><div class="h">${I(ok?'check':'x','sm')}${ok?'你已允许':'你已拒绝'} · ${a.kind==='write'?'写入':'命令'}</div><div class="cmd mono">${a.kind==='write'?'':'$ '}${esc(a.target)}</div></div>`;
+  }
+  return `<div class="approval"><div class="h">${I('clock','sm')}等待你批准</div>
+    <div class="what">${AG[p.agent].name} 想${a.kind==='write'?'写入一个文件':'运行一条命令'}：${esc(a.why)}</div>
+    <button class="cmd mono" data-act="openApproval" data-v="${a.id}">${a.kind==='write'?'✎ ':'$ '}${esc(a.target)}</button>
+    <div class="btns"><button class="btn secondary" data-act="decide" data-v="${a.id}:deny">拒绝</button><button class="btn primary" data-act="decide" data-v="${a.id}:allow">允许</button></div></div>`;
+}
+
+// ---------- screens ----------
+const SCREENS = {};
+
+SCREENS.pair = () => `
+  <div class="scroll" style="padding-top:8px">
+    <div class="pairhero">${logo(88)}
+      <h2>连接你的 Mac</h2>
+      <p>在手机上查看 Mac 上 Claude、Codex 的进展，继续对话，随时批准它们的操作。</p></div>
+    <div class="group" style="margin-top:20px">
+      <div class="row"><div class="tile accent num">1</div><div class="main"><div class="name">在 Mac 上打开 ArcLink</div><div class="sub">菜单栏图标 › 配对新设备</div></div></div>
+      <div class="row"><div class="tile accent num">2</div><div class="main"><div class="name">扫描屏幕上的二维码</div><div class="sub">直连与私有中继一次配好</div></div></div>
+      <div class="row"><div class="tile accent num">3</div><div class="main"><div class="name">开始使用</div><div class="sub">项目与历史对话自动同步</div></div></div>
+    </div>
+  </div>
+  <div class="dock"><button class="btn primary block" data-act="scan">${I('qr')}扫描二维码</button>
+    <div style="text-align:center;margin-top:6px"><button class="btn ghost" data-act="toast" data-v="已在 Safari 打开 arclink.app/download">还没装 Mac 端？</button></div></div>`;
+
+function logo(sz) {
+  return `<div class="appicon" style="width:${sz}px;height:${sz}px;border-radius:${sz*.225}px"><svg viewBox="0 0 1024 1024" width="${sz}" height="${sz}"><defs><linearGradient id="g" x1="284" y1="320" x2="740" y2="702" gradientUnits="userSpaceOnUse"><stop stop-color="#50E3D4"/><stop offset="1" stop-color="#568BFF"/></linearGradient></defs><g transform="translate(0 9)" fill="none" stroke-linecap="round"><path d="M 284 702 L 438 354 C 468 286 556 286 586 354 L 740 702" stroke="url(#g)" stroke-width="88"/><path d="M 334 605 C 452 687 604 604 654 489" stroke="#171C38" stroke-width="150"/><path d="M 334 605 C 452 687 604 604 654 489" stroke="#568BFF" stroke-width="88"/></g></svg></div>`;
+}
+
+SCREENS.home = () => {
+  const pend = pending();
+  const active = S.sessions.filter(s => s.status === 'running' && proj(s.project));
+  const projs = S.projects.filter(p => p.agent === S.agent)
+    .filter(p => !S.projQuery || (p.name+p.path).toLowerCase().includes(S.projQuery.toLowerCase()))
+    .sort((a,b) => projActivity(a) - projActivity(b));
+  const seg = `<div class="seg" role="group" aria-label="Agent">${['claude','codex','herdr'].map(a => `<button data-act="agent" data-v="${a}" aria-pressed="${S.agent===a}" class="${S.installed[a]?'':'off'}">${agIcon(a)}${AG[a].name}</button>`).join('')}</div>`;
+  let body = '';
+  if (pend.length) body += `<button class="attn" data-act="tab" data-v="approvals"><span class="tile warn">${I('bell')}</span><span class="main"><b>${pend.length} 个操作等待你批准</b><span>${esc(proj(sess(pend[0].session).project).name)} · ${esc(pend[0].kind==='write'?'写入 '+pend[0].target:pend[0].target)}</span></span><span class="chev">${I('chevR','sm')}</span></button>`;
+  if (active.length) {
+    body += `<div class="sh"><h3>进行中</h3></div>`;
+    body += active.map(s => `<button class="card live-card" data-act="chat" data-v="${s.id}"><div style="display:flex;align-items:center;gap:8px;width:100%">${agIcon(proj(s.project).agent)}<span class="name" style="font-weight:600">${esc(s.title)}</span>${tag('running')}</div><div class="live-line">${esc(s.live)}</div><div class="sub" style="margin:0">${esc(proj(s.project).name)} · ${esc(s.model)}</div></button>`).join('');
+  }
+  body += `<div class="sh" style="margin-top:16px"><h3>项目</h3><div class="acts"><button class="ib" data-act="toggleSearch" aria-label="搜索项目">${I('search','sm')}</button><button class="ib" data-act="push" data-v="addProject" aria-label="添加项目">${I('plus','sm')}</button></div></div>`;
+  body += seg;
+  if (S.projSearch) body += `<label class="search">${I('search','sm')}<input id="pq" placeholder="搜索项目" value="${esc(S.projQuery)}" data-input="projQuery" autofocus></label>`;
+  if (!S.installed[S.agent]) {
+    body += `<div class="empty">${agIcon(S.agent,'lg')}<b>${AG[S.agent].name} 未安装</b><p>在 ${esc(dev().name)} 上安装后即可在这里使用，也可以切换到其他 Agent。</p></div>`;
+  } else if (!projs.length) {
+    body += `<div class="empty">${I('folder','lg')}<b>${S.projQuery?'没有匹配的项目':'还没有项目'}</b>${S.projQuery?'':`<p>从 Mac 上已有的记录导入，或手动添加路径。</p><button class="btn primary" data-act="push" data-v="addProject">添加项目</button>`}</div>`;
+  } else {
+    body += `<div class="group">${projs.map(p => {
+      const ss = sessionsOf(p.id); const w = ss.filter(s => s.status==='waiting').length; const r = ss.filter(s => s.status==='running').length;
+      const meta = (w?tag('waiting').replace('待审批', w+' 待审批'):'') + (r?tag('running'):'');
+      return `<button class="row" data-act="project" data-v="${p.id}"><span class="tile">${I('folder')}</span><span class="main"><span class="top"><span class="name">${esc(p.name)}</span><span class="time">${ss.length?ago(ss[0].mins):''}</span></span><span class="sub">${ss.length} 个对话 · ${esc(p.path)}</span>${meta?`<span class="meta">${meta}</span>`:''}</span><span class="chev">${I('chevR','sm')}</span></button>`;
+    }).join('')}</div>`;
+  }
+  return `<div class="header">${devPill()}<button class="ib" data-act="sheet" data-v="newChat" aria-label="新对话">${I('edit')}</button></div>
+    <div class="scroll" style="padding-bottom:84px"><h1 class="large">工作台</h1>${offlineBar()}${body}</div>
+    ${S.installed[S.agent] ? `<div class="fab-wrap" style="bottom:96px"><button class="btn primary pill float" data-act="sheet" data-v="newChat" ${online()?'':'disabled'}>${I('plus')}新对话</button></div>` : ''}
+    ${tabbar()}`;
+};
+
+SCREENS.project = ({ id }) => {
+  const p = proj(id); const all = sessionsOf(id);
+  const f = S.sourceFilter; const rows = all.filter(s => f==='all' || s.source===f);
+  const cnt = k => all.filter(s => k==='all' || s.source===k).length;
+  const chip = (k,l) => `<button class="chip" data-act="source" data-v="${k}" aria-pressed="${f===k}">${l} <small>${cnt(k)}</small></button>`;
+  return navbar({ back:'工作台', title:p.name, sub:`${AG[p.agent].name} · ${all.length} 个对话`, right:`<button class="ib" data-act="menu" data-v="project:${id}" aria-label="项目设置">${I('more')}</button>` }) +
+  `<div class="scroll" style="padding-bottom:90px">
+    <div class="card" style="display:flex;gap:12px;align-items:center;padding:12px 16px"><span class="tile accent">${I('folder')}</span><div class="main"><div class="sub mono" style="margin:0;color:var(--ink)">${esc(p.path)}</div><div class="sub" style="margin-top:2px">${esc(dev().name)} · 默认权限 项目内读写</div></div></div>
+    <div class="chips">${chip('all','全部')}${chip('cli','ArcLink')}${chip('desktop','桌面导入')}</div>
+    ${rows.length ? `<div class="group">${rows.map(s => `<button class="row" data-act="chat" data-v="${s.id}"><span class="tile">${s.source==='desktop'?I('lock','sm'):I('bubble','sm')}</span><span class="main"><span class="top"><span class="name">${esc(s.title)}</span><span class="time">${ago(s.mins)}</span></span><span class="sub">${esc(lastLine(s))}</span><span class="meta">${tag(s.status)}${s.source==='desktop'?'<span class="tag neutral">只读历史</span>':''}</span></span><span class="chev">${I('chevR','sm')}</span></button>`).join('')}</div>`
+      : `<div class="empty">${I('bubbles','lg')}<b>还没有对话</b><p>在这个项目里开一个新对话吧。</p></div>`}
+    <div class="foot" style="text-align:center">桌面端导入的历史仅供查看，可在 Mac 上继续</div>
+  </div>
+  <div class="fab-wrap"><button class="btn primary pill float" data-act="sheet" data-v="newChat:${id}" ${online()?'':'disabled'}>${I('plus')}在此项目新对话</button></div>`;
+};
+function lastLine(s) {
+  const m = S.messages[s.id] || []; const a = [...m].reverse().find(x => x.r==='agent');
+  return a ? a.text[a.text.length-1].replace(/<[^>]+>/g,'') : '';
+}
+
+SCREENS.chat = ({ id }) => {
+  const s = sess(id); const p = proj(s.project); const msgs = S.messages[id] || [];
+  const ro = s.source === 'desktop';
+  const turns = msgs.map((m, i) => {
+    if (m.r === 'me') return `<div class="turn me">${m.imgs?`<div class="thumbs">${Array.from({length:m.imgs},()=>`<span class="thumb">${I('photo')}</span>`).join('')}</div>`:''}<div class="bubble">${esc(m.t)}</div><span class="ts">${m.at}</span></div>`;
+    if (m.r === 'approval') return approvalCard(appr(m.id));
+    const streaming = m.streaming && s.status === 'running';
+    return `<div class="turn"><div class="who"><span class="avatar">${agIcon(p.agent)}</span>${AG[p.agent].name} · ${m.at}</div>
+      ${m.steps ? stepsBlock(id, i, m.steps, streaming) : ''}
+      <div class="prose">${m.text.map((t,k) => `<p>${t}${streaming && k===m.text.length-1 ? '<span class="caret"></span>':''}</p>`).join('')}</div>
+      ${m.code ? `<div class="code"><div class="bar"><span>${m.code.lang}</span><button data-act="toast" data-v="已复制代码">复制</button></div><pre>${m.code.body}</pre></div>` : ''}
+      ${streaming ? '' : `<div class="racts"><button class="ib" data-act="toast" data-v="已复制" aria-label="复制">${I('copy','sm')}</button>${ro?'':`<button class="ib" data-act="retry" data-v="${id}" aria-label="重新生成">${I('refresh','sm')}</button>`}</div>`}</div>`;
+  }).join('');
+  let dock;
+  if (ro) dock = `<div class="readonly">${I('lock','sm')}<span>这是从 Mac 桌面端导入的历史，只能查看。要继续，请在 Mac 上打开，或在本项目开一个新对话。</span></div>`;
+  else {
+    const busy = s.status === 'running'; const draft = S.drafts[id] || ''; const waiting = s.status === 'waiting';
+    dock = `${S.sendError[id] ? `<div class="banner">${I('alert','sm')}<span>发送失败：${esc(dev().name)} 已离线</span><button class="btn sm" data-act="resend" data-v="${id}">重试</button></div>` : ''}
+    <div class="composer">${S.drafts[id+':img'] ? `<div class="thumbs">${Array.from({length:S.drafts[id+':img']},(_, k)=>`<span class="thumb">${I('photo')}<button class="x" data-act="rmimg" data-v="${id}" aria-label="移除图片">${I('x','xs')}</button></span>`).join('')}</div>` : ''}
+      <textarea rows="1" placeholder="${waiting?'批准或拒绝后可继续对话…':'给 '+AG[p.agent].name+' 发消息…'}" data-input="draft" data-v="${id}">${esc(draft)}</textarea>
+      <div class="tools"><button class="ib" data-act="addimg" data-v="${id}" aria-label="添加图片">${I('photo','sm')}</button><button class="mchip" data-act="sheet" data-v="model:${id}">${esc(s.model)} ${I('chevD','xs')}</button><span class="mchip" title="权限">${I('shield','xs')}${esc(s.perm)}</span>
+      ${busy ? `<button class="send" data-act="stop" data-v="${id}" aria-label="停止">${I('stop','sm fill')}</button>` : `<button class="send" data-act="send" data-v="${id}" aria-label="发送" ${(draft.trim()||S.drafts[id+':img'])?'':'disabled'}>${I('up','sm')}</button>`}</div></div>`;
+  }
+  return navbar({ back:'返回', title:s.title, sub:`${AG[p.agent].name} · ${s.status==='running'?'运行中':s.status==='waiting'?'等待批准':s.status==='cancelled'?'已停止':'已完成'}`, right:`<button class="ib" data-act="menu" data-v="chat:${id}" aria-label="更多">${I('more')}</button>` }) +
+  `<div class="scroll" id="chatscroll" style="gap:20px;padding-top:8px">${turns}</div>
+   <div class="dock">${dock}</div>`;
+};
+
+SCREENS.approvals = () => {
+  const list = S.approvalsTab === 'pending' ? pending() : S.approvals.filter(a => a.status !== 'pending');
+  const rowsHtml = list.map(a => { const s = sess(a.session); const p = proj(s.project);
+    const st = a.status==='pending' ? tag('waiting') : a.status==='approved' ? `<span class="tag done">${I('check','xs')}已允许</span>` : `<span class="tag failed">${I('x','xs')}已拒绝</span>`;
+    return `<button class="row" data-act="openApproval" data-v="${a.id}"><span class="tile">${agIcon(p.agent,'')}</span><span class="main"><span class="top"><span class="name">${a.kind==='write'?'写入 '+esc(a.target):esc(a.target)}</span><span class="time">${ago(a.mins)}</span></span><span class="sub">${esc(p.name)} · ${esc(s.title)}</span><span class="meta">${st}</span></span><span class="chev">${I('chevR','sm')}</span></button>`; }).join('');
+  return `<div class="header" style="padding-top:8px"><h1 class="large">审批</h1></div>
+    <div class="scroll"><div class="seg"><button data-act="aTab" data-v="pending" aria-pressed="${S.approvalsTab==='pending'}">待处理 ${pending().length}</button><button data-act="aTab" data-v="history" aria-pressed="${S.approvalsTab==='history'}">历史</button></div>
+    ${list.length ? `<div class="group">${rowsHtml}</div>` : `<div class="empty">${I('check','lg')}<b>${S.approvalsTab==='pending'?'没有待处理的审批':'还没有审批记录'}</b><p>${S.approvalsTab==='pending'?'Agent 需要执行命令或写入文件时，会在这里和通知里请求你的批准。':''}</p></div>`}
+    ${S.approvalsTab==='pending'&&list.length?'<div class="foot">“项目内读写”权限下，越界的命令和写入需要你批准；“完全访问”不会请求审批。</div>':''}
+    </div>${tabbar()}`;
+};
+
+SCREENS.approval = ({ id }) => {
+  const a = appr(id); const s = sess(a.session); const p = proj(s.project);
+  const body = a.kind === 'write'
+    ? `<div class="code"><div class="bar"><span>${esc(a.target)}</span><span>+2 −1</span></div><pre>${a.diff.map(([k,l]) => `<span class="${k==='+'?'add':k==='-'?'del':k==='m'?'cm':''}">${k==='m'?'':k} ${esc(l)}</span>`).join('\n')}</pre></div>`
+    : `<div class="code"><div class="bar"><span>命令</span><button data-act="toast" data-v="已复制命令">复制</button></div><pre>$ ${esc(a.target)}</pre></div>`;
+  const foot = a.status === 'pending'
+    ? `<div class="dock2"><button class="btn secondary block" data-act="decide" data-v="${id}:deny">拒绝</button><button class="btn primary block" data-act="decide" data-v="${id}:allow">允许</button></div>`
+    : `<div class="decided">${a.status==='approved'?'你已允许这次操作':'你已拒绝这次操作'} · ${ago(a.mins)}</div>`;
+  return navbar({ back:'返回', title:'审批' }) +
+  `<div class="scroll" style="padding-top:4px">
+    <button class="row tap card" style="padding:12px 14px" data-act="chat" data-v="${s.id}"><span class="tile">${agIcon(p.agent,'')}</span><span class="main"><span class="name" style="display:block">${esc(s.title)}</span><span class="sub">${AG[p.agent].name} · ${esc(p.name)}</span></span><span class="chev">${I('chevR','sm')}</span></button>
+    ${a.status==='pending' ? `<span>${tag('waiting').replace('待审批','已等待 '+ago(a.mins).replace('前',''))}</span>` : ''}
+    <h2 class="q">${a.kind==='write'?'允许写入这个文件？':'允许执行这条命令？'}</h2>
+    <p class="lead">${esc(a.why)}</p>
+    ${body}
+    <div class="group"><div class="row plain"><span class="label">工作目录</span><span class="val mono" style="font-size:13px">${esc(a.cwd)}</span></div><div class="row plain"><span class="label">对话权限</span><span class="val">${esc(s.perm)}</span></div></div>
+  </div>${foot}`;
+};
+
+SCREENS.settings = () => {
+  const d = dev();
+  const tg = (k, label) => `<div class="row plain"><span class="label">${label}</span><button class="toggle" role="switch" aria-checked="${S.notify[k]}" data-act="notify" data-v="${k}" aria-label="${label}"></button></div>`;
+  return `<div class="header" style="padding-top:8px"><h1 class="large">设置</h1></div>
+  <div class="scroll" style="padding-bottom:24px">
+    <div class="sh"><h3>Mac</h3></div>
+    <div class="group">
+      <button class="row" data-act="push" data-v="devices"><span class="tile accent">${I('mac')}</span><span class="main"><span class="name" style="display:block">${esc(d.name)}</span><span class="sub">${d.online?'在线 · '+d.via:'离线'} · ${S.devices.length} 台已配对</span></span><span class="chev">${I('chevR','sm')}</span></button>
+      <div class="row plain"><span class="label">Mac 上的 Agent</span><span class="val">${d.agents.map(a => agIcon(a)).join('')} ${d.agents.length} 个</span></div>
+    </div>
+    <div class="sh"><h3>手机权限</h3></div>
+    <div class="group">${['完全访问','查看和审批','仅查看'].map(v => `<button class="opt" data-act="perm" data-v="${v}"><span class="main"><b>${v}</b><span>${v==='完全访问'?'可新建对话、发送消息、处理审批':v==='查看和审批'?'可查看与处理审批，不能发送消息':'只能查看进度与历史'}</span></span>${S.perm===v?`<span class="check">${I('check')}</span>`:''}</button>`).join('')}</div>
+    <div class="sh"><h3>通知</h3></div>
+    <div class="group">${tg('approval','需要我批准时')}${tg('done','对话完成时')}${tg('failed','执行失败时')}${tg('onMac','在 Mac 上完成的也通知')}</div>
+    <div class="sh"><h3>通用</h3></div>
+    <div class="group">
+      <div class="row plain"><span class="label">外观</span><div class="seg small" style="width:180px">${['自动','浅色','深色'].map(v => `<button data-act="theme" data-v="${v}" aria-pressed="${themeLabel()===v}">${v}</button>`).join('')}</div></div>
+      <button class="row plain" data-act="sheet" data-v="retention"><span class="label">本机保留会话</span><span class="val">${S.retention}${I('chevR','sm')}</span></button>
+      <button class="row plain danger" data-act="alert" data-v="clear"><span class="label">清除本机会话记录</span></button>
+    </div>
+    <div class="sh"><h3>关于</h3></div>
+    <div class="group"><div class="row plain"><span class="label">版本</span><span class="val">0.2.0 (42)</span></div><button class="row plain link" data-act="toast" data-v="已是最新版本"><span class="label">检查更新</span></button></div>
+  </div>${tabbar()}`;
+};
+const themeLabel = () => S.themeMode || '自动';
+
+SCREENS.devices = () => `${navbar({ back:'设置', title:'已配对的 Mac' })}
+  <div class="scroll">
+    <div class="group">${S.devices.map(d => `<div class="row"><span class="tile ${d.id===S.deviceId?'accent':''}">${I('mac')}</span><span class="main"><span class="name" style="display:block">${esc(d.name)}${d.id===S.deviceId?' <span class="tag neutral" style="vertical-align:2px">当前</span>':''}</span><span class="sub" style="display:flex;align-items:center;gap:6px"><span class="dot ${d.online?'':'off'}"></span>${d.online?'在线 · '+d.via:'离线 · 上次在线 2 小时前'}</span></span><button class="ib" data-act="menu" data-v="device:${d.id}" aria-label="设备操作">${I('more')}</button></div>`).join('')}</div>
+    <div class="foot">多台 Mac 可同时保持连接，切换只改变当前显示的项目。优先直连，不可用时自动走私有中继。</div>
+    <button class="btn secondary block" data-act="scan">${I('qr')}配对新的 Mac</button>
+  </div>`;
+
+SCREENS.addProject = () => {
+  const list = (S.macProjects[S.agent]||[]);
+  const sel = S.importSel || {};
+  return `${navbar({ back:'取消', title:'添加项目', right:`<button class="textbtn b" data-act="importProjects" ${Object.values(sel).some(Boolean)||S.manualPath?'':'disabled'}>添加</button>` })}
+  <div class="scroll">
+    <div class="seg">${['claude','codex'].map(a => `<button data-act="agent" data-v="${a}" aria-pressed="${S.agent===a}">${agIcon(a)}${AG[a].name}</button>`).join('')}</div>
+    <div class="sh"><h3>${esc(dev().name)} 上已有的 ${AG[S.agent].name} 项目</h3></div>
+    ${list.length ? `<div class="group">${list.map((m,k) => `<button class="opt" data-act="importSel" data-v="${k}"><span class="tile">${I('folder')}</span><span class="main"><b>${esc(m.name)}</b><span class="mono">${esc(m.path)}</span></span><span class="check" style="${sel[k]?'':'opacity:.25;color:var(--ink-faint)'}">${I('check')}</span></button>`).join('')}</div>` : `<div class="foot">没有可导入的新项目。</div>`}
+    <div class="sh"><h3>或手动输入路径</h3></div>
+    <div class="field"><input placeholder="~/path/to/project" data-input="manualPath" value="${esc(S.manualPath||'')}" class="mono"></div>
+    <div class="foot">导入只是登记路径，发送第一条消息时才会在 Mac 上创建对话。</div>
+  </div>`;
+};
+
+SCREENS.terminal = ({ id }) => {
+  const s = sess(id);
+  return `${navbar({ back:'对话', title:'终端', sub:s.status==='running'?'进程运行中 · pid 48213':'进程已结束', right:s.status==='running'?`<button class="textbtn" style="color:var(--danger)" data-act="stop" data-v="${id}">停止</button>`:'' })}
+  <div class="term"><span class="m">$ cargo test -p agentd network::reconnect</span>
+   Compiling agentd v0.2.0 (crates/agentd)
+    Finished test profile in 6.42s
+     Running unittests src/lib.rs
+
+running 6 tests
+test network::reconnect::resumes_all_devices ... ok
+test network::reconnect::backoff_caps_at_30s ... ok
+test network::reconnect::keeps_selection ... ok
+<span class="w">warning: unused variable \`attempt\`</span>
+test network::reconnect::relay_fallback ... ok
+${s.status==='running'?'<span class="caret"></span>':'test result: ok. 6 passed; 0 failed'}</div>`;
+};
+
+// ---------- sheets ----------
+const SHEETS = {};
+SHEETS.devices = () => `<div class="grab"></div>${navbar({ title:'切换 Mac', right:`<button class="textbtn b" data-act="close">完成</button>` })}
+  <div class="scroll">
+    <div class="group">${S.devices.map(d => `<button class="opt" data-act="device" data-v="${d.id}"><span class="tile ${d.id===S.deviceId?'accent':''}">${I('mac')}</span><span class="main"><b>${esc(d.name)}</b><span style="display:flex;align-items:center;gap:6px"><span class="dot ${d.online?'':'off'}"></span>${d.online?'在线 · '+d.via:'离线'}</span></span>${d.id===S.deviceId?`<span class="check">${I('check')}</span>`:''}</button>`).join('')}</div>
+    <button class="btn secondary block" data-act="scan">${I('qr')}配对新的 Mac</button>
+    <button class="btn ghost" data-act="pushFromSheet" data-v="devices">管理设备</button>
+  </div>`;
+
+SHEETS.newChat = (pid) => {
+  const n = S.newChat || (S.newChat = { project: pid || S.projects.find(p => p.agent===S.agent)?.id, perm:'项目内读写', model:'跟随 Mac 设置', text:'', imgs:0 });
+  const p = proj(n.project);
+  const ok = p && (n.text.trim() || n.imgs) && online() && S.perm === '完全访问';
+  const perms = [['只读','只读取文件，不修改项目'],['项目内读写','可修改项目，越界操作需你批准'],['完全访问','可访问项目外并执行命令，不再逐项审批']];
+  return `<div class="grab"></div>${navbar({ title:'新对话', right:'', back:'' }).replace('<div class="l"></div>', `<div class="l"><button class="textbtn" data-act="close">取消</button></div>`)}
+  <div class="scroll">
+    <div class="group">
+      <button class="row plain" data-act="sheet2" data-v="pickProject"><span class="label">项目</span><span class="val">${p?agIcon(p.agent)+esc(p.name):'选择'}${I('chevR','sm')}</span></button>
+      <button class="row plain" data-act="sheet2" data-v="pickModel"><span class="label">模型</span><span class="val">${esc(n.model)}${I('chevR','sm')}</span></button>
+    </div>
+    <div class="sh"><h3>权限</h3></div>
+    <div class="seg">${perms.map(([v]) => `<button data-act="ncPerm" data-v="${v}" aria-pressed="${n.perm===v}">${v}</button>`).join('')}</div>
+    <div class="foot">${perms.find(x => x[0]===n.perm)[1]}</div>
+    <div class="field" style="margin-top:4px"><textarea placeholder="描述你想完成的任务…" data-input="ncText">${esc(n.text)}</textarea>
+      ${n.imgs?`<div class="thumbs">${Array.from({length:n.imgs},()=>`<span class="thumb">${I('photo')}<button class="x" data-act="ncImg" data-v="-1" aria-label="移除图片">${I('x','xs')}</button></span>`).join('')}</div>`:''}
+      <div style="display:flex;gap:4px;margin:6px -8px -4px"><button class="ib" data-act="ncImg" data-v="1" aria-label="添加图片" style="color:var(--ink-muted)">${I('photo','sm')}</button><span class="foot" style="align-self:center">最多 4 张图片</span></div></div>
+    ${S.perm!=='完全访问'?`<div class="foot" style="color:var(--warning)">当前手机权限为“${S.perm}”，不能新建对话。</div>`:''}
+    ${!online()?`<div class="foot" style="color:var(--danger)">${esc(dev().name)} 离线，暂时不能开始对话。</div>`:''}
+  </div>
+  <div class="dockb"><button class="btn primary block" data-act="startChat" ${ok?'':'disabled'}>开始对话</button></div>`;
+};
+SHEETS.pickProject = () => `<div class="grab"></div>${navbar({ title:'选择项目', right:`<button class="textbtn" data-act="back2">返回</button>` })}
+  <div class="scroll"><div class="group">${S.projects.filter(p => S.installed[p.agent]).map(p => `<button class="opt" data-act="ncProject" data-v="${p.id}">${agIcon(p.agent,'')}<span class="main"><b>${esc(p.name)}</b><span class="mono">${esc(p.path)}</span></span>${S.newChat.project===p.id?`<span class="check">${I('check')}</span>`:''}</button>`).join('')}</div></div>`;
+const MODELS = { claude:['跟随 Mac 设置','Opus 5.5','Sonnet 5.5','Haiku 5.5'], codex:['跟随 Mac 设置','gpt-5.4','gpt-5.4-mini'] };
+SHEETS.pickModel = () => { const a = proj(S.newChat.project)?.agent || 'claude';
+  return `<div class="grab"></div>${navbar({ title:'选择模型', right:`<button class="textbtn" data-act="back2">返回</button>` })}
+  <div class="scroll"><div class="group">${MODELS[a].map(m => `<button class="opt" data-act="ncModel" data-v="${m}"><span class="main"><b>${m}</b>${m==='跟随 Mac 设置'?'<span>使用 Mac 上的默认模型</span>':''}</span>${S.newChat.model===m?`<span class="check">${I('check')}</span>`:''}</button>`).join('')}</div></div>`; };
+SHEETS.model = (sid) => { const s = sess(sid); const a = proj(s.project).agent;
+  return `<div class="grab"></div>${navbar({ title:'模型', right:`<button class="textbtn b" data-act="close">完成</button>` })}
+  <div class="scroll"><div class="group">${MODELS[a].slice(1).map(m => `<button class="opt" data-act="setModel" data-v="${sid}:${m}"><span class="main"><b>${m}</b></span>${s.model===m?`<span class="check">${I('check')}</span>`:''}</button>`).join('')}</div><div class="foot">从下一条消息开始生效。</div></div>`; };
+SHEETS.retention = () => `<div class="grab"></div>${navbar({ title:'本机保留会话', right:`<button class="textbtn b" data-act="close">完成</button>` })}
+  <div class="scroll"><div class="group">${['3 天','7 天','30 天','永久'].map(v => `<button class="opt" data-act="retention" data-v="${v}"><span class="main"><b>${v}</b></span>${S.retention===v?`<span class="check">${I('check')}</span>`:''}</button>`).join('')}</div><div class="foot">只影响这台手机上的缓存，Mac 上的记录不受影响。</div></div>`;
+SHEETS.stepDetail = (v) => { const [sid, i, j] = v.split(':'); const st = S.messages[sid][+i].steps[+j];
+  return `<div class="grab"></div>${navbar({ title:st.k, right:`<button class="textbtn b" data-act="close">完成</button>` })}
+  <div class="scroll">
+    <span>${st.s==='fail'?`<span class="tag failed">${I('x','xs')}失败</span>`:st.s==='run'?tag('running'):`<span class="tag done">${I('check','xs')}完成</span>`}</span>
+    <div class="sh"><h3>输入</h3></div><div class="code"><div class="bar"><span>${st.k==='运行命令'?'命令':'目标'}</span><button data-act="toast" data-v="已复制">复制</button></div><pre>${esc(st.d)}</pre></div>
+    <div class="sh"><h3>输出</h3></div><div class="code"><div class="bar"><span>${st.s==='run'?'实时输出':'结果'}</span><button data-act="toast" data-v="已复制">复制</button></div><pre>${esc(st.out)}</pre></div>
+    ${st.k==='运行命令'?`<button class="btn secondary block" data-act="terminalFromSheet" data-v="${sid}">${I('terminal')}在终端中查看</button>`:''}
+  </div>`; };
+
+// ---------- render ----------
+function render() {
+  document.documentElement.dataset.theme = S.theme;
+  const vp = document.getElementById('vp');
+  const c = cur();
+  const html = SCREENS[c.name](c);
+  let out = `<div class="screen ${anim}">${html}</div>`;
+  if (S.scan) out += scanView();
+  if (S.sheet) {
+    const [name, arg] = S.sheet.split(/:(.*)/s);
+    out += `<div class="scrimbg" data-act="close"></div><div class="sheet ${['newChat','pickProject','pickModel','stepDetail'].includes(name)?'full':''}">${SHEETS[name](arg)}</div>`;
+  }
+  if (S.menu) out += menuView();
+  if (S.alert) out += alertView();
+  if (S.toast) out += `<div class="toast" role="status">${I('check','sm')}${esc(S.toast)}</div>`;
+  const keep = document.activeElement && document.activeElement.dataset && document.activeElement.dataset.input;
+  const caret = keep ? document.activeElement.selectionStart : null;
+  vp.innerHTML = out;
+  anim = '';
+  document.getElementById('statusbar').className = 'statusbar' + (S.scan ? ' inv' : '');
+  if (keep) { const el = vp.querySelector(`[data-input="${keep}"]`); if (el) { el.focus(); try { el.setSelectionRange(caret, caret); } catch(e){} } }
+  const cs = document.getElementById('chatscroll'); if (cs && c.name === 'chat') cs.scrollTop = cs.scrollHeight;
+  renderGuide();
+}
+function scanView() {
+  const cells = '111111101100000101101110101101110101100000101111111101000000000'.padEnd(81,'01');
+  const qr = [...cells].map(b => `<i class="${b==='1'?'':'o'}"></i>`).join('');
+  return `<div class="scan"><div class="cam"><div class="vf"><div class="qr">${qr}</div>${S.scan==='scanning'?'<div class="line"></div>':''}</div>
+    <div class="topbtns"><button class="rb" data-act="closeScan" aria-label="关闭扫描">${I('x')}</button><button class="rb" data-act="toast" data-v="已打开手电筒" aria-label="手电筒">${I('bolt')}</button></div>
+    ${S.scan==='pairing'?`<div class="progress">${I('spin','lg spin')}<span>正在与 MacBook Pro 建立加密连接…</span></div>`:''}
+    ${S.scan==='done'?`<div class="progress"><span class="ok">${I('check','lg')}</span><span>已连接 MacBook Pro</span></div>`:''}
+    ${S.scan==='scanning'?`<div class="hint">将 Mac 上的二维码放入框内<small>点按画面可对焦，弱光下打开手电筒</small></div>
+    <div class="sim"><button class="btn block" style="background:rgba(255,255,255,.16);color:#fff" data-act="scanned">模拟识别成功</button></div>`:''}</div></div>`;
+}
+function menuView() {
+  const [kind, id] = S.menu.split(':');
+  let items = '';
+  if (kind === 'chat') { const s = sess(id);
+    items = `${s.source!=='desktop'?`<button data-act="openTerminal" data-v="${id}">查看终端${I('terminal','sm')}</button>`:''}<button data-act="toast" data-v="已复制对话链接">复制对话内容${I('copy','sm')}</button><button data-act="toast" data-v="已在 Mac 上打开">在 Mac 上打开${I('mac','sm')}</button>${s.status==='running'?`<button class="d" data-act="stop" data-v="${id}">停止运行${I('stop','sm')}</button>`:''}`; }
+  if (kind === 'project') items = `<button data-act="toast" data-v="已重命名">重命名${I('edit','sm')}</button><button data-act="toast" data-v="已复制路径">复制路径${I('copy','sm')}</button><button class="d" data-act="alert" data-v="delProject:${id}">移除项目${I('trash','sm')}</button>`;
+  if (kind === 'device') items = `<button data-act="device" data-v="${id}">设为当前${I('check','sm')}</button><button data-act="scan">重新扫码连接${I('qr','sm')}</button><button class="d" data-act="alert" data-v="rmDevice:${id}">移除设备${I('trash','sm')}</button>`;
+  return `<div class="menuscrim" data-act="closeMenu"></div><div class="menu">${items}</div>`;
+}
+function alertView() {
+  const [kind, id] = S.alert.split(':');
+  const A = {
+    clear:['清除本机会话记录？','只删除这台手机上的缓存，Mac 上的记录不受影响。','清除','doClear'],
+    delProject:['移除这个项目？','只从 ArcLink 中移除，不会删除 Mac 上的文件。','移除','doDelProject'],
+    rmDevice:['移除这台 Mac？','手机将不再连接它。Mac 上的授权可在桌面端撤销。','移除','doRmDevice'],
+    deny:['拒绝这次操作？','Agent 会收到拒绝并停止当前步骤。','拒绝','doDeny'],
+  }[kind];
+  return `<div class="scrimbg" style="z-index:41" data-act="closeAlert"></div><div class="alert" role="alertdialog"><div class="b"><h4>${A[0]}</h4><p>${A[1]}</p></div><div class="acts"><button data-act="closeAlert">取消</button><button class="d" data-act="${A[3]}" data-v="${id||''}">${A[2]}</button></div></div>`;
+}
+function renderGuide() {
+  document.getElementById('ctl-theme').innerHTML = ['light','dark'].map(t => `<button data-act="themeRaw" data-v="${t}" aria-pressed="${S.theme===t}">${t==='light'?'浅色':'深色'}</button>`).join('');
+  document.getElementById('ctl-online').innerHTML = `<button data-act="setOnline" data-v="1" aria-pressed="${online()}">在线</button><button data-act="setOnline" data-v="0" aria-pressed="${!online()}">离线</button>`;
+  const tour = [['首次配对','tour:pair'],['工作台：待审批与进行中','tour:home'],['在对话里批准命令','tour:chat'],['看正在运行的任务','tour:running'],['审批写入文件（diff）','tour:write'],['新建对话','tour:new'],['项目与导入的只读历史','tour:project'],['切换 Mac 与设备管理','tour:devices'],['设置','tour:settings']];
+  document.getElementById('tour').innerHTML = tour.map(([l,v]) => `<li><button data-act="${v}">${l}</button></li>`).join('');
+}
+
+// ---------- actions ----------
+let toastTimer;
+function toast(t) { S.toast = t; clearTimeout(toastTimer); toastTimer = setTimeout(() => { S.toast = null; render(); }, 2000); }
+function push(name, extra={}) { S.stack.push({ name, ...extra }); anim = 'enter'; S.sheet = null; S.menu = null; }
+function decide(id, allow) {
+  const a = appr(id); a.status = allow ? 'approved' : 'denied'; a.mins = 0;
+  const s = sess(a.session);
+  if (allow) {
+    s.status = 'running'; s.live = a.kind==='write' ? `写入 ${a.target}` : `$ ${a.target}`;
+    toast(a.kind==='write' ? '已允许写入' : '已允许，命令开始执行');
+    streamReply(s.id, a.kind==='write'
+      ? { steps:[{k:'写入文件', d:a.target, s:'ok', out:'+2 −1'}], text:'已写入。下载区现在有 Apple 芯片和 Intel 两个按钮，默认高亮 Apple 芯片。' }
+      : { steps:[{k:'运行命令', d:a.target, s:'ok', out:'已删除 ios/work/rich-ui/Build (312 MB)'}, {k:'编辑文件', d:'HomeView.swift', s:'ok', out:'+4 −0'}], text:'缓存已清理并重新读取文件，修改已生效：返回首页时会刷新项目列表。' });
+  } else {
+    s.status = 'cancelled'; s.live = ''; toast('已拒绝');
+    (S.messages[s.id] ||= []).push({ r:'agent', at:'现在', text:['好的，我不会执行这个操作。需要换个做法可以继续告诉我。'] });
+  }
+}
+const timers = {};
+function streamReply(sid, { steps, text }) {
+  const s = sess(sid); s.status = 'running';
+  const msg = { r:'agent', at:'现在', steps: steps.map(x => ({...x, s:'run'})), text:[''], streaming:true };
+  (S.messages[sid] ||= []).push(msg);
+  let k = 0, step = 0, tick = 0;
+  clearInterval(timers[sid]);
+  timers[sid] = setInterval(() => {
+    tick++;
+    if (step < msg.steps.length) { if (tick % 6) return; msg.steps[step].s = steps[step].s; step++; if (step < msg.steps.length) msg.steps[step].s = 'run'; }
+    else if (k < text.length) { k = Math.min(text.length, k + 2); msg.text[0] = esc(text.slice(0, k)); }
+    else { clearInterval(timers[sid]); msg.streaming = false; s.status = 'done'; s.live = ''; s.mins = 0; }
+    render();
+  }, 80);
+}
+function stop(sid) {
+  clearInterval(timers[sid]); const s = sess(sid); s.status = 'cancelled'; s.live = '';
+  (S.messages[sid]||[]).forEach(m => { if (m.streaming) { m.streaming = false; m.steps && m.steps.forEach(x => { if (x.s==='run') x.s = 'fail', x.out = '已停止'; }); } });
+  toast('已停止');
+}
+function send(sid) {
+  const t = (S.drafts[sid]||'').trim(); const imgs = S.drafts[sid+':img'] || 0;
+  if (!t && !imgs) return;
+  if (!online()) { S.sendError[sid] = true; return; }
+  S.sendError[sid] = false;
+  (S.messages[sid] ||= []).push({ r:'me', t, at:'现在', imgs });
+  S.drafts[sid] = ''; S.drafts[sid+':img'] = 0;
+  streamReply(sid, { steps:[{k:'读取文件', d:'ios/AgentBridge/HomeView.swift', s:'ok', out:'315 行'}], text:'收到。我看了一下，这个改动只需要调整 HomeView 的刷新时机，不影响其他页面。要我直接改吗？' });
+}
+
+const ACT = {
+  pop: () => { S.stack.pop(); anim = 'back'; },
+  tab: v => { S.tab = v; S.stack = []; S.sheet = null; anim = ''; },
+  push: v => push(v),
+  pushFromSheet: v => push(v),
+  project: v => { S.sourceFilter = 'all'; push('project', { id:v }); },
+  chat: v => push('chat', { id:v }),
+  openApproval: v => push('approval', { id:v }),
+  openTerminal: v => push('terminal', { id:v }),
+  terminalFromSheet: v => push('terminal', { id:v }),
+  sheet: v => { S.menu = null; if (v.startsWith('newChat')) { S.newChat = null; } S.sheet = v; },
+  sheet2: v => { S.sheet = v; },
+  back2: () => { S.sheet = 'newChat'; },
+  close: () => { S.sheet = null; },
+  menu: v => { S.menu = v; },
+  closeMenu: () => { S.menu = null; },
+  alert: v => { S.menu = null; S.alert = v; },
+  closeAlert: () => { S.alert = null; },
+  toast: v => { S.menu = null; toast(v); },
+  agent: v => { S.agent = v; S.importSel = {}; },
+  toggleSearch: () => { S.projSearch = !S.projSearch; if (!S.projSearch) S.projQuery = ''; },
+  source: v => { S.sourceFilter = v; },
+  toggleSteps: v => { const [sid] = v.split(':'); const cur = S.openSteps[v] ?? (sess(sid).status==='running'); S.openSteps[v] = !cur; },
+  stepDetail: v => { S.sheet = 'stepDetail:' + v; },
+  decide: v => { const [id, d] = v.split(':'); if (d === 'deny') { S.alert = 'deny:' + id; return; } decide(id, true); },
+  doDeny: v => { S.alert = null; decide(v, false); },
+  aTab: v => { S.approvalsTab = v; },
+  send: v => send(v), resend: v => send(v),
+  stop: v => { S.menu = null; stop(v); },
+  retry: v => streamReply(v, { text:'换个思路：也可以在 scenePhase 变为 active 时统一刷新，这样从后台返回也能覆盖到。' , steps:[] }),
+  addimg: v => { S.drafts[v+':img'] = Math.min(4, (S.drafts[v+':img']||0) + 1); },
+  rmimg: v => { S.drafts[v+':img'] = Math.max(0, (S.drafts[v+':img']||0) - 1); },
+  setModel: v => { const [sid, m] = v.split(/:(.*)/s); sess(sid).model = m; S.sheet = null; toast('下一条消息将使用 ' + m); },
+  ncPerm: v => { S.newChat.perm = v; },
+  ncProject: v => { S.newChat.project = v; S.newChat.model = '跟随 Mac 设置'; S.sheet = 'newChat'; },
+  ncModel: v => { S.newChat.model = v; S.sheet = 'newChat'; },
+  ncImg: v => { S.newChat.imgs = Math.max(0, Math.min(4, S.newChat.imgs + (+v))); },
+  startChat: () => {
+    const n = S.newChat; const id = 'n' + Date.now();
+    const title = n.text.trim().slice(0, 18) || '图片对话';
+    S.sessions.push({ id, project:n.project, title, status:'running', source:'cli', mins:0, perm:n.perm, model:n.model==='跟随 Mac 设置'?(proj(n.project).agent==='codex'?'gpt-5.4':'Sonnet 5.5'):n.model, live:'正在思考…' });
+    S.messages[id] = [{ r:'me', t:n.text.trim(), at:'现在', imgs:n.imgs }];
+    S.sheet = null; S.newChat = null; S.stack = [{ name:'project', id:sess(id).project }]; push('chat', { id });
+    streamReply(id, { steps:[{k:'读取目录', d:proj(sess(id).project).path, s:'ok', out:'24 个文件'}], text:'好的，我先看一下项目结构，再给你一个改动方案。' });
+  },
+  device: v => { S.deviceId = v; S.menu = null; S.sheet = null; toast('已切换到 ' + dev().name); },
+  setOnline: v => { dev().online = v === '1'; },
+  reconnect: () => { dev().online = true; toast('已重新连接'); },
+  notify: v => { S.notify[v] = !S.notify[v]; },
+  perm: v => { S.perm = v; },
+  theme: v => { S.themeMode = v; S.theme = v === '深色' ? 'dark' : v === '浅色' ? 'light' : (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'); },
+  themeRaw: v => { S.theme = v; S.themeMode = v === 'dark' ? '深色' : '浅色'; },
+  retention: v => { S.retention = v; S.sheet = null; },
+  doClear: () => { S.alert = null; toast('已清除本机会话记录'); },
+  doDelProject: v => { S.alert = null; S.projects = S.projects.filter(p => p.id !== v); S.stack.pop(); anim = 'back'; toast('已移除项目'); },
+  doRmDevice: v => { S.alert = null; S.devices = S.devices.filter(d => d.id !== v); if (!S.devices.length) { S.paired = false; S.stack = []; } else if (S.deviceId === v) S.deviceId = S.devices[0].id; toast('已移除设备'); },
+  importSel: v => { S.importSel = S.importSel || {}; S.importSel[v] = !S.importSel[v]; },
+  importProjects: () => {
+    const list = S.macProjects[S.agent] || []; const sel = S.importSel || {}; let n = 0;
+    list.forEach((m, k) => { if (sel[k]) { S.projects.push({ id:'p'+Date.now()+k, agent:S.agent, name:m.name, path:m.path }); n++; } });
+    S.macProjects[S.agent] = list.filter((_, k) => !sel[k]);
+    if (S.manualPath) { S.projects.push({ id:'pm'+Date.now(), agent:S.agent, name:S.manualPath.split('/').pop(), path:S.manualPath }); n++; S.manualPath = ''; }
+    S.importSel = {}; S.stack.pop(); anim = 'back'; toast(`已添加 ${n} 个项目`);
+  },
+  scan: () => { S.sheet = null; S.menu = null; S.scan = 'scanning'; },
+  closeScan: () => { S.scan = null; },
+  scanned: () => { S.scan = 'pairing'; setTimeout(() => { S.scan = 'done'; render(); setTimeout(() => {
+      S.scan = null; if (!S.paired) { S.paired = true; S.tab = 'home'; S.stack = []; if (!S.devices.length) S.devices = seed().devices; S.deviceId = S.devices[0].id; }
+      dev().online = true; toast('已连接 ' + dev().name); render(); }, 900); }, 1200); },
+  // tour
+  'tour:pair': () => { S = Object.assign(seed(), { theme:S.theme }); S.paired = false; },
+  'tour:home': () => { reset(); },
+  'tour:chat': () => { reset(); S.stack = [{ name:'project', id:'p1' }, { name:'chat', id:'s1' }]; },
+  'tour:running': () => { reset(); S.stack = [{ name:'chat', id:'s2' }]; },
+  'tour:write': () => { reset(); S.tab = 'approvals'; S.stack = [{ name:'approval', id:'a2' }]; },
+  'tour:new': () => { reset(); S.sheet = 'newChat'; },
+  'tour:project': () => { reset(); S.stack = [{ name:'project', id:'p1' }]; },
+  'tour:devices': () => { reset(); S.sheet = 'devices'; },
+  'tour:settings': () => { reset(); S.tab = 'settings'; },
+};
+function reset() { const t = S.theme, m = S.themeMode; Object.values(timers).forEach(clearInterval); S = seed(); S.theme = t; S.themeMode = m; }
+
+document.addEventListener('click', e => {
+  const el = e.target.closest('[data-act]'); if (!el || el.disabled) return;
+  const fn = ACT[el.dataset.act]; if (!fn) return;
+  fn(el.dataset.v); render();
+});
+document.addEventListener('input', e => {
+  const k = e.target.dataset.input; if (!k) return;
+  if (k === 'draft') { S.drafts[e.target.dataset.v] = e.target.value; const b = document.querySelector('.send[data-act="send"]'); if (b) b.disabled = !e.target.value.trim() && !S.drafts[e.target.dataset.v+':img']; return; }
+  if (k === 'ncText') { S.newChat.text = e.target.value; const b = document.querySelector('[data-act="startChat"]'); if (b) b.disabled = !(S.newChat.text.trim() || S.newChat.imgs) || !online() || S.perm !== '完全访问'; return; }
+  S[k] = e.target.value; if (k === 'projQuery' || k === 'manualPath') render();
+});
+document.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey && e.target.dataset && e.target.dataset.input === 'draft') { e.preventDefault(); send(e.target.dataset.v); render(); }
+  if (e.key === 'Escape') { S.sheet = null; S.menu = null; S.alert = null; render(); }
+});
+
+// self-test: #selftest runs every flow through the action table and reports into <title>
+function selftest() {
+  const log = []; const step = (name, fn) => { try { fn(); render(); log.push('ok ' + name); } catch (e) { log.push('FAIL ' + name + ': ' + e.message); } };
+  const click = (act, v) => { const fn = ACT[act]; if (!fn) throw new Error('no action ' + act); fn(v); };
+  const has = (sel) => { if (!document.querySelector(sel)) throw new Error('missing ' + sel); };
+  step('pair', () => { click('tour:pair'); render(); has('[data-act="scan"]'); click('scan'); render(); has('.scan'); });
+  step('home', () => { click('tour:home'); render(); has('.attn'); has('.live-card'); });
+  step('agent switch', () => { click('agent','codex'); render(); click('agent','herdr'); render(); has('.empty'); click('agent','claude'); });
+  step('search', () => { click('toggleSearch'); S.projQuery = '官网'; render(); if (document.querySelectorAll('[data-act="project"]').length !== 1) throw new Error('search filter'); click('toggleSearch'); });
+  step('project', () => { click('project','p1'); render(); click('source','desktop'); render(); if (document.querySelectorAll('[data-act="chat"]').length !== 1) throw new Error('source filter'); click('source','all'); });
+  step('project menu', () => { click('menu','project:p1'); render(); has('.menu'); click('closeMenu'); });
+  step('readonly chat', () => { click('chat','s4'); render(); has('.readonly'); click('pop'); });
+  step('chat approve', () => { click('chat','s1'); render(); click('toggleSteps','s1:1'); render(); click('stepDetail','s1:1:2'); render(); has('.sheet'); click('close'); click('decide','a1:allow'); render(); if (sess('s1').status !== 'running') throw new Error('not running'); });
+  step('chat stop', () => { click('stop','s1'); render(); if (sess('s1').status !== 'cancelled') throw new Error('not stopped'); });
+  step('chat send', () => { S.drafts.s1 = '继续'; click('send','s1'); render(); if (sess('s1').status !== 'running') throw new Error('send'); click('stop','s1'); });
+  step('offline send', () => { click('setOnline','0'); S.drafts.s1 = 'x'; click('send','s1'); render(); has('.banner'); click('reconnect'); click('resend','s1'); click('stop','s1'); });
+  step('model sheet', () => { click('sheet','model:s1'); render(); click('setModel','s1:Opus 5.5'); if (sess('s1').model !== 'Opus 5.5') throw new Error('model'); });
+  step('terminal', () => { click('menu','chat:s2'); render(); click('openTerminal','s2'); render(); has('.term'); });
+  step('approvals deny', () => { click('tab','approvals'); render(); click('openApproval','a2'); render(); has('.add'); click('decide','a2:deny'); render(); has('.alert'); click('doDeny','a2'); render(); if (appr('a2').status !== 'denied') throw new Error('deny'); has('.decided'); });
+  step('approvals history', () => { click('tab','approvals'); click('aTab','history'); render(); if (document.querySelectorAll('[data-act="openApproval"]').length < 3) throw new Error('history'); });
+  step('new chat', () => { click('tab','home'); click('sheet','newChat'); render(); click('sheet2','pickProject'); render(); click('ncProject','p4'); render(); click('sheet2','pickModel'); render(); click('ncModel','gpt-5.4'); click('ncPerm','只读'); S.newChat.text = '加一个导出按钮'; render(); has('[data-act="startChat"]:not([disabled])'); click('startChat'); render(); has('.bubble'); });
+  step('devices', () => { click('tab','home'); click('sheet','devices'); render(); click('device','studio'); render(); has('.offline'); click('device','mbp'); });
+  step('device mgmt', () => { click('tab','settings'); click('push','devices'); render(); click('menu','device:studio'); render(); click('alert','rmDevice:studio'); render(); click('doRmDevice','studio'); if (S.devices.length !== 1) throw new Error('remove'); });
+  step('add project', () => { click('tab','home'); click('push','addProject'); render(); click('importSel','0'); render(); click('importProjects'); if (!S.projects.some(p => p.name === 'prototypes')) throw new Error('import'); });
+  step('settings', () => { click('tab','settings'); render(); click('notify','done'); click('perm','仅查看'); click('theme','深色'); render(); if (document.documentElement.dataset.theme !== 'dark') throw new Error('theme'); click('sheet','retention'); render(); click('retention','30 天'); click('alert','clear'); render(); click('doClear'); });
+  step('perm blocks new chat', () => { click('tab','home'); click('sheet','newChat'); render(); S.newChat.text = 'x'; render(); has('[data-act="startChat"][disabled]'); click('close'); });
+  Object.values(timers).forEach(clearInterval);
+  const fails = log.filter(l => l.startsWith('FAIL'));
+  document.title = (fails.length ? 'SELFTEST FAIL ' : 'SELFTEST OK ') + log.length;
+  const pre = document.createElement('pre'); pre.id = 'selftest'; pre.textContent = log.join('\n'); document.body.appendChild(pre);
+}
+
+// deep link for screenshots: #tour:chat, #dark
+(function () {
+  const h = location.hash.slice(1).split(',');
+  if (h.includes('dark')) S.theme = 'dark';
+  const t = h.find(x => x.startsWith('tour:')); if (t && ACT[t]) ACT[t]();
+  if (h.includes('dark')) S.theme = 'dark';
+  render();
+  if (h.includes('selftest')) selftest();
+})();
+</script>
+</body>
+</html>
