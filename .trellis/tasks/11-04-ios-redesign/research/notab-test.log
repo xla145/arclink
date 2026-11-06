@@ -1,0 +1,1853 @@
+Command line invocation:
+    /Applications/Xcode.app/Contents/Developer/usr/bin/xcodebuild -scheme AgentBridge -destination "platform=iOS Simulator,name=iPhone 17" -derivedDataPath work/redesign test
+
+ComputePackagePrebuildTargetDependencyGraph
+
+Prepare packages
+
+CreateBuildRequest
+
+SendProjectDescription
+
+CreateBuildOperation
+
+ComputeTargetDependencyGraph
+note: Building targets in dependency order
+note: Target dependency graph (3 targets)
+    Target 'AgentBridgeTests' in project 'AgentBridge'
+        ➜ Explicit dependency on target 'AgentBridge' in project 'AgentBridge'
+    Target 'AgentBridgeUITests' in project 'AgentBridge'
+        ➜ Explicit dependency on target 'AgentBridge' in project 'AgentBridge'
+    Target 'AgentBridge' in project 'AgentBridge' (no dependencies)
+
+GatherProvisioningInputs
+
+CreateBuildDescription
+
+ClangStatCache /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang-stat-cache /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator27.2.sdk /Users/mac/mac-dev/agent-bridge/ios/work/redesign/SDKStatCaches.noindex/iphonesimulator27.2-24B8118-cc78df9d8a9de6526dea716b1c70fd8e.sdkstatcache
+    cd /Users/mac/mac-dev/agent-bridge/ios/AgentBridge.xcodeproj
+    /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang-stat-cache /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator27.2.sdk -o /Users/mac/mac-dev/agent-bridge/ios/work/redesign/SDKStatCaches.noindex/iphonesimulator27.2-24B8118-cc78df9d8a9de6526dea716b1c70fd8e.sdkstatcache
+
+ProcessInfoPlistFile /Users/mac/mac-dev/agent-bridge/ios/work/redesign/Build/Products/Debug-iphonesimulator/AgentBridge.app/Info.plist /Users/mac/mac-dev/agent-bridge/ios/work/redesign/Build/Intermediates.noindex/AgentBridge.build/Debug-iphonesimulator/AgentBridge.build/empty-AgentBridge.plist (in target 'AgentBridge' from project 'AgentBridge')
+    cd /Users/mac/mac-dev/agent-bridge/ios
+    builtin-infoPlistUtility /Users/mac/mac-dev/agent-bridge/ios/work/redesign/Build/Intermediates.noindex/AgentBridge.build/Debug-iphonesimulator/AgentBridge.build/empty-AgentBridge.plist -producttype com.apple.product-type.application -genpkginfo /Users/mac/mac-dev/agent-bridge/ios/work/redesign/Build/Products/Debug-iphonesimulator/AgentBridge.app/PkgInfo -expandbuildsettings -format binary -platform iphonesimulator -additionalcontentfile /Users/mac/mac-dev/agent-bridge/ios/work/redesign/Build/Intermediates.noindex/AgentBridge.build/Debug-iphonesimulator/AgentBridge.build/assetcatalog_generated_info.plist -o /Users/mac/mac-dev/agent-bridge/ios/work/redesign/Build/Products/Debug-iphonesimulator/AgentBridge.app/Info.plist
+
+ProcessInfoPlistFile /Users/mac/mac-dev/agent-bridge/ios/work/redesign/Build/Products/Debug-iphonesimulator/AgentBridge.app/PlugIns/AgentBridgeTests.xctest/Info.plist /Users/mac/mac-dev/agent-bridge/ios/work/redesign/Build/Intermediates.noindex/AgentBridge.build/Debug-iphonesimulator/AgentBridgeTests.build/empty-AgentBridgeTests.plist (in target 'AgentBridgeTests' from project 'AgentBridge')
+    cd /Users/mac/mac-dev/agent-bridge/ios
+    builtin-infoPlistUtility /Users/mac/mac-dev/agent-bridge/ios/work/redesign/Build/Intermediates.noindex/AgentBridge.build/Debug-iphonesimulator/AgentBridgeTests.build/empty-AgentBridgeTests.plist -producttype com.apple.product-type.bundle.unit-test -expandbuildsettings -format binary -platform iphonesimulator -o /Users/mac/mac-dev/agent-bridge/ios/work/redesign/Build/Products/Debug-iphonesimulator/AgentBridge.app/PlugIns/AgentBridgeTests.xctest/Info.plist
+
+CopySwiftLibs /Users/mac/mac-dev/agent-bridge/ios/work/redesign/Build/Products/Debug-iphonesimulator/AgentBridge.app/PlugIns/AgentBridgeTests.xctest (in target 'AgentBridgeTests' from project 'AgentBridge')
+    cd /Users/mac/mac-dev/agent-bridge/ios
+    builtin-swiftStdLibTool --copy --verbose --scan-executable /Users/mac/mac-dev/agent-bridge/ios/work/redesign/Build/Products/Debug-iphonesimulator/AgentBridge.app/PlugIns/AgentBridgeTests.xctest/AgentBridgeTests --scan-folder /Users/mac/mac-dev/agent-bridge/ios/work/redesign/Build/Products/Debug-iphonesimulator/AgentBridge.app/PlugIns/AgentBridgeTests.xctest/Frameworks --scan-folder /Users/mac/mac-dev/agent-bridge/ios/work/redesign/Build/Products/Debug-iphonesimulator/AgentBridge.app/PlugIns/AgentBridgeTests.xctest/PlugIns --scan-folder /Users/mac/mac-dev/agent-bridge/ios/work/redesign/Build/Products/Debug-iphonesimulator/AgentBridge.app/PlugIns/AgentBridgeTests.xctest/SystemExtensions --scan-folder /Users/mac/mac-dev/agent-bridge/ios/work/redesign/Build/Products/Debug-iphonesimulator/AgentBridge.app/PlugIns/AgentBridgeTests.xctest/Extensions --platform iphonesimulator --toolchain /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain --destination /Users/mac/mac-dev/agent-bridge/ios/work/redesign/Build/Products/Debug-iphonesimulator/AgentBridge.app/PlugIns/AgentBridgeTests.xctest/Frameworks --strip-bitcode --scan-executable /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/usr/lib/libXCTestSwiftSupport.dylib --strip-bitcode-tool /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/bitcode_strip --emit-dependency-info /Users/mac/mac-dev/agent-bridge/ios/work/redesign/Build/Intermediates.noindex/AgentBridge.build/Debug-iphonesimulator/AgentBridgeTests.build/SwiftStdLibToolInputDependencies.dep --filter-for-swift-os
+Ignoring --strip-bitcode because --sign was not passed
+
+CodeSign /Users/mac/mac-dev/agent-bridge/ios/work/redesign/Build/Products/Debug-iphonesimulator/AgentBridge.app/AgentBridge.debug.dylib (in target 'AgentBridge' from project 'AgentBridge')
+    cd /Users/mac/mac-dev/agent-bridge/ios
+    
+    Signing Identity:     "Sign to Run Locally"
+    
+    /usr/bin/codesign --force --sign - --timestamp\=none --generate-entitlement-der --strip-disallowed-xattrs /Users/mac/mac-dev/agent-bridge/ios/work/redesign/Build/Products/Debug-iphonesimulator/AgentBridge.app/AgentBridge.debug.dylib
+/Users/mac/mac-dev/agent-bridge/ios/work/redesign/Build/Products/Debug-iphonesimulator/AgentBridge.app/AgentBridge.debug.dylib: replacing existing signature
+
+CodeSign /Users/mac/mac-dev/agent-bridge/ios/work/redesign/Build/Products/Debug-iphonesimulator/AgentBridge.app/__preview.dylib (in target 'AgentBridge' from project 'AgentBridge')
+    cd /Users/mac/mac-dev/agent-bridge/ios
+    
+    Signing Identity:     "Sign to Run Locally"
+    
+    /usr/bin/codesign --force --sign - --timestamp\=none --generate-entitlement-der --strip-disallowed-xattrs /Users/mac/mac-dev/agent-bridge/ios/work/redesign/Build/Products/Debug-iphonesimulator/AgentBridge.app/__preview.dylib
+/Users/mac/mac-dev/agent-bridge/ios/work/redesign/Build/Products/Debug-iphonesimulator/AgentBridge.app/__preview.dylib: replacing existing signature
+
+CodeSign /Users/mac/mac-dev/agent-bridge/ios/work/redesign/Build/Products/Debug-iphonesimulator/AgentBridge.app (in target 'AgentBridge' from project 'AgentBridge')
+    cd /Users/mac/mac-dev/agent-bridge/ios
+    
+    Signing Identity:     "Sign to Run Locally"
+    
+    /usr/bin/codesign --force --sign - --timestamp\=none --generate-entitlement-der --strip-disallowed-xattrs /Users/mac/mac-dev/agent-bridge/ios/work/redesign/Build/Products/Debug-iphonesimulator/AgentBridge.app
+/Users/mac/mac-dev/agent-bridge/ios/work/redesign/Build/Products/Debug-iphonesimulator/AgentBridge.app: replacing existing signature
+
+Validate /Users/mac/mac-dev/agent-bridge/ios/work/redesign/Build/Products/Debug-iphonesimulator/AgentBridge.app (in target 'AgentBridge' from project 'AgentBridge')
+    cd /Users/mac/mac-dev/agent-bridge/ios
+    builtin-validationUtility /Users/mac/mac-dev/agent-bridge/ios/work/redesign/Build/Products/Debug-iphonesimulator/AgentBridge.app -shallow-bundle -infoplist-subpath Info.plist
+
+ProcessInfoPlistFile /Users/mac/mac-dev/agent-bridge/ios/work/redesign/Build/Products/Debug-iphonesimulator/AgentBridgeUITests-Runner.app/PlugIns/AgentBridgeUITests.xctest/Info.plist /Users/mac/mac-dev/agent-bridge/ios/work/redesign/Build/Intermediates.noindex/AgentBridge.build/Debug-iphonesimulator/AgentBridgeUITests.build/empty-AgentBridgeUITests.plist (in target 'AgentBridgeUITests' from project 'AgentBridge')
+    cd /Users/mac/mac-dev/agent-bridge/ios
+    builtin-infoPlistUtility /Users/mac/mac-dev/agent-bridge/ios/work/redesign/Build/Intermediates.noindex/AgentBridge.build/Debug-iphonesimulator/AgentBridgeUITests.build/empty-AgentBridgeUITests.plist -producttype com.apple.product-type.bundle.ui-testing -expandbuildsettings -format binary -platform iphonesimulator -additionalcontentfile /Users/mac/mac-dev/agent-bridge/ios/work/redesign/Build/Intermediates.noindex/AgentBridge.build/Debug-iphonesimulator/AgentBridgeUITests.build/ProductTypeInfoPlistAdditions.plist -o /Users/mac/mac-dev/agent-bridge/ios/work/redesign/Build/Products/Debug-iphonesimulator/AgentBridgeUITests-Runner.app/PlugIns/AgentBridgeUITests.xctest/Info.plist
+
+CopySwiftLibs /Users/mac/mac-dev/agent-bridge/ios/work/redesign/Build/Products/Debug-iphonesimulator/AgentBridgeUITests-Runner.app/PlugIns/AgentBridgeUITests.xctest (in target 'AgentBridgeUITests' from project 'AgentBridge')
+    cd /Users/mac/mac-dev/agent-bridge/ios
+    builtin-swiftStdLibTool --copy --verbose --scan-executable /Users/mac/mac-dev/agent-bridge/ios/work/redesign/Build/Products/Debug-iphonesimulator/AgentBridgeUITests-Runner.app/PlugIns/AgentBridgeUITests.xctest/AgentBridgeUITests --scan-folder /Users/mac/mac-dev/agent-bridge/ios/work/redesign/Build/Products/Debug-iphonesimulator/AgentBridgeUITests-Runner.app/PlugIns/AgentBridgeUITests.xctest/Frameworks --scan-folder /Users/mac/mac-dev/agent-bridge/ios/work/redesign/Build/Products/Debug-iphonesimulator/AgentBridgeUITests-Runner.app/PlugIns/AgentBridgeUITests.xctest/PlugIns --scan-folder /Users/mac/mac-dev/agent-bridge/ios/work/redesign/Build/Products/Debug-iphonesimulator/AgentBridgeUITests-Runner.app/PlugIns/AgentBridgeUITests.xctest/SystemExtensions --scan-folder /Users/mac/mac-dev/agent-bridge/ios/work/redesign/Build/Products/Debug-iphonesimulator/AgentBridgeUITests-Runner.app/PlugIns/AgentBridgeUITests.xctest/Extensions --platform iphonesimulator --toolchain /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain --destination /Users/mac/mac-dev/agent-bridge/ios/work/redesign/Build/Products/Debug-iphonesimulator/AgentBridgeUITests-Runner.app/PlugIns/AgentBridgeUITests.xctest/Frameworks --strip-bitcode --scan-executable /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/usr/lib/libXCTestSwiftSupport.dylib --strip-bitcode-tool /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/bitcode_strip --emit-dependency-info /Users/mac/mac-dev/agent-bridge/ios/work/redesign/Build/Intermediates.noindex/AgentBridge.build/Debug-iphonesimulator/AgentBridgeUITests.build/SwiftStdLibToolInputDependencies.dep --filter-for-swift-os
+Ignoring --strip-bitcode because --sign was not passed
+
+PruneExplicitPrecompiledModules /Users/mac/mac-dev/agent-bridge/ios/work/redesign/SDKExplicitPrecompiledModules
+
+PruneExplicitPrecompiledModules /Users/mac/mac-dev/agent-bridge/ios/work/redesign/Build/Intermediates.noindex/ExplicitPrecompiledModules
+
+PruneExplicitPrecompiledModules /Users/mac/mac-dev/agent-bridge/ios/work/redesign/Build/Intermediates.noindex/SwiftExplicitPrecompiledModules
+
+2026-11-04 16:38:43.893082+0800 AgentBridgeUITests-Runner[41657:1533734] [Default] Running tests...
+    t =      nans Interface orientation changed to Portrait
+Test Suite 'All tests' started at 2026-11-04 16:38:49.374.
+Test Suite 'AgentBridgeUITests.xctest' started at 2026-11-04 16:38:49.378.
+Test Suite 'MockPathTests' started at 2026-11-04 16:38:49.379.
+Test Case '-[AgentBridgeUITests.MockPathTests testDarkImportedStepDetails]' started.
+    t =     0.00s Start Test at 2026-11-04 16:38:49.383
+    t =     0.03s Set Up
+    t =     0.04s Open dev.agentbridge.ios
+    t =     0.04s     Launch dev.agentbridge.ios
+    t =     0.04s         Terminate dev.agentbridge.ios:39467
+objc[41657]: Class UIAccessibilityLoaderWebShared is implemented in both /private/var/run/com.apple.security.cryptexd/mnt/com.apple.iPhoneOS.SimulatorRuntime-v24.2.8117.0.CgdhM1/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 27.2.simruntime/Contents/Resources/RuntimeRoot/System/Library/AccessibilityBundles/WebCore.axbundle/WebCore (0x1097a8310) and /private/var/run/com.apple.security.cryptexd/mnt/com.apple.iPhoneOS.SimulatorRuntime-v24.2.8117.0.CgdhM1/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 27.2.simruntime/Contents/Resources/RuntimeRoot/System/Library/AccessibilityBundles/WebKit.axbundle/WebKit (0x10a40c398). This may cause spurious casting failures and mysterious crashes. One of the duplicates must be removed or renamed.
+2026-11-04 16:38:51.756 xcodebuild[41353:1532834] [MT] IDELaunchParametersSnapshot: debugger version lookup failed for path '<nil>': noURL
+2026-11-04 16:38:51.757 xcodebuild[41353:1532834] [MT] IDELaunchParametersSnapshot: no debugger version
+    t =     3.61s         Setting up automation session
+    t =     7.13s         Wait for dev.agentbridge.ios to idle
+    t =     9.73s Waiting 10.0s for "project-p1" Button to exist
+    t =    10.77s     Checking `Expect predicate `existsNoRetry == 1` for object "project-p1" Button`
+    t =    10.77s         Checking existence of `"project-p1" Button`
+    t =    11.10s Tap "project-p1" Button
+    t =    11.10s     Wait for dev.agentbridge.ios to idle
+    t =    11.11s     Find the "project-p1" Button
+    t =    11.15s     Check for interrupting elements affecting "project-p1" Button
+    t =    11.24s     Synthesize event
+    t =    11.58s     Wait for dev.agentbridge.ios to idle
+    t =    12.14s Tap "session-s-desktop" Button
+    t =    12.14s     Wait for dev.agentbridge.ios to idle
+    t =    12.60s     Find the "session-s-desktop" Button
+    t =    12.69s     Check for interrupting elements affecting "session-s-desktop" Button
+    t =    12.74s     Synthesize event
+    t =    13.03s     Wait for dev.agentbridge.ios to idle
+    t =    13.23s Waiting 5.0s for Button (First Match) to exist
+    t =    14.26s     Checking `Expect predicate `existsNoRetry == 1` for object Button (First Match)`
+    t =    14.26s         Checking existence of `Button (First Match)`
+    t =    14.30s Checking existence of `"composer" TextField`
+    t =    14.34s Find the Target Application 'dev.agentbridge.ios'
+    t =    14.36s Checking existence of `Button (First Match)`
+    t =    14.38s Find the Button (First Match)
+    t =    14.42s Find the "工具步骤 · 3 项" Button
+    t =    14.44s Find the "工具步骤 · 3 项" Button
+    t =    14.47s Find the NavigationBar (First Match)
+    t =    14.59s Tap "工具步骤 · 3 项" Button
+    t =    14.59s     Wait for dev.agentbridge.ios to idle
+    t =    14.60s     Find the "工具步骤 · 3 项" Button
+    t =    14.62s     Check for interrupting elements affecting "工具步骤 · 3 项" Button
+    t =    14.65s     Synthesize event
+    t =    14.94s     Wait for dev.agentbridge.ios to idle
+    t =    14.95s Waiting 3.0s for "history-step-2" Button to exist
+    t =    15.99s     Checking `Expect predicate `existsNoRetry == 1` for object "history-step-2" Button`
+    t =    15.99s         Checking existence of `"history-step-2" Button`
+    t =    16.05s Checking existence of `"history-step-3" Button`
+    t =    16.09s Checking existence of `"OUTPUT_DETAIL_A" StaticText`
+    t =    16.12s Checking existence of `StaticText (First Match)`
+    t =    16.19s Find the Target Application 'dev.agentbridge.ios'
+    t =    16.39s Added attachment named 'rich-ui-深色-imported-step-summaries'
+    t =    16.40s Tap "history-step-2" Button
+    t =    16.40s     Wait for dev.agentbridge.ios to idle
+    t =    16.40s     Find the "history-step-2" Button
+    t =    16.43s     Check for interrupting elements affecting "history-step-2" Button
+    t =    16.47s     Synthesize event
+    t =    16.77s     Wait for dev.agentbridge.ios to idle
+    t =    16.82s Waiting 3.0s for "检查命令" NavigationBar to exist
+    t =    17.86s     Checking `Expect predicate `existsNoRetry == 1` for object "检查命令" NavigationBar`
+    t =    17.86s         Checking existence of `"检查命令" NavigationBar`
+    t =    18.02s Checking existence of `"输入" StaticText`
+    t =    18.07s Checking existence of `"输出" StaticText`
+    t =    18.12s Checking existence of `StaticText (First Match)`
+    t =    18.18s Checking existence of `"OUTPUT_DETAIL_A" StaticText`
+    t =    18.22s Checking existence of `"OUTPUT_DETAIL_B" StaticText`
+    t =    18.26s Find the Target Application 'dev.agentbridge.ios'
+    t =    18.39s Added attachment named 'rich-ui-深色-imported-step-details'
+    t =    18.40s Tap "完成" Button
+    t =    18.40s     Wait for dev.agentbridge.ios to idle
+    t =    18.40s     Find the "完成" Button
+    t =    18.45s     Check for interrupting elements affecting "完成" Button
+    t =    18.48s     Synthesize event
+    t =    18.78s     Wait for dev.agentbridge.ios to idle
+    t =    19.18s Tap "history-step-3" Button
+    t =    19.18s     Wait for dev.agentbridge.ios to idle
+    t =    19.19s     Find the "history-step-3" Button
+    t =    19.23s     Check for interrupting elements affecting "history-step-3" Button
+    t =    19.26s     Synthesize event
+    t =    19.55s     Wait for dev.agentbridge.ios to idle
+    t =    19.94s Waiting 3.0s for "读取文件" NavigationBar to exist
+    t =    20.97s     Checking `Expect predicate `existsNoRetry == 1` for object "读取文件" NavigationBar`
+    t =    20.97s         Checking existence of `"读取文件" NavigationBar`
+    t =    21.05s Checking existence of `"OUTPUT_DETAIL_B" StaticText`
+    t =    21.09s Checking existence of `"OUTPUT_DETAIL_A" StaticText`
+    t =    21.15s Tap "完成" Button
+    t =    21.15s     Wait for dev.agentbridge.ios to idle
+    t =    21.15s     Find the "完成" Button
+    t =    21.20s     Check for interrupting elements affecting "完成" Button
+    t =    21.24s     Synthesize event
+    t =    21.53s     Wait for dev.agentbridge.ios to idle
+    t =    21.90s Tap Button (First Match)
+    t =    21.90s     Wait for dev.agentbridge.ios to idle
+    t =    21.90s     Find the Button (First Match)
+    t =    21.96s     Check for interrupting elements affecting "工具步骤 · 3 项" Button
+    t =    22.00s     Synthesize event
+    t =    22.29s     Wait for dev.agentbridge.ios to idle
+    t =    22.30s Checking existence of `"history-step-2" Button`
+    t =    22.33s Tear Down
+Test Case '-[AgentBridgeUITests.MockPathTests testDarkImportedStepDetails]' passed (22.637 seconds).
+Test Case '-[AgentBridgeUITests.MockPathTests testDarkMergedReplySummary]' started.
+    t =     0.00s Start Test at 2026-11-04 16:39:12.022
+    t =     0.04s Set Up
+    t =     0.04s Open dev.agentbridge.ios
+    t =     0.04s     Launch dev.agentbridge.ios
+    t =     0.04s         Terminate dev.agentbridge.ios:42198
+2026-11-04 16:39:13.138 xcodebuild[41353:1532834] [MT] IDELaunchParametersSnapshot: debugger version lookup failed for path '<nil>': noURL
+2026-11-04 16:39:13.138 xcodebuild[41353:1532834] [MT] IDELaunchParametersSnapshot: no debugger version
+    t =     1.33s         Setting up automation session
+    t =     5.03s         Wait for dev.agentbridge.ios to idle
+    t =     7.21s Waiting 10.0s for "project-p1" Button to exist
+    t =     8.24s     Checking `Expect predicate `existsNoRetry == 1` for object "project-p1" Button`
+    t =     8.24s         Checking existence of `"project-p1" Button`
+    t =     8.52s Tap "project-p1" Button
+    t =     8.52s     Wait for dev.agentbridge.ios to idle
+    t =     8.52s     Find the "project-p1" Button
+    t =     8.91s     Check for interrupting elements affecting "project-p1" Button
+    t =     9.03s     Synthesize event
+    t =     9.36s     Wait for dev.agentbridge.ios to idle
+    t =     9.85s Tap "session-s-desktop" Button
+    t =     9.85s     Wait for dev.agentbridge.ios to idle
+    t =    10.23s     Find the "session-s-desktop" Button
+    t =    10.39s     Check for interrupting elements affecting "session-s-desktop" Button
+    t =    10.48s     Synthesize event
+    t =    10.84s     Wait for dev.agentbridge.ios to idle
+    t =    11.03s Waiting 5.0s for "复制回复的 Markdown" Button to exist
+    t =    12.05s     Checking `Expect predicate `existsNoRetry == 1` for object "复制回复的 Markdown" Button`
+    t =    12.05s         Checking existence of `"复制回复的 Markdown" Button`
+    t =    12.09s Get number of matches for: Elements matching predicate '"复制回复的 Markdown" IN identifiers'
+    t =    12.12s Checking existence of `StaticText (First Match)`
+    t =    12.16s Checking existence of `StaticText (First Match)`
+    t =    12.18s Checking existence of `Button (First Match)`
+    t =    12.21s Tap "复制回复的 Markdown" Button
+    t =    12.21s     Wait for dev.agentbridge.ios to idle
+    t =    12.21s     Find the "复制回复的 Markdown" Button
+    t =    12.24s     Check for interrupting elements affecting "复制回复的 Markdown" Button
+    t =    12.26s     Synthesize event
+    t =    12.55s     Wait for dev.agentbridge.ios to idle
+    t =    12.55s Waiting 3.0s for "toast" StaticText to exist
+    t =    13.59s     Checking `Expect predicate `existsNoRetry == 1` for object "toast" StaticText`
+    t =    13.59s         Checking existence of `"toast" StaticText`
+    t =    13.63s Tap Button (First Match)
+    t =    13.63s     Wait for dev.agentbridge.ios to idle
+    t =    13.63s     Find the Button (First Match)
+    t =    13.67s     Check for interrupting elements affecting "工具步骤 · 2 项" Button
+    t =    13.69s     Synthesize event
+    t =    13.99s     Wait for dev.agentbridge.ios to idle
+    t =    13.99s Checking existence of `"history-commentary-1" Button`
+    t =    14.02s Checking existence of `"history-step-2" Button`
+    t =    14.05s Find the "history-commentary-1" Button
+    t =    14.08s Find the "history-step-2" Button
+    t =    14.11s Tap "工具步骤 · 2 项" Button
+    t =    14.11s     Wait for dev.agentbridge.ios to idle
+    t =    14.12s     Find the "工具步骤 · 2 项" Button
+    t =    14.15s     Check for interrupting elements affecting "工具步骤 · 2 项" Button
+    t =    14.17s     Synthesize event
+    t =    14.46s     Wait for dev.agentbridge.ios to idle
+    t =    14.47s Checking existence of `"turn-metrics" Any`
+    t =    14.51s Find the Target Application 'dev.agentbridge.ios'
+    t =    14.64s Added attachment named 'rich-ui-深色-merged-turn-metrics'
+    t =    14.64s Tear Down
+Test Case '-[AgentBridgeUITests.MockPathTests testDarkMergedReplySummary]' passed (14.872 seconds).
+Test Case '-[AgentBridgeUITests.MockPathTests testDarkNewConversationForm]' started.
+    t =     0.00s Start Test at 2026-11-04 16:39:26.895
+    t =     0.04s Set Up
+    t =     0.17s Open dev.agentbridge.ios
+    t =     0.18s     Launch dev.agentbridge.ios
+    t =     0.18s         Terminate dev.agentbridge.ios:42980
+2026-11-04 16:39:28.129 xcodebuild[41353:1532834] [MT] IDELaunchParametersSnapshot: debugger version lookup failed for path '<nil>': noURL
+2026-11-04 16:39:28.130 xcodebuild[41353:1532834] [MT] IDELaunchParametersSnapshot: no debugger version
+    t =     1.45s         Setting up automation session
+    t =     3.65s         Wait for dev.agentbridge.ios to idle
+    t =     5.41s Tap "chat-fab" Button
+    t =     5.41s     Wait for dev.agentbridge.ios to idle
+    t =     5.41s     Find the "chat-fab" Button
+    t =     5.64s     Check for interrupting elements affecting "chat-fab" Button
+    t =     5.68s     Synthesize event
+    t =     5.97s     Wait for dev.agentbridge.ios to idle
+    t =     6.86s Waiting 3.0s for "新对话" NavigationBar to exist
+    t =     7.88s     Checking `Expect predicate `existsNoRetry == 1` for object "新对话" NavigationBar`
+    t =     7.88s         Checking existence of `"新对话" NavigationBar`
+    t =     8.05s Find the "start-conversation" Button
+    t =     8.12s Tap "current-project-picker" Button
+    t =     8.12s     Wait for dev.agentbridge.ios to idle
+    t =     8.12s     Find the "current-project-picker" Button
+    t =     8.19s     Check for interrupting elements affecting "current-project-picker" Button
+    t =     8.25s     Synthesize event
+    t =     8.55s     Wait for dev.agentbridge.ios to idle
+    t =     8.62s Tap "service" Button
+    t =     8.62s     Wait for dev.agentbridge.ios to idle
+    t =     9.87s     Find the "service" Button
+    t =     9.99s     Check for interrupting elements affecting "service" Button
+    t =    10.05s     Synthesize event
+    t =    10.34s     Wait for dev.agentbridge.ios to idle
+    t =    11.80s Tap "只读" Button
+    t =    11.80s     Wait for dev.agentbridge.ios to idle
+    t =    11.81s     Find the "只读" Button
+    t =    12.02s     Check for interrupting elements affecting "只读" Button
+    t =    12.13s     Synthesize event
+    t =    12.42s     Wait for dev.agentbridge.ios to idle
+    t =    14.01s Tap "new-chat-model" Button
+    t =    14.01s     Wait for dev.agentbridge.ios to idle
+    t =    14.02s     Find the "new-chat-model" Button
+    t =    14.12s     Check for interrupting elements affecting "new-chat-model" Button
+    t =    14.18s     Synthesize event
+    t =    14.47s     Wait for dev.agentbridge.ios to idle
+    t =    15.57s Checking existence of `"输入模型 ID…" Button`
+    t =    15.67s Tap "跟随 Mac 设置" Button
+    t =    15.67s     Wait for dev.agentbridge.ios to idle
+    t =    15.67s     Find the "跟随 Mac 设置" Button
+    t =    15.74s     Check for interrupting elements affecting "跟随 Mac 设置" Button
+    t =    15.80s     Synthesize event
+    t =    16.09s     Wait for dev.agentbridge.ios to idle
+    t =    17.50s Checking existence of `"new-chat-custom-model" TextField`
+    t =    17.59s Checking existence of `"new-chat-message" TextField`
+    t =    17.66s Checking existence of `"composer" TextField`
+    t =    17.72s Find the Target Application 'dev.agentbridge.ios'
+    t =    17.76s Checking existence of `"new-chat-message" TextView`
+    t =    17.83s Find the "new-chat-message" TextView
+    t =    17.90s Find the "new-chat-message" TextView
+    t =    17.97s Find the "new-chat-message" TextView
+    t =    18.04s Find the NavigationBar (First Match)
+    t =    18.06s Tap "new-chat-message" TextView[0.15, 0.15]
+    t =    18.06s     Wait for dev.agentbridge.ios to idle
+    t =    18.06s     Find the "new-chat-message" TextView
+    t =    18.12s     Check for interrupting elements affecting "new-chat-message" TextView
+    t =    18.17s     Synthesize event
+    t =    18.17s         Find the "new-chat-message" TextView
+    t =    18.24s         Find the "new-chat-message" TextView
+    t =    18.31s         Find the "new-chat-message" TextView
+    t =    18.66s     Wait for dev.agentbridge.ios to idle
+<unknown>:0: warning: -[AgentBridgeUITests.MockPathTests testDarkNewConversationForm] : Invalid frame dimension (negative or non-finite).
+    t =    19.54s Type 'Check service scre...' into "new-chat-message" TextView
+    t =    19.54s     Wait for dev.agentbridge.ios to idle
+    t =    19.83s     Find the "new-chat-message" TextView
+    t =    19.95s     Check for interrupting elements affecting "new-chat-message" TextView
+    t =    20.05s     Synthesize event
+    t =    20.68s     Wait for dev.agentbridge.ios to idle
+    t =    20.87s Checking existence of `Keyboard (First Match)`
+    t =    20.92s Tap "完成" Button
+    t =    20.92s     Wait for dev.agentbridge.ios to idle
+    t =    20.92s     Find the "完成" Button
+    t =    21.02s     Check for interrupting elements affecting "完成" Button
+    t =    21.13s     Synthesize event
+    t =    21.43s     Wait for dev.agentbridge.ios to idle
+    t =    21.77s Checking existence of `"composer" TextField`
+    t =    21.95s Find the Target Application 'dev.agentbridge.ios'
+    t =    22.01s Checking existence of `"粘贴图片" Button`
+    t =    22.10s Find the "粘贴图片" Button
+    t =    22.19s Find the "粘贴图片" Button
+    t =    22.27s Find the "粘贴图片" Button
+    t =    22.34s Find the NavigationBar (First Match)
+    t =    22.36s Tap "粘贴图片" Button
+    t =    22.36s     Wait for dev.agentbridge.ios to idle
+    t =    22.36s     Find the "粘贴图片" Button
+    t =    22.43s     Check for interrupting elements affecting "粘贴图片" Button
+    t =    22.49s     Synthesize event
+    t =    22.78s     Wait for dev.agentbridge.ios to idle
+    t =    22.89s Waiting 5.0s for "移除图片 1" Button to exist
+    t =    23.92s     Checking `Expect predicate `existsNoRetry == 1` for object "移除图片 1" Button`
+    t =    23.93s         Checking existence of `"移除图片 1" Button`
+    t =    24.04s Checking existence of `Keyboard (First Match)`
+    t =    24.14s Checking existence of `"composer" TextField`
+    t =    24.21s Find the Target Application 'dev.agentbridge.ios'
+    t =    24.25s Checking existence of `"current-project-picker" Button`
+    t =    24.32s Find the "current-project-picker" Button
+    t =    24.40s Find the "current-project-picker" Button
+    t =    24.47s Find the "current-project-picker" Button
+    t =    24.54s Find the NavigationBar (First Match)
+    t =    24.55s Find the Target Application 'dev.agentbridge.ios'
+    t =    24.71s Added attachment named 'rich-ui-深色-new-conversation-form'
+    t =    24.71s Tap "start-conversation" Button
+    t =    24.71s     Wait for dev.agentbridge.ios to idle
+    t =    24.71s     Find the "start-conversation" Button
+    t =    24.78s     Check for interrupting elements affecting "start-conversation" Button
+    t =    24.84s     Synthesize event
+    t =    25.14s     Wait for dev.agentbridge.ios to idle
+    t =    25.63s Waiting 5.0s for "Check service screenshot" NavigationBar to exist
+    t =    26.64s     Checking `Expect predicate `existsNoRetry == 1` for object "Check service screenshot" NavigationBar`
+    t =    26.64s         Checking existence of `"Check service screenshot" NavigationBar`
+    t =    26.70s Checking existence of `"Check service screenshot" StaticText`
+    t =    26.72s Checking existence of `"查看图片 1" Button`
+    t =    26.75s Find the Target Application 'dev.agentbridge.ios'
+    t =    26.87s Added attachment named 'rich-ui-深色-new-conversation-started'
+    t =    26.87s Tear Down
+Test Case '-[AgentBridgeUITests.MockPathTests testDarkNewConversationForm]' passed (27.131 seconds).
+Test Case '-[AgentBridgeUITests.MockPathTests testDarkPaths]' started.
+    t =     0.00s Start Test at 2026-11-04 16:39:54.027
+    t =     0.04s Set Up
+    t =     0.05s Open dev.agentbridge.ios
+    t =     0.05s     Launch dev.agentbridge.ios
+    t =     0.05s         Terminate dev.agentbridge.ios:43609
+2026-11-04 16:39:55.167 xcodebuild[41353:1532834] [MT] IDELaunchParametersSnapshot: debugger version lookup failed for path '<nil>': noURL
+2026-11-04 16:39:55.168 xcodebuild[41353:1532834] [MT] IDELaunchParametersSnapshot: no debugger version
+    t =     1.35s         Setting up automation session
+    t =     3.46s         Wait for dev.agentbridge.ios to idle
+    t =     5.15s Waiting 10.0s for "工作台" NavigationBar to exist
+    t =     6.19s     Checking `Expect predicate `existsNoRetry == 1` for object "工作台" NavigationBar`
+    t =     6.20s         Checking existence of `"工作台" NavigationBar`
+    t =     6.45s Find the "chat-fab" Button
+    t =     6.51s Find the "settings-entry" Button
+    t =     6.57s Find the "approval-entry" Button
+    t =     6.62s Checking existence of `"home-approval-a1" Any`
+    t =     6.67s Find the Target Application 'dev.agentbridge.ios'
+    t =     6.83s Added attachment named 'rich-ui-深色-home'
+    t =     6.83s Tap "Codex" Button
+    t =     6.83s     Wait for dev.agentbridge.ios to idle
+    t =     6.84s     Find the "Codex" Button
+    t =     6.92s     Check for interrupting elements affecting "Codex" Button
+    t =     7.01s     Synthesize event
+    t =     7.34s     Wait for dev.agentbridge.ios to idle
+    t =     7.34s Waiting 3.0s for "project-p3" Button to exist
+    t =     8.37s     Checking `Expect predicate `existsNoRetry == 1` for object "project-p3" Button`
+    t =     8.37s         Checking existence of `"project-p3" Button`
+    t =     8.42s Checking existence of `"project-p1" Button`
+    t =     8.45s Tap "Herdr" Button
+    t =     8.45s     Wait for dev.agentbridge.ios to idle
+    t =     8.46s     Find the "Herdr" Button
+    t =     8.49s     Check for interrupting elements affecting "Herdr" Button
+    t =     8.53s     Synthesize event
+    t =     8.83s     Wait for dev.agentbridge.ios to idle
+    t =     8.84s Waiting 3.0s for "未安装 Herdr" StaticText to exist
+    t =     9.88s     Checking `Expect predicate `existsNoRetry == 1` for object "未安装 Herdr" StaticText`
+    t =     9.88s         Checking existence of `"未安装 Herdr" StaticText`
+    t =     9.93s Checking existence of `"chat-fab" Button`
+    t =     9.96s Tap "Claude Code" Button
+    t =     9.96s     Wait for dev.agentbridge.ios to idle
+    t =     9.98s     Find the "Claude Code" Button
+    t =    10.02s     Check for interrupting elements affecting "Claude Code" Button
+    t =    10.08s     Synthesize event
+    t =    10.42s     Wait for dev.agentbridge.ios to idle
+    t =    10.47s Tap "搜索项目" Button
+    t =    10.47s     Wait for dev.agentbridge.ios to idle
+    t =    10.51s     Find the "搜索项目" Button
+    t =    10.61s     Check for interrupting elements affecting "magnifyingglass" Button
+    t =    10.76s     Synthesize event
+    t =    11.10s     Wait for dev.agentbridge.ios to idle
+    t =    11.10s Waiting 3.0s for "搜索项目" TextField to exist
+    t =    12.12s     Checking `Expect predicate `existsNoRetry == 1` for object "搜索项目" TextField`
+    t =    12.12s         Checking existence of `"搜索项目" TextField`
+    t =    12.17s Tap "搜索项目" TextField
+    t =    12.17s     Wait for dev.agentbridge.ios to idle
+    t =    12.20s     Find the "搜索项目" TextField
+    t =    12.32s     Check for interrupting elements affecting "搜索项目" TextField
+    t =    12.42s     Synthesize event
+    t =    12.75s     Wait for dev.agentbridge.ios to idle
+    t =    13.28s Type '/ui/service' into "搜索项目" TextField
+    t =    13.28s     Wait for dev.agentbridge.ios to idle
+    t =    13.65s     Find the "搜索项目" TextField
+    t =    13.75s     Check for interrupting elements affecting "搜索项目" TextField
+    t =    13.84s     Synthesize event
+    t =    14.24s     Wait for dev.agentbridge.ios to idle
+    t =    14.56s Checking existence of `"project-p2" Button`
+    t =    14.62s Checking existence of `"project-p1" Button`
+    t =    14.67s Type '-missing' into "搜索项目" TextField
+    t =    14.67s     Wait for dev.agentbridge.ios to idle
+    t =    14.68s     Find the "搜索项目" TextField
+    t =    14.74s     Check for interrupting elements affecting "搜索项目" TextField
+    t =    14.79s     Synthesize event
+    t =    15.15s     Wait for dev.agentbridge.ios to idle
+    t =    15.15s Waiting 3.0s for "没有匹配的项目" StaticText to exist
+    t =    16.18s     Checking `Expect predicate `existsNoRetry == 1` for object "没有匹配的项目" StaticText`
+    t =    16.18s         Checking existence of `"没有匹配的项目" StaticText`
+    t =    16.27s Tap "清除项目搜索" Button
+    t =    16.27s     Wait for dev.agentbridge.ios to idle
+    t =    16.56s     Find the "清除项目搜索" Button
+    t =    16.73s     Check for interrupting elements affecting "xmark.circle.fill" Button
+    t =    16.79s     Synthesize event
+    t =    17.15s     Wait for dev.agentbridge.ios to idle
+    t =    17.22s Tap "搜索项目" Button
+    t =    17.22s     Wait for dev.agentbridge.ios to idle
+    t =    17.23s     Find the "搜索项目" Button
+    t =    17.30s     Check for interrupting elements affecting "magnifyingglass" Button
+    t =    17.36s     Synthesize event
+    t =    17.65s     Wait for dev.agentbridge.ios to idle
+    t =    17.66s Tap "project-p1" Button
+    t =    17.66s     Wait for dev.agentbridge.ios to idle
+    t =    17.68s     Find the "project-p1" Button
+    t =    17.72s     Check for interrupting elements affecting "project-p1" Button
+    t =    17.76s     Synthesize event
+    t =    18.05s     Wait for dev.agentbridge.ios to idle
+    t =    18.31s Waiting 3.0s for "session-s-rich" Button to exist
+    t =    19.32s     Checking `Expect predicate `existsNoRetry == 1` for object "session-s-rich" Button`
+    t =    19.33s         Checking existence of `"session-s-rich" Button`
+    t =    19.39s Checking existence of `"session-s-desktop" Button`
+    t =    19.43s Tap "source-cli" Button
+    t =    19.43s     Wait for dev.agentbridge.ios to idle
+    t =    19.43s     Find the "source-cli" Button
+    t =    19.47s     Check for interrupting elements affecting "source-cli" Button
+    t =    19.50s     Synthesize event
+    t =    19.80s     Wait for dev.agentbridge.ios to idle
+    t =    19.81s Checking existence of `"session-s-rich" Button`
+    t =    19.86s Checking existence of `"session-s-desktop" Button`
+    t =    19.89s Tap "source-desktop" Button
+    t =    19.89s     Wait for dev.agentbridge.ios to idle
+    t =    19.90s     Find the "source-desktop" Button
+    t =    19.93s     Check for interrupting elements affecting "source-desktop" Button
+    t =    19.97s     Synthesize event
+    t =    20.27s     Wait for dev.agentbridge.ios to idle
+    t =    20.27s Checking existence of `"session-s-rich" Button`
+    t =    20.30s Checking existence of `"session-s-desktop" Button`
+    t =    20.33s Tap "source-all" Button
+    t =    20.33s     Wait for dev.agentbridge.ios to idle
+    t =    20.33s     Find the "source-all" Button
+    t =    20.38s     Check for interrupting elements affecting "source-all" Button
+    t =    20.41s     Synthesize event
+    t =    20.71s     Wait for dev.agentbridge.ios to idle
+    t =    20.71s Tap "conversation-search" TextField
+    t =    20.72s     Wait for dev.agentbridge.ios to idle
+    t =    20.72s     Find the "conversation-search" TextField
+    t =    20.76s     Check for interrupting elements affecting "conversation-search" TextField
+    t =    20.81s     Synthesize event
+    t =    21.29s     Wait for dev.agentbridge.ios to idle
+    t =    21.59s Type 'Images' into "conversation-search" TextField
+    t =    21.59s     Wait for dev.agentbridge.ios to idle
+    t =    21.59s     Find the "conversation-search" TextField
+    t =    21.65s     Check for interrupting elements affecting "conversation-search" TextField
+    t =    21.68s     Synthesize event
+    t =    22.00s     Wait for dev.agentbridge.ios to idle
+    t =    22.20s Checking existence of `"session-s-image" Button`
+    t =    22.27s Checking existence of `"session-s-rich" Button`
+    t =    22.31s Tap "清除对话搜索" Button
+    t =    22.31s     Wait for dev.agentbridge.ios to idle
+    t =    22.31s     Find the "清除对话搜索" Button
+    t =    22.35s     Check for interrupting elements affecting "xmark.circle.fill" Button
+    t =    22.39s     Synthesize event
+    t =    22.68s     Wait for dev.agentbridge.ios to idle
+    t =    23.03s Checking existence of `Keyboard (First Match)`
+    t =    23.05s Swipe down Target Application 'dev.agentbridge.ios'
+    t =    23.05s     Wait for dev.agentbridge.ios to idle
+    t =    23.05s     Find the Target Application 'dev.agentbridge.ios'
+    t =    23.09s     Check for interrupting elements affecting "ArcLink" Application
+    t =    23.13s     Synthesize event
+    t =    23.56s     Wait for dev.agentbridge.ios to idle
+    t =    24.06s Find the Target Application 'dev.agentbridge.ios'
+    t =    24.29s Added attachment named 'rich-ui-深色-project'
+    t =    24.29s Tap "session-s-desktop" Button
+    t =    24.29s     Wait for dev.agentbridge.ios to idle
+    t =    24.29s     Find the "session-s-desktop" Button
+    t =    24.34s     Check for interrupting elements affecting "session-s-desktop" Button
+    t =    24.39s     Synthesize event
+    t =    24.68s     Wait for dev.agentbridge.ios to idle
+    t =    24.91s Waiting 3.0s for "readonly-composer" Any to exist
+    t =    25.92s     Checking `Expect predicate `existsNoRetry == 1` for object "readonly-composer" Any`
+    t =    25.92s         Checking existence of `"readonly-composer" Any`
+    t =    25.96s Checking existence of `"composer" TextField`
+    t =    25.98s Checking existence of `"composer" TextView`
+    t =    26.00s Checking existence of `"发送" Button`
+    t =    26.02s Checking existence of `"终端" Button`
+    t =    26.03s Find the Target Application 'dev.agentbridge.ios'
+    t =    26.15s Added attachment named 'rich-ui-深色-desktop-readonly'
+    t =    26.15s Tap "新建 CLI 对话" Button
+    t =    26.15s     Wait for dev.agentbridge.ios to idle
+    t =    26.15s     Find the "新建 CLI 对话" Button
+    t =    26.17s     Check for interrupting elements affecting "readonly-composer" Button
+    t =    26.20s     Synthesize event
+    t =    26.49s     Wait for dev.agentbridge.ios to idle
+    t =    26.82s Checking existence of `"composer" TextField`
+    t =    26.88s Waiting 3.0s for "composer" TextField to exist
+    t =    27.89s     Checking `Expect predicate `existsNoRetry == 1` for object "composer" TextField`
+    t =    27.89s         Checking existence of `"composer" TextField`
+    t =    27.93s Find the "发送" Button
+    t =    27.95s Tap Button (Element at index 0)
+    t =    27.95s     Wait for dev.agentbridge.ios to idle
+    t =    27.95s     Find the Button (Element at index 0)
+    t =    28.00s     Check for interrupting elements affecting "BackButton" Button
+    t =    28.02s     Synthesize event
+    t =    28.32s     Wait for dev.agentbridge.ios to idle
+    t =    28.65s Tap Button (Element at index 0)
+    t =    28.65s     Wait for dev.agentbridge.ios to idle
+    t =    28.65s     Find the Button (Element at index 0)
+    t =    28.67s     Check for interrupting elements affecting "BackButton" Button
+    t =    28.69s     Synthesize event
+    t =    28.99s     Wait for dev.agentbridge.ios to idle
+    t =    29.55s Get number of matches for: Elements matching predicate 'identifier BEGINSWITH "session-"'
+    t =    29.60s Tap "session-s-rich" Button
+    t =    29.61s     Wait for dev.agentbridge.ios to idle
+    t =    29.61s     Find the "session-s-rich" Button
+    t =    29.66s     Check for interrupting elements affecting "session-s-rich" Button
+    t =    29.71s     Synthesize event
+    t =    30.00s     Wait for dev.agentbridge.ios to idle
+    t =    30.25s Checking existence of `"composer" TextField`
+    t =    30.36s Find the "composer" TextField
+    t =    30.47s Checking existence of `"Dashboard 调整方案" StaticText`
+    t =    30.57s Find the "Dashboard 调整方案" StaticText
+    t =    30.68s Find the "Dashboard 调整方案" StaticText
+    t =    30.81s Find the "Dashboard 调整方案" StaticText
+    t =    30.87s Find the NavigationBar (First Match)
+    t =    30.89s Checking existence of `"Dashboard 调整方案" StaticText`
+    t =    30.94s Checking existence of `"composer" TextField`
+    t =    30.99s Find the "composer" TextField
+    t =    31.04s Checking existence of `Button (First Match)`
+    t =    31.08s Find the Button (First Match)
+    t =    31.13s Find the "工具步骤 · 2 项" Button
+    t =    31.16s Find the "工具步骤 · 2 项" Button
+    t =    31.20s Find the NavigationBar (First Match)
+    t =    31.21s Checking existence of `"先检查数据请求，再保留错误重试入口。" StaticText`
+    t =    31.25s Tap "工具步骤 · 2 项" Button
+    t =    31.25s     Wait for dev.agentbridge.ios to idle
+    t =    31.25s     Find the "工具步骤 · 2 项" Button
+    t =    31.29s     Check for interrupting elements affecting "工具步骤 · 2 项" Button
+    t =    31.33s     Synthesize event
+    t =    31.62s     Wait for dev.agentbridge.ios to idle
+    t =    31.77s Waiting 3.0s for "先检查数据请求，再保留错误重试入口。" StaticText to exist
+    t =    32.80s     Checking `Expect predicate `existsNoRetry == 1` for object "先检查数据请求，再保留错误重试入口。" StaticText`
+    t =    32.80s         Checking existence of `"先检查数据请求，再保留错误重试入口。" StaticText`
+    t =    32.86s Checking existence of `"Read: src/Dashboard.tsx" StaticText`
+    t =    32.91s Find the Target Application 'dev.agentbridge.ios'
+    t =    33.05s Added attachment named 'rich-ui-深色-chat-thinking'
+    t =    33.05s Checking existence of `"composer" TextField`
+    t =    33.10s Find the "composer" TextField
+    t =    33.16s Checking existence of `"复制代码" Button`
+    t =    33.21s Find the "复制代码" Button
+    t =    33.27s Find the "复制代码" Button
+    t =    33.34s Find the "复制代码" Button
+    t =    33.40s Find the NavigationBar (First Match)
+    t =    33.43s Tap "复制代码" Button
+    t =    33.43s     Wait for dev.agentbridge.ios to idle
+    t =    33.43s     Find the "复制代码" Button
+    t =    33.49s     Check for interrupting elements affecting "复制代码" Button
+    t =    33.54s     Synthesize event
+    t =    33.86s     Wait for dev.agentbridge.ios to idle
+    t =    33.88s Waiting 2.0s for "已复制代码" Button to exist
+    t =    34.92s     Checking `Expect predicate `existsNoRetry == 1` for object "已复制代码" Button`
+    t =    34.92s         Checking existence of `"已复制代码" Button`
+    t =    34.98s Checking existence of `"composer" TextField`
+    t =    35.03s Find the "composer" TextField
+    t =    35.09s Checking existence of `"数据请求" StaticText`
+    t =    35.14s Find the "数据请求" StaticText
+    t =    35.22s Find the "数据请求" StaticText
+    t =    35.29s Find the "数据请求" StaticText
+    t =    35.35s Find the NavigationBar (First Match)
+    t =    35.37s Checking existence of `"数据请求" StaticText`
+    t =    35.42s Checking existence of `"待写入" StaticText`
+    t =    35.48s Find the Target Application 'dev.agentbridge.ios'
+    t =    35.62s Added attachment named 'rich-ui-深色-chat-markdown'
+    t =    35.62s Checking existence of `"composer" TextField`
+    t =    35.68s Find the "composer" TextField
+    t =    35.73s Checking existence of `"复制回复的 Markdown" Button`
+    t =    35.80s Find the "复制回复的 Markdown" Button
+    t =    35.88s Find the "复制回复的 Markdown" Button
+    t =    35.94s Press Target Application 'dev.agentbridge.ios'[0.98, 0.74] for 0.0 seconds, then drag to Target Application 'dev.agentbridge.ios'[0.98, 0.25] with velocity of 500.00 pixels per second, and then hold for 0.0 seconds 
+    t =    35.94s     Wait for dev.agentbridge.ios to idle
+    t =    35.95s     Find the Target Application 'dev.agentbridge.ios'
+    t =    35.99s     Check for interrupting elements affecting "ArcLink" Application
+    t =    36.06s     Synthesize event
+    t =    36.06s         Find the Target Application 'dev.agentbridge.ios'
+    t =    36.10s         Find the Target Application 'dev.agentbridge.ios'
+    t =    36.14s         Find the Target Application 'dev.agentbridge.ios'
+    t =    36.17s         Find the Target Application 'dev.agentbridge.ios'
+    t =    36.21s         Find the Target Application 'dev.agentbridge.ios'
+    t =    37.36s     Wait for dev.agentbridge.ios to idle
+    t =    37.69s Checking existence of `"composer" TextField`
+    t =    37.75s Find the "composer" TextField
+    t =    37.87s Checking existence of `"复制回复的 Markdown" Button`
+    t =    37.93s Find the "复制回复的 Markdown" Button
+    t =    38.01s Find the "复制回复的 Markdown" Button
+    t =    38.09s Find the "复制回复的 Markdown" Button
+    t =    38.15s Find the NavigationBar (First Match)
+    t =    38.18s Tap "复制回复的 Markdown" Button
+    t =    38.18s     Wait for dev.agentbridge.ios to idle
+    t =    38.18s     Find the "复制回复的 Markdown" Button
+    t =    38.24s     Check for interrupting elements affecting "复制回复的 Markdown" Button
+    t =    38.29s     Synthesize event
+    t =    38.60s     Wait for dev.agentbridge.ios to idle
+    t =    38.61s Waiting 2.0s for "toast" StaticText to exist
+    t =    39.63s     Checking `Expect predicate `existsNoRetry == 1` for object "toast" StaticText`
+    t =    39.63s         Checking existence of `"toast" StaticText`
+    t =    39.69s Find the "toast" StaticText
+    t =    39.75s Tap Button (Element at index 0)
+    t =    39.75s     Wait for dev.agentbridge.ios to idle
+    t =    39.75s     Find the Button (Element at index 0)
+    t =    39.80s     Check for interrupting elements affecting "BackButton" Button
+    t =    39.86s     Synthesize event
+    t =    40.18s     Wait for dev.agentbridge.ios to idle
+    t =    40.79s Tap "session-s-image" Button
+    t =    40.79s     Wait for dev.agentbridge.ios to idle
+    t =    40.80s     Find the "session-s-image" Button
+    t =    40.89s     Check for interrupting elements affecting "session-s-image" Button
+    t =    40.99s     Synthesize event
+    t =    41.31s     Wait for dev.agentbridge.ios to idle
+    t =    41.48s Checking existence of `"composer" TextField`
+    t =    41.57s Find the "composer" TextField
+    t =    41.65s Checking existence of `"查看图片 1" Button`
+    t =    41.73s Find the "查看图片 1" Button
+    t =    41.85s Find the "查看图片 1" Button
+    t =    41.94s Find the "查看图片 1" Button
+    t =    42.03s Find the NavigationBar (First Match)
+    t =    42.08s Tap "查看图片 1" Button
+    t =    42.08s     Wait for dev.agentbridge.ios to idle
+    t =    42.09s     Find the "查看图片 1" Button
+    t =    42.13s     Check for interrupting elements affecting "查看图片 1" Button
+    t =    42.21s     Synthesize event
+    t =    42.53s     Wait for dev.agentbridge.ios to idle
+    t =    42.59s Waiting 3.0s for "图片预览" NavigationBar to exist
+    t =    43.61s     Checking `Expect predicate `existsNoRetry == 1` for object "图片预览" NavigationBar`
+    t =    43.61s         Checking existence of `"图片预览" NavigationBar`
+    t =    43.67s Find the Target Application 'dev.agentbridge.ios'
+    t =    43.82s Added attachment named 'rich-ui-深色-attachment-preview'
+    t =    43.82s Tap "完成" Button
+    t =    43.82s     Wait for dev.agentbridge.ios to idle
+    t =    43.83s     Find the "完成" Button
+    t =    43.87s     Check for interrupting elements affecting "完成" Button
+    t =    43.93s     Synthesize event
+    t =    44.24s     Wait for dev.agentbridge.ios to idle
+    t =    44.61s Find the "从相册添加图片" Button
+    t =    44.65s Tap Button (Element at index 0)
+    t =    44.65s     Wait for dev.agentbridge.ios to idle
+    t =    44.65s     Find the Button (Element at index 0)
+    t =    44.68s     Check for interrupting elements affecting "BackButton" Button
+    t =    44.72s     Synthesize event
+    t =    45.03s     Wait for dev.agentbridge.ios to idle
+    t =    45.64s Tap Button (Element at index 0)
+    t =    45.64s     Wait for dev.agentbridge.ios to idle
+    t =    45.66s     Find the Button (Element at index 0)
+    t =    45.74s     Check for interrupting elements affecting "BackButton" Button
+    t =    45.81s     Synthesize event
+    t =    46.14s     Wait for dev.agentbridge.ios to idle
+    t =    46.53s Tap "chat-fab" Button
+    t =    46.53s     Wait for dev.agentbridge.ios to idle
+    t =    46.55s     Find the "chat-fab" Button
+    t =    46.60s     Check for interrupting elements affecting "chat-fab" Button
+    t =    46.66s     Synthesize event
+    t =    46.97s     Wait for dev.agentbridge.ios to idle
+    t =    47.46s Waiting 3.0s for "新对话" NavigationBar to exist
+    t =    48.46s     Checking `Expect predicate `existsNoRetry == 1` for object "新对话" NavigationBar`
+    t =    48.47s         Checking existence of `"新对话" NavigationBar`
+    t =    48.63s Tap "current-project-picker" Button
+    t =    48.63s     Wait for dev.agentbridge.ios to idle
+    t =    48.64s     Find the "current-project-picker" Button
+    t =    48.72s     Check for interrupting elements affecting "current-project-picker" Button
+    t =    48.80s     Synthesize event
+    t =    49.10s     Wait for dev.agentbridge.ios to idle
+    t =    50.32s Tap "service" Button
+    t =    50.32s     Wait for dev.agentbridge.ios to idle
+    t =    50.33s     Find the "service" Button
+    t =    50.46s     Check for interrupting elements affecting "service" Button
+    t =    50.54s     Synthesize event
+    t =    50.87s     Wait for dev.agentbridge.ios to idle
+    t =    52.33s Find the "start-conversation" Button
+    t =    52.41s Tap "取消" Button
+    t =    52.41s     Wait for dev.agentbridge.ios to idle
+    t =    52.41s     Find the "取消" Button
+    t =    52.50s     Check for interrupting elements affecting "取消" Button
+    t =    52.57s     Synthesize event
+    t =    53.08s     Wait for dev.agentbridge.ios to idle
+    t =    53.57s Tap "project-p2" Button
+    t =    53.57s     Wait for dev.agentbridge.ios to idle
+    t =    53.59s     Find the "project-p2" Button
+    t =    53.73s     Check for interrupting elements affecting "project-p2" Button
+    t =    53.83s     Synthesize event
+    t =    54.21s     Wait for dev.agentbridge.ios to idle
+    t =    54.33s Waiting 3.0s for "还没有对话" StaticText to exist
+    t =    55.35s     Checking `Expect predicate `existsNoRetry == 1` for object "还没有对话" StaticText`
+    t =    55.37s         Checking existence of `"还没有对话" StaticText`
+    t =    55.41s Get number of matches for: Elements matching predicate 'identifier BEGINSWITH "session-"'
+    t =    55.44s Tap "project-new-chat" Button
+    t =    55.44s     Wait for dev.agentbridge.ios to idle
+    t =    55.45s     Find the "project-new-chat" Button
+    t =    55.49s     Check for interrupting elements affecting "project-new-chat" Button
+    t =    55.53s     Synthesize event
+    t =    55.84s     Wait for dev.agentbridge.ios to idle
+    t =    56.23s Checking existence of `"composer" TextField`
+    t =    56.29s Tap "composer" TextField
+    t =    56.29s     Wait for dev.agentbridge.ios to idle
+    t =    56.29s     Find the "composer" TextField
+    t =    56.32s     Check for interrupting elements affecting "composer" TextField
+    t =    56.36s     Synthesize event
+<unknown>:0: warning: -[AgentBridgeUITests.MockPathTests testDarkPaths] : Invalid frame dimension (negative or non-finite).
+    t =    56.68s     Wait for dev.agentbridge.ios to idle
+    t =    56.84s Checking existence of `"composer" TextField`
+    t =    56.95s Type 'Review service' into "composer" TextField
+    t =    56.95s     Wait for dev.agentbridge.ios to idle
+    t =    57.20s     Find the "composer" TextField
+    t =    57.28s     Check for interrupting elements affecting "composer" TextField
+    t =    57.34s     Synthesize event
+    t =    57.80s     Wait for dev.agentbridge.ios to idle
+    t =    57.93s Checking existence of `Keyboard (First Match)`
+    t =    57.97s Find the "发送" Button
+    t =    58.06s Find the Target Application 'dev.agentbridge.ios'
+    t =    58.21s Added attachment named 'rich-ui-深色-keyboard'
+    t =    58.21s Tap "发送" Button
+    t =    58.21s     Wait for dev.agentbridge.ios to idle
+    t =    58.22s     Find the "发送" Button
+    t =    58.27s     Check for interrupting elements affecting "arrow.up" Button
+    t =    58.32s     Synthesize event
+    t =    58.63s     Wait for dev.agentbridge.ios to idle
+    t =    58.73s Waiting 3.0s for "Review service" StaticText to exist
+    t =    59.76s     Checking `Expect predicate `existsNoRetry == 1` for object "Review service" StaticText`
+    t =    59.76s         Checking existence of `"Review service" StaticText`
+    t =    59.78s Find the Target Application 'dev.agentbridge.ios'
+    t =    59.92s Added attachment named 'rich-ui-深色-chat-sent'
+    t =    59.93s Tap Button (Element at index 0)
+    t =    59.93s     Wait for dev.agentbridge.ios to idle
+    t =    59.93s     Find the Button (Element at index 0)
+    t =    59.97s     Check for interrupting elements affecting "BackButton" Button
+    t =    60.01s     Synthesize event
+    t =    60.37s     Wait for dev.agentbridge.ios to idle
+    t =    60.67s Get number of matches for: Elements matching predicate 'identifier BEGINSWITH "session-"'
+    t =    60.70s Checking existence of `Button (First Match)`
+    t =    60.73s Tap Button (Element at index 0)
+    t =    60.73s     Wait for dev.agentbridge.ios to idle
+    t =    60.73s     Find the Button (Element at index 0)
+    t =    60.76s     Check for interrupting elements affecting "BackButton" Button
+    t =    60.79s     Synthesize event
+    t =    61.09s     Wait for dev.agentbridge.ios to idle
+    t =    61.41s Tap "project-p1" Button
+    t =    61.41s     Wait for dev.agentbridge.ios to idle
+    t =    61.42s     Find the "project-p1" Button
+    t =    61.47s     Check for interrupting elements affecting "project-p1" Button
+    t =    61.51s     Synthesize event
+    t =    61.81s     Wait for dev.agentbridge.ios to idle
+    t =    62.19s Get number of matches for: Elements matching predicate 'identifier BEGINSWITH "session-"'
+    t =    62.23s Checking existence of `Button (First Match)`
+    t =    62.29s Tap Button (Element at index 0)
+    t =    62.29s     Wait for dev.agentbridge.ios to idle
+    t =    62.30s     Find the Button (Element at index 0)
+    t =    62.33s     Check for interrupting elements affecting "BackButton" Button
+    t =    62.49s     Synthesize event
+    t =    62.79s     Wait for dev.agentbridge.ios to idle
+    t =    63.12s Tap "approval-entry" Button
+    t =    63.12s     Wait for dev.agentbridge.ios to idle
+    t =    63.12s     Find the "approval-entry" Button
+    t =    63.17s     Check for interrupting elements affecting "approval-entry" Button
+    t =    63.22s     Synthesize event
+    t =    63.52s     Wait for dev.agentbridge.ios to idle
+    t =    63.89s Waiting 3.0s for "approval-a1" Button to exist
+    t =    64.93s     Checking `Expect predicate `existsNoRetry == 1` for object "approval-a1" Button`
+    t =    64.93s         Checking existence of `"approval-a1" Button`
+    t =    64.97s Tap "approval-a1" Button
+    t =    64.97s     Wait for dev.agentbridge.ios to idle
+    t =    64.97s     Find the "approval-a1" Button
+    t =    65.00s     Check for interrupting elements affecting "approval-a1" Button
+    t =    65.03s     Synthesize event
+    t =    65.32s     Wait for dev.agentbridge.ios to idle
+    t =    65.66s Waiting 3.0s for "允许写入这个文件？" StaticText to exist
+    t =    66.69s     Checking `Expect predicate `existsNoRetry == 1` for object "允许写入这个文件？" StaticText`
+    t =    66.69s         Checking existence of `"允许写入这个文件？" StaticText`
+    t =    66.73s Find the Target Application 'dev.agentbridge.ios'
+    t =    66.86s Added attachment named 'rich-ui-深色-approval'
+    t =    66.86s Tap "允许" Button
+    t =    66.86s     Wait for dev.agentbridge.ios to idle
+    t =    66.86s     Find the "允许" Button
+    t =    66.89s     Check for interrupting elements affecting "允许" Button
+    t =    66.92s     Synthesize event
+    t =    67.22s     Wait for dev.agentbridge.ios to idle
+    t =    67.55s Waiting 2.0s for "toast" StaticText to exist
+    t =    68.56s     Checking `Expect predicate `existsNoRetry == 1` for object "toast" StaticText`
+    t =    68.57s         Checking existence of `"toast" StaticText`
+    t =    68.61s Find the "toast" StaticText
+    t =    68.63s Tap Button (Element at index 0)
+    t =    68.63s     Wait for dev.agentbridge.ios to idle
+    t =    68.63s     Find the Button (Element at index 0)
+    t =    68.66s     Check for interrupting elements affecting "BackButton" Button
+    t =    68.68s     Synthesize event
+    t =    68.97s     Wait for dev.agentbridge.ios to idle
+    t =    69.31s Tap "settings-entry" Button
+    t =    69.31s     Wait for dev.agentbridge.ios to idle
+    t =    69.31s     Find the "settings-entry" Button
+    t =    69.37s     Check for interrupting elements affecting "settings-entry" Button
+    t =    69.41s     Synthesize event
+    t =    69.71s     Wait for dev.agentbridge.ios to idle
+    t =    70.31s Waiting 3.0s for "设置" NavigationBar to exist
+    t =    71.37s     Checking `Expect predicate `existsNoRetry == 1` for object "设置" NavigationBar`
+    t =    71.38s         Checking existence of `"设置" NavigationBar`
+    t =    71.51s Waiting 3.0s for "需要批准" Switch to exist
+    t =    72.52s     Checking `Expect predicate `existsNoRetry == 1` for object "需要批准" Switch`
+    t =    72.52s         Checking existence of `"需要批准" Switch`
+    t =    72.57s Find the "需要批准" Switch
+    t =    72.61s Tap "需要批准" Switch[0.90, 0.50]
+    t =    72.61s     Wait for dev.agentbridge.ios to idle
+    t =    72.61s     Find the "需要批准" Switch
+    t =    72.67s     Check for interrupting elements affecting "需要批准" Switch
+    t =    72.71s     Synthesize event
+    t =    72.71s         Find the "需要批准" Switch
+    t =    72.76s         Find the "需要批准" Switch
+    t =    72.81s         Find the "需要批准" Switch
+    t =    73.15s     Wait for dev.agentbridge.ios to idle
+    t =    74.45s Find the "需要批准" Switch
+    t =    74.51s Find the Target Application 'dev.agentbridge.ios'
+    t =    74.65s Added attachment named 'rich-ui-深色-settings'
+    t =    74.65s Terminate dev.agentbridge.ios:44601
+    t =    75.67s Tear Down
+Test Case '-[AgentBridgeUITests.MockPathTests testDarkPaths]' passed (76.043 seconds).
+Test Case '-[AgentBridgeUITests.MockPathTests testDarkReadableUserQuestionReplies]' started.
+    t =     0.00s Start Test at 2026-11-04 16:41:10.070
+    t =     0.06s Set Up
+    t =     0.06s Open dev.agentbridge.ios
+    t =     0.06s     Launch dev.agentbridge.ios
+2026-11-04 16:41:10.140 xcodebuild[41353:1532834] [MT] IDELaunchParametersSnapshot: debugger version lookup failed for path '<nil>': noURL
+2026-11-04 16:41:10.140 xcodebuild[41353:1532834] [MT] IDELaunchParametersSnapshot: no debugger version
+    t =     0.28s         Setting up automation session
+    t =     5.15s         Wait for dev.agentbridge.ios to idle
+    t =     7.73s Waiting 10.0s for "project-p1" Button to exist
+    t =     8.74s     Checking `Expect predicate `existsNoRetry == 1` for object "project-p1" Button`
+    t =     8.74s         Checking existence of `"project-p1" Button`
+    t =     9.05s Tap "project-p1" Button
+    t =     9.05s     Wait for dev.agentbridge.ios to idle
+    t =     9.05s     Find the "project-p1" Button
+    t =     9.10s     Check for interrupting elements affecting "project-p1" Button
+    t =     9.14s     Synthesize event
+    t =     9.43s     Wait for dev.agentbridge.ios to idle
+    t =     9.75s Tap "session-s-desktop" Button
+    t =     9.75s     Wait for dev.agentbridge.ios to idle
+    t =    10.21s     Find the "session-s-desktop" Button
+    t =    10.30s     Check for interrupting elements affecting "session-s-desktop" Button
+    t =    10.35s     Synthesize event
+    t =    10.65s     Wait for dev.agentbridge.ios to idle
+    t =    10.77s Waiting 5.0s for "失败发生在哪一步？" StaticText to exist
+    t =    11.78s     Checking `Expect predicate `existsNoRetry == 1` for object "失败发生在哪一步？" StaticText`
+    t =    11.78s         Checking existence of `"失败发生在哪一步？" StaticText`
+    t =    11.83s Checking existence of `"补充信息" StaticText`
+    t =    11.85s Checking existence of `"进入某个项目查看对话" StaticText`
+    t =    11.88s Checking existence of `"Codex 还是 Claude？" StaticText`
+    t =    11.91s Checking existence of `"Codex" StaticText`
+    t =    11.94s Find the "失败发生在哪一步？" StaticText
+    t =    11.97s Find the "进入某个项目查看对话" StaticText
+    t =    12.01s Find the "user-question-replies" StaticText
+    t =    12.04s Find the "Codex 还是 Claude？" StaticText
+    t =    12.08s Find the "user-question-replies" StaticText
+    t =    12.11s Find the "Codex" StaticText
+    t =    12.14s Checking existence of `StaticText (First Match)`
+    t =    12.16s Checking existence of `StaticText (First Match)`
+    t =    12.19s Checking existence of `StaticText (First Match)`
+    t =    12.22s Checking existence of `StaticText (First Match)`
+    t =    12.28s Checking existence of `Button (First Match)`
+    t =    12.32s Find the Target Application 'dev.agentbridge.ios'
+    t =    12.44s Added attachment named 'rich-ui-深色-user-question-replies'
+    t =    12.44s Tear Down
+Test Case '-[AgentBridgeUITests.MockPathTests testDarkReadableUserQuestionReplies]' passed (12.666 seconds).
+Test Case '-[AgentBridgeUITests.MockPathTests testHomeApprovalLeavesAfterDecision]' started.
+    t =     0.00s Start Test at 2026-11-04 16:41:22.738
+    t =     0.04s Set Up
+    t =     0.05s Open dev.agentbridge.ios
+    t =     0.05s     Launch dev.agentbridge.ios
+    t =     0.05s         Terminate dev.agentbridge.ios:47828
+2026-11-04 16:41:23.844 xcodebuild[41353:1532834] [MT] IDELaunchParametersSnapshot: debugger version lookup failed for path '<nil>': noURL
+2026-11-04 16:41:23.844 xcodebuild[41353:1532834] [MT] IDELaunchParametersSnapshot: no debugger version
+    t =     1.31s         Setting up automation session
+    t =     3.58s         Wait for dev.agentbridge.ios to idle
+    t =     5.28s Waiting 10.0s for "home-approval-a1" Any to exist
+    t =     6.31s     Checking `Expect predicate `existsNoRetry == 1` for object "home-approval-a1" Any`
+    t =     6.31s         Checking existence of `"home-approval-a1" Any`
+    t =     6.50s Checking existence of `"待你批准 · 1" StaticText`
+    t =     6.54s Tap "允许" Button
+    t =     6.54s     Wait for dev.agentbridge.ios to idle
+    t =     6.54s     Find the "允许" Button
+    t =     6.59s     Check for interrupting elements affecting "允许" Button
+    t =     6.63s     Synthesize event
+    t =     6.92s     Wait for dev.agentbridge.ios to idle
+    t =     6.93s Waiting 3.0s for "toast" StaticText to exist
+    t =     7.93s     Checking `Expect predicate `existsNoRetry == 1` for object "toast" StaticText`
+    t =     7.94s         Checking existence of `"toast" StaticText`
+    t =     7.98s Find the "toast" StaticText
+    t =     8.02s Waiting 3.0s for "home-approval-a1" Any to not exist
+    t =     9.04s     Checking `Expect predicate `existsNoRetry == 0` for object "home-approval-a1" Any`
+    t =     9.04s         Checking existence of `"home-approval-a1" Any`
+    t =     9.12s Checking existence of `"待你批准 · 1" StaticText`
+    t =     9.21s Tear Down
+Test Case '-[AgentBridgeUITests.MockPathTests testHomeApprovalLeavesAfterDecision]' passed (9.442 seconds).
+Test Case '-[AgentBridgeUITests.MockPathTests testImagePasteAndSend]' started.
+    t =     0.00s Start Test at 2026-11-04 16:41:32.182
+    t =     0.04s Set Up
+    t =     0.06s Open dev.agentbridge.ios
+    t =     0.06s     Launch dev.agentbridge.ios
+    t =     0.06s         Terminate dev.agentbridge.ios:48382
+2026-11-04 16:41:33.289 xcodebuild[41353:1532834] [MT] IDELaunchParametersSnapshot: debugger version lookup failed for path '<nil>': noURL
+2026-11-04 16:41:33.289 xcodebuild[41353:1532834] [MT] IDELaunchParametersSnapshot: no debugger version
+    t =     1.32s         Setting up automation session
+    t =     3.43s         Wait for dev.agentbridge.ios to idle
+    t =     5.11s Waiting 10.0s for "project-p2" Button to exist
+    t =     6.14s     Checking `Expect predicate `existsNoRetry == 1` for object "project-p2" Button`
+    t =     6.14s         Checking existence of `"project-p2" Button`
+    t =     6.30s Tap "project-p2" Button
+    t =     6.30s     Wait for dev.agentbridge.ios to idle
+    t =     6.30s     Find the "project-p2" Button
+    t =     6.34s     Check for interrupting elements affecting "project-p2" Button
+    t =     6.37s     Synthesize event
+    t =     6.67s     Wait for dev.agentbridge.ios to idle
+    t =     7.18s Tap "project-new-chat" Button
+    t =     7.18s     Wait for dev.agentbridge.ios to idle
+    t =     7.19s     Find the "project-new-chat" Button
+    t =     7.25s     Check for interrupting elements affecting "project-new-chat" Button
+    t =     7.27s     Synthesize event
+    t =     7.57s     Wait for dev.agentbridge.ios to idle
+    t =     8.03s Find the "发送" Button
+    t =     8.09s Waiting 3.0s for "粘贴图片" Button to exist
+    t =     9.11s     Checking `Expect predicate `existsNoRetry == 1` for object "粘贴图片" Button`
+    t =     9.11s         Checking existence of `"粘贴图片" Button`
+    t =     9.16s Find the "粘贴图片" Button
+    t =     9.20s Tap "粘贴图片" Button
+    t =     9.20s     Wait for dev.agentbridge.ios to idle
+    t =     9.20s     Find the "粘贴图片" Button
+    t =     9.22s     Check for interrupting elements affecting "粘贴图片" Button
+    t =     9.24s     Synthesize event
+    t =     9.53s     Wait for dev.agentbridge.ios to idle
+    t =     9.57s Waiting 5.0s for "移除图片" Button to exist
+    t =    10.61s     Checking `Expect predicate `existsNoRetry == 1` for object "移除图片" Button`
+    t =    10.61s         Checking existence of `"移除图片" Button`
+    t =    10.67s Checking existence of `"预览待发送图片" Button`
+    t =    10.70s Find the "发送" Button
+    t =    10.72s Find the Target Application 'dev.agentbridge.ios'
+    t =    10.83s Added attachment named 'rich-ui-浅色-pasted-image-draft'
+    t =    10.83s Tap "移除图片" Button
+    t =    10.83s     Wait for dev.agentbridge.ios to idle
+    t =    10.83s     Find the "移除图片" Button
+    t =    10.86s     Check for interrupting elements affecting "xmark.circle.fill" Button
+    t =    10.88s         Wait for com.apple.springboard to idle
+    t =    11.00s Ignoring failure to get hierarchy for remote element in process 80857 (Error getting main window kAXErrorServerNotFound)
+    t =    11.00s Ignoring failure to get hierarchy for remote element in process 80857 (Error getting main window kAXErrorServerNotFound)
+    t =    11.00s Ignoring failure to get hierarchy for remote element in process 80857 (Error getting main window kAXErrorServerNotFound)
+    t =    11.03s     Synthesize event
+    t =    11.32s     Wait for dev.agentbridge.ios to idle
+    t =    11.32s Checking existence of `"预览待发送图片" Button`
+    t =    11.36s Find the "发送" Button
+    t =    11.38s Tap "粘贴图片" Button
+    t =    11.38s     Wait for dev.agentbridge.ios to idle
+    t =    11.38s     Find the "粘贴图片" Button
+    t =    11.40s     Check for interrupting elements affecting "粘贴图片" Button
+    t =    11.43s         Wait for com.apple.springboard to idle
+    t =    11.45s Ignoring failure to get hierarchy for remote element in process 80857 (Error getting main window kAXErrorServerNotFound)
+    t =    11.45s Ignoring failure to get hierarchy for remote element in process 80857 (Error getting main window kAXErrorServerNotFound)
+    t =    11.45s Ignoring failure to get hierarchy for remote element in process 80857 (Error getting main window kAXErrorServerNotFound)
+    t =    11.45s     Synthesize event
+    t =    11.75s     Wait for dev.agentbridge.ios to idle
+    t =    11.76s Waiting 5.0s for "xmark.circle.fill" Button to exist
+    t =    12.79s     Checking `Expect predicate `existsNoRetry == 1` for object "xmark.circle.fill" Button`
+    t =    12.79s         Checking existence of `"xmark.circle.fill" Button`
+    t =    12.82s Tap "发送" Button
+    t =    12.82s     Wait for dev.agentbridge.ios to idle
+    t =    12.82s     Find the "发送" Button
+    t =    12.85s     Check for interrupting elements affecting "arrow.up" Button
+    t =    12.87s     Synthesize event
+    t =    13.17s     Wait for dev.agentbridge.ios to idle
+    t =    13.22s Checking existence of `"composer" TextField`
+    t =    13.29s Find the "composer" TextField
+    t =    13.33s Checking existence of `"查看图片 1" Button`
+    t =    13.37s Find the "查看图片 1" Button
+    t =    13.43s Find the "查看图片 1" Button
+    t =    13.47s Find the "查看图片 1" Button
+    t =    13.52s Find the NavigationBar (First Match)
+    t =    13.53s Press Target Application 'dev.agentbridge.ios'[0.98, 0.25] for 0.0 seconds, then drag to Target Application 'dev.agentbridge.ios'[0.98, 0.74] with velocity of 500.00 pixels per second, and then hold for 0.0 seconds 
+    t =    13.53s     Wait for dev.agentbridge.ios to idle
+    t =    13.53s     Find the Target Application 'dev.agentbridge.ios'
+    t =    13.55s     Check for interrupting elements affecting "ArcLink" Application
+    t =    13.58s     Synthesize event
+    t =    13.58s         Find the Target Application 'dev.agentbridge.ios'
+    t =    13.61s         Find the Target Application 'dev.agentbridge.ios'
+    t =    13.66s         Find the Target Application 'dev.agentbridge.ios'
+    t =    13.68s         Find the Target Application 'dev.agentbridge.ios'
+    t =    13.71s         Find the Target Application 'dev.agentbridge.ios'
+    t =    14.82s     Wait for dev.agentbridge.ios to idle
+    t =    15.25s Checking existence of `"composer" TextField`
+    t =    15.30s Find the "composer" TextField
+    t =    15.34s Checking existence of `"查看图片 1" Button`
+    t =    15.38s Find the "查看图片 1" Button
+    t =    15.43s Find the "查看图片 1" Button
+    t =    15.47s Find the "查看图片 1" Button
+    t =    15.50s Find the NavigationBar (First Match)
+    t =    15.51s Tap "查看图片 1" Button
+    t =    15.51s     Wait for dev.agentbridge.ios to idle
+    t =    15.51s     Find the "查看图片 1" Button
+    t =    15.55s     Check for interrupting elements affecting "查看图片 1" Button
+    t =    15.58s     Synthesize event
+    t =    15.88s     Wait for dev.agentbridge.ios to idle
+    t =    16.30s Waiting 3.0s for "图片预览" NavigationBar to exist
+    t =    17.33s     Checking `Expect predicate `existsNoRetry == 1` for object "图片预览" NavigationBar`
+    t =    17.33s         Checking existence of `"图片预览" NavigationBar`
+    t =    17.39s Find the Target Application 'dev.agentbridge.ios'
+    t =    17.52s Added attachment named 'rich-ui-浅色-pasted-image-sent'
+    t =    17.52s Tap "完成" Button
+    t =    17.52s     Wait for dev.agentbridge.ios to idle
+    t =    17.52s     Find the "完成" Button
+    t =    17.56s     Check for interrupting elements affecting "完成" Button
+    t =    17.60s     Synthesize event
+    t =    17.90s     Wait for dev.agentbridge.ios to idle
+    t =    18.29s Tap Button (Element at index 0)
+    t =    18.29s     Wait for dev.agentbridge.ios to idle
+    t =    18.29s     Find the Button (Element at index 0)
+    t =    18.35s     Check for interrupting elements affecting "BackButton" Button
+    t =    18.38s     Synthesize event
+    t =    18.68s     Wait for dev.agentbridge.ios to idle
+    t =    19.05s Get number of matches for: Elements matching predicate 'identifier BEGINSWITH "session-"'
+    t =    19.08s Checking existence of `Button (First Match)`
+    t =    19.11s Terminate dev.agentbridge.ios:48843
+    t =    20.14s Open dev.agentbridge.ios
+    t =    20.14s     Launch dev.agentbridge.ios
+2026-11-04 16:41:52.325 xcodebuild[41353:1532834] [MT] IDELaunchParametersSnapshot: debugger version lookup failed for path '<nil>': noURL
+2026-11-04 16:41:52.325 xcodebuild[41353:1532834] [MT] IDELaunchParametersSnapshot: no debugger version
+    t =    20.35s         Setting up automation session
+    t =    22.51s         Wait for dev.agentbridge.ios to idle
+    t =    24.19s Waiting 10.0s for "project-p2" Button to exist
+    t =    25.21s     Checking `Expect predicate `existsNoRetry == 1` for object "project-p2" Button`
+    t =    25.22s         Checking existence of `"project-p2" Button`
+    t =    25.40s Tap "project-p2" Button
+    t =    25.40s     Wait for dev.agentbridge.ios to idle
+    t =    25.40s     Find the "project-p2" Button
+    t =    25.45s     Check for interrupting elements affecting "project-p2" Button
+    t =    25.48s     Synthesize event
+    t =    25.78s     Wait for dev.agentbridge.ios to idle
+    t =    25.84s Tap Button (First Match)
+    t =    25.84s     Wait for dev.agentbridge.ios to idle
+    t =    26.32s     Find the Button (First Match)
+    t =    26.37s     Check for interrupting elements affecting "session-C6B06722-DD0A-4E95-A795-D3DAD81B1AFE" Button
+    t =    26.41s     Synthesize event
+    t =    26.70s     Wait for dev.agentbridge.ios to idle
+    t =    26.96s Checking existence of `"composer" TextField`
+    t =    27.03s Find the "composer" TextField
+    t =    27.10s Checking existence of `"查看图片 1" Button`
+    t =    27.17s Find the "查看图片 1" Button
+    t =    27.24s Find the "查看图片 1" Button
+    t =    27.31s Find the "查看图片 1" Button
+    t =    27.38s Find the NavigationBar (First Match)
+    t =    27.40s Tap "查看图片 1" Button
+    t =    27.40s     Wait for dev.agentbridge.ios to idle
+    t =    27.42s     Find the "查看图片 1" Button
+    t =    27.46s     Check for interrupting elements affecting "查看图片 1" Button
+    t =    27.50s     Synthesize event
+    t =    27.80s     Wait for dev.agentbridge.ios to idle
+    t =    28.22s Waiting 3.0s for "图片预览" NavigationBar to exist
+    t =    29.25s     Checking `Expect predicate `existsNoRetry == 1` for object "图片预览" NavigationBar`
+    t =    29.25s         Checking existence of `"图片预览" NavigationBar`
+    t =    29.30s Find the Target Application 'dev.agentbridge.ios'
+    t =    29.44s Added attachment named 'rich-ui-浅色-pasted-image-reopened'
+    t =    29.44s Terminate dev.agentbridge.ios:49585
+    t =    30.49s Tear Down
+Test Case '-[AgentBridgeUITests.MockPathTests testImagePasteAndSend]' passed (30.573 seconds).
+Test Case '-[AgentBridgeUITests.MockPathTests testImportedAssistantFragmentsShareOneReplyCard]' started.
+    t =     0.00s Start Test at 2026-11-04 16:42:02.756
+    t =     0.02s Set Up
+    t =     0.02s Open dev.agentbridge.ios
+    t =     0.02s     Launch dev.agentbridge.ios
+2026-11-04 16:42:02.781 xcodebuild[41353:1532834] [MT] IDELaunchParametersSnapshot: debugger version lookup failed for path '<nil>': noURL
+2026-11-04 16:42:02.781 xcodebuild[41353:1532834] [MT] IDELaunchParametersSnapshot: no debugger version
+    t =     0.23s         Setting up automation session
+    t =     2.31s         Wait for dev.agentbridge.ios to idle
+    t =     4.02s Waiting 10.0s for "project-p1" Button to exist
+    t =     5.04s     Checking `Expect predicate `existsNoRetry == 1` for object "project-p1" Button`
+    t =     5.04s         Checking existence of `"project-p1" Button`
+    t =     5.20s Tap "project-p1" Button
+    t =     5.20s     Wait for dev.agentbridge.ios to idle
+    t =     5.20s     Find the "project-p1" Button
+    t =     5.24s     Check for interrupting elements affecting "project-p1" Button
+    t =     5.27s     Synthesize event
+    t =     5.57s     Wait for dev.agentbridge.ios to idle
+    t =     5.67s Tap "session-s-desktop" Button
+    t =     5.67s     Wait for dev.agentbridge.ios to idle
+    t =     6.14s     Find the "session-s-desktop" Button
+    t =     6.21s     Check for interrupting elements affecting "session-s-desktop" Button
+    t =     6.25s     Synthesize event
+    t =     6.55s     Wait for dev.agentbridge.ios to idle
+    t =     7.06s Waiting 5.0s for "复制回复的 Markdown" Button to exist
+    t =     8.08s     Checking `Expect predicate `existsNoRetry == 1` for object "复制回复的 Markdown" Button`
+    t =     8.08s         Checking existence of `"复制回复的 Markdown" Button`
+    t =     8.14s Get number of matches for: Elements matching predicate '"复制回复的 Markdown" IN identifiers'
+    t =     8.17s Checking existence of `StaticText (First Match)`
+    t =     8.20s Checking existence of `StaticText (First Match)`
+    t =     8.22s Checking existence of `Button (First Match)`
+    t =     8.25s Tap "复制回复的 Markdown" Button
+    t =     8.25s     Wait for dev.agentbridge.ios to idle
+    t =     8.25s     Find the "复制回复的 Markdown" Button
+    t =     8.27s     Check for interrupting elements affecting "复制回复的 Markdown" Button
+    t =     8.30s     Synthesize event
+    t =     8.58s     Wait for dev.agentbridge.ios to idle
+    t =     8.59s Waiting 3.0s for "toast" StaticText to exist
+    t =     9.60s     Checking `Expect predicate `existsNoRetry == 1` for object "toast" StaticText`
+    t =     9.60s         Checking existence of `"toast" StaticText`
+    t =     9.66s Tap Button (First Match)
+    t =     9.66s     Wait for dev.agentbridge.ios to idle
+    t =     9.66s     Find the Button (First Match)
+    t =     9.68s     Check for interrupting elements affecting "工具步骤 · 2 项" Button
+    t =     9.71s     Synthesize event
+    t =    10.00s     Wait for dev.agentbridge.ios to idle
+    t =    10.00s Checking existence of `"history-commentary-1" Button`
+    t =    10.04s Checking existence of `"history-step-2" Button`
+    t =    10.09s Find the "history-commentary-1" Button
+    t =    10.13s Find the "history-step-2" Button
+    t =    10.16s Tap "工具步骤 · 2 项" Button
+    t =    10.16s     Wait for dev.agentbridge.ios to idle
+    t =    10.16s     Find the "工具步骤 · 2 项" Button
+    t =    10.19s     Check for interrupting elements affecting "工具步骤 · 2 项" Button
+    t =    10.22s     Synthesize event
+    t =    10.51s     Wait for dev.agentbridge.ios to idle
+    t =    10.51s Checking existence of `"turn-metrics" Any`
+    t =    10.56s Find the Target Application 'dev.agentbridge.ios'
+    t =    10.68s Added attachment named 'rich-ui-浅色-merged-turn-metrics'
+    t =    10.68s Tear Down
+Test Case '-[AgentBridgeUITests.MockPathTests testImportedAssistantFragmentsShareOneReplyCard]' passed (10.925 seconds).
+Test Case '-[AgentBridgeUITests.MockPathTests testImportedStepsShowSummariesThenCorrelatedInputAndOutput]' started.
+    t =     0.00s Start Test at 2026-11-04 16:42:13.682
+    t =     0.04s Set Up
+    t =     0.04s Open dev.agentbridge.ios
+    t =     0.04s     Launch dev.agentbridge.ios
+    t =     0.04s         Terminate dev.agentbridge.ios:49935
+2026-11-04 16:42:14.786 xcodebuild[41353:1532834] [MT] IDELaunchParametersSnapshot: debugger version lookup failed for path '<nil>': noURL
+2026-11-04 16:42:14.786 xcodebuild[41353:1532834] [MT] IDELaunchParametersSnapshot: no debugger version
+    t =     1.32s         Setting up automation session
+    t =     3.41s         Wait for dev.agentbridge.ios to idle
+    t =     5.06s Waiting 10.0s for "project-p1" Button to exist
+    t =     6.09s     Checking `Expect predicate `existsNoRetry == 1` for object "project-p1" Button`
+    t =     6.09s         Checking existence of `"project-p1" Button`
+    t =     6.27s Tap "project-p1" Button
+    t =     6.27s     Wait for dev.agentbridge.ios to idle
+    t =     6.28s     Find the "project-p1" Button
+    t =     6.32s     Check for interrupting elements affecting "project-p1" Button
+    t =     6.35s     Synthesize event
+    t =     6.64s     Wait for dev.agentbridge.ios to idle
+    t =     6.79s Tap "session-s-desktop" Button
+    t =     6.79s     Wait for dev.agentbridge.ios to idle
+    t =     7.25s     Find the "session-s-desktop" Button
+    t =     7.32s     Check for interrupting elements affecting "session-s-desktop" Button
+    t =     7.36s     Synthesize event
+    t =     7.65s     Wait for dev.agentbridge.ios to idle
+    t =     8.13s Waiting 5.0s for Button (First Match) to exist
+    t =     9.18s     Checking `Expect predicate `existsNoRetry == 1` for object Button (First Match)`
+    t =     9.18s         Checking existence of `Button (First Match)`
+    t =     9.23s Checking existence of `"composer" TextField`
+    t =     9.26s Find the Target Application 'dev.agentbridge.ios'
+    t =     9.28s Checking existence of `Button (First Match)`
+    t =     9.30s Find the Button (First Match)
+    t =     9.34s Find the "工具步骤 · 3 项" Button
+    t =     9.37s Find the "工具步骤 · 3 项" Button
+    t =     9.40s Find the NavigationBar (First Match)
+    t =     9.41s Tap "工具步骤 · 3 项" Button
+    t =     9.41s     Wait for dev.agentbridge.ios to idle
+    t =     9.41s     Find the "工具步骤 · 3 项" Button
+    t =     9.44s     Check for interrupting elements affecting "工具步骤 · 3 项" Button
+    t =     9.46s     Synthesize event
+    t =     9.76s     Wait for dev.agentbridge.ios to idle
+    t =     9.76s Waiting 3.0s for "history-step-2" Button to exist
+    t =    10.79s     Checking `Expect predicate `existsNoRetry == 1` for object "history-step-2" Button`
+    t =    10.79s         Checking existence of `"history-step-2" Button`
+    t =    10.86s Checking existence of `"history-step-3" Button`
+    t =    10.89s Checking existence of `"OUTPUT_DETAIL_A" StaticText`
+    t =    10.92s Checking existence of `StaticText (First Match)`
+    t =    11.04s Find the Target Application 'dev.agentbridge.ios'
+    t =    11.19s Added attachment named 'rich-ui-浅色-imported-step-summaries'
+    t =    11.20s Tap "history-step-2" Button
+    t =    11.20s     Wait for dev.agentbridge.ios to idle
+    t =    11.20s     Find the "history-step-2" Button
+    t =    11.24s     Check for interrupting elements affecting "history-step-2" Button
+    t =    11.27s     Synthesize event
+    t =    11.57s     Wait for dev.agentbridge.ios to idle
+    t =    12.08s Waiting 3.0s for "检查命令" NavigationBar to exist
+    t =    13.12s     Checking `Expect predicate `existsNoRetry == 1` for object "检查命令" NavigationBar`
+    t =    13.12s         Checking existence of `"检查命令" NavigationBar`
+    t =    13.20s Checking existence of `"输入" StaticText`
+    t =    13.24s Checking existence of `"输出" StaticText`
+    t =    13.28s Checking existence of `StaticText (First Match)`
+    t =    13.34s Checking existence of `"OUTPUT_DETAIL_A" StaticText`
+    t =    13.38s Checking existence of `"OUTPUT_DETAIL_B" StaticText`
+    t =    13.42s Find the Target Application 'dev.agentbridge.ios'
+    t =    13.55s Added attachment named 'rich-ui-浅色-imported-step-details'
+    t =    13.55s Tap "完成" Button
+    t =    13.55s     Wait for dev.agentbridge.ios to idle
+    t =    13.55s     Find the "完成" Button
+    t =    13.59s     Check for interrupting elements affecting "完成" Button
+    t =    13.63s     Synthesize event
+    t =    13.93s     Wait for dev.agentbridge.ios to idle
+    t =    14.33s Tap "history-step-3" Button
+    t =    14.33s     Wait for dev.agentbridge.ios to idle
+    t =    14.33s     Find the "history-step-3" Button
+    t =    14.37s     Check for interrupting elements affecting "history-step-3" Button
+    t =    14.40s     Synthesize event
+    t =    14.70s     Wait for dev.agentbridge.ios to idle
+    t =    15.09s Waiting 3.0s for "读取文件" NavigationBar to exist
+    t =    16.09s     Checking `Expect predicate `existsNoRetry == 1` for object "读取文件" NavigationBar`
+    t =    16.10s         Checking existence of `"读取文件" NavigationBar`
+    t =    16.17s Checking existence of `"OUTPUT_DETAIL_B" StaticText`
+    t =    16.21s Checking existence of `"OUTPUT_DETAIL_A" StaticText`
+    t =    16.25s Tap "完成" Button
+    t =    16.25s     Wait for dev.agentbridge.ios to idle
+    t =    16.25s     Find the "完成" Button
+    t =    16.30s     Check for interrupting elements affecting "完成" Button
+    t =    16.34s     Synthesize event
+    t =    16.64s     Wait for dev.agentbridge.ios to idle
+    t =    17.01s Tap Button (First Match)
+    t =    17.01s     Wait for dev.agentbridge.ios to idle
+    t =    17.01s     Find the Button (First Match)
+    t =    17.04s     Check for interrupting elements affecting "工具步骤 · 3 项" Button
+    t =    17.07s     Synthesize event
+    t =    17.37s     Wait for dev.agentbridge.ios to idle
+    t =    17.37s Checking existence of `"history-step-2" Button`
+    t =    17.41s Tear Down
+Test Case '-[AgentBridgeUITests.MockPathTests testImportedStepsShowSummariesThenCorrelatedInputAndOutput]' passed (17.681 seconds).
+Test Case '-[AgentBridgeUITests.MockPathTests testLargeTextMergedReplySummary]' started.
+    t =     0.00s Start Test at 2026-11-04 16:42:31.363
+    t =     0.03s Set Up
+    t =     0.04s Open dev.agentbridge.ios
+    t =     0.04s     Launch dev.agentbridge.ios
+    t =     0.04s         Terminate dev.agentbridge.ios:50430
+2026-11-04 16:42:32.468 xcodebuild[41353:1532834] [MT] IDELaunchParametersSnapshot: debugger version lookup failed for path '<nil>': noURL
+2026-11-04 16:42:32.468 xcodebuild[41353:1532834] [MT] IDELaunchParametersSnapshot: no debugger version
+    t =     1.32s         Setting up automation session
+    t =     3.44s         Wait for dev.agentbridge.ios to idle
+    t =     5.12s Waiting 10.0s for "project-p1" Button to exist
+    t =     6.16s     Checking `Expect predicate `existsNoRetry == 1` for object "project-p1" Button`
+    t =     6.16s         Checking existence of `"project-p1" Button`
+    t =     6.35s Tap "project-p1" Button
+    t =     6.35s     Wait for dev.agentbridge.ios to idle
+    t =     6.36s     Find the "project-p1" Button
+    t =     6.40s     Check for interrupting elements affecting "project-p1" Button
+    t =     6.44s     Synthesize event
+    t =     6.45s         Scroll element to visible
+    t =     6.47s         Find the "project-p1" Button
+    t =     6.52s         Computed hit point {201, 515.50000000000011} after scrolling to visible
+    t =     6.80s     Wait for dev.agentbridge.ios to idle
+    t =     6.96s Tap "session-s-desktop" Button
+    t =     6.96s     Wait for dev.agentbridge.ios to idle
+    t =     7.44s     Find the "session-s-desktop" Button
+    t =     7.50s     Check for interrupting elements affecting "session-s-desktop" Button
+    t =     7.55s     Synthesize event
+    t =     7.56s         Scroll element to visible
+    t =     7.57s         Find the "session-s-desktop" Button
+    t =     7.63s         Computed hit point {201, 423.50000000000017} after scrolling to visible
+    t =     7.91s     Wait for dev.agentbridge.ios to idle
+    t =     8.42s Waiting 5.0s for "复制回复的 Markdown" Button to exist
+    t =     9.46s     Checking `Expect predicate `existsNoRetry == 1` for object "复制回复的 Markdown" Button`
+    t =     9.46s         Checking existence of `"复制回复的 Markdown" Button`
+    t =     9.52s Get number of matches for: Elements matching predicate '"复制回复的 Markdown" IN identifiers'
+    t =     9.54s Checking existence of `StaticText (First Match)`
+    t =     9.58s Checking existence of `StaticText (First Match)`
+    t =     9.60s Checking existence of `Button (First Match)`
+    t =     9.62s Checking existence of `"turn-metrics" Any`
+    t =     9.64s Find the Target Application 'dev.agentbridge.ios'
+    t =     9.75s Added attachment named 'rich-ui-浅色-merged-turn-large-header'
+    t =     9.75s Checking existence of `"composer" TextField`
+    t =     9.77s Find the Target Application 'dev.agentbridge.ios'
+    t =     9.79s Checking existence of `"turn-metrics" Any`
+    t =     9.81s Find the "turn-metrics" Any
+    t =     9.84s Press Target Application 'dev.agentbridge.ios'[0.98, 0.74] for 0.0 seconds, then drag to Target Application 'dev.agentbridge.ios'[0.98, 0.25] with velocity of 500.00 pixels per second, and then hold for 0.0 seconds 
+    t =     9.84s     Wait for dev.agentbridge.ios to idle
+    t =     9.85s     Find the Target Application 'dev.agentbridge.ios'
+    t =     9.86s     Check for interrupting elements affecting "ArcLink" Application
+    t =     9.88s     Synthesize event
+    t =     9.89s         Find the Target Application 'dev.agentbridge.ios'
+    t =     9.90s         Find the Target Application 'dev.agentbridge.ios'
+    t =     9.92s         Find the Target Application 'dev.agentbridge.ios'
+    t =     9.94s         Find the Target Application 'dev.agentbridge.ios'
+    t =     9.96s         Find the Target Application 'dev.agentbridge.ios'
+    t =    11.06s     Wait for dev.agentbridge.ios to idle
+    t =    11.07s Checking existence of `"composer" TextField`
+    t =    11.10s Find the Target Application 'dev.agentbridge.ios'
+    t =    11.12s Checking existence of `"turn-metrics" Other`
+    t =    11.15s Find the "turn-metrics" Other
+    t =    11.20s Find the "turn-metrics" Other
+    t =    11.23s Find the "turn-metrics" Other
+    t =    11.26s Find the NavigationBar (First Match)
+    t =    11.27s Press Target Application 'dev.agentbridge.ios'[0.98, 0.70] for 0.0 seconds, then drag to Target Application 'dev.agentbridge.ios'[0.98, 0.25] with velocity of 500.00 pixels per second, and then hold for 0.0 seconds 
+    t =    11.27s     Wait for dev.agentbridge.ios to idle
+    t =    11.27s     Find the Target Application 'dev.agentbridge.ios'
+    t =    11.29s     Check for interrupting elements affecting "ArcLink" Application
+    t =    11.31s     Synthesize event
+    t =    11.31s         Find the Target Application 'dev.agentbridge.ios'
+    t =    11.33s         Find the Target Application 'dev.agentbridge.ios'
+    t =    11.35s         Find the Target Application 'dev.agentbridge.ios'
+    t =    11.36s         Find the Target Application 'dev.agentbridge.ios'
+    t =    11.38s         Find the Target Application 'dev.agentbridge.ios'
+    t =    12.42s     Wait for dev.agentbridge.ios to idle
+    t =    12.84s Press Target Application 'dev.agentbridge.ios'[0.98, 0.70] for 0.0 seconds, then drag to Target Application 'dev.agentbridge.ios'[0.98, 0.25] with velocity of 500.00 pixels per second, and then hold for 0.0 seconds 
+    t =    12.84s     Wait for dev.agentbridge.ios to idle
+    t =    12.84s     Find the Target Application 'dev.agentbridge.ios'
+    t =    12.87s     Check for interrupting elements affecting "ArcLink" Application
+    t =    12.89s     Synthesize event
+    t =    12.89s         Find the Target Application 'dev.agentbridge.ios'
+    t =    12.91s         Find the Target Application 'dev.agentbridge.ios'
+    t =    12.93s         Find the Target Application 'dev.agentbridge.ios'
+    t =    12.95s         Find the Target Application 'dev.agentbridge.ios'
+    t =    12.97s         Find the Target Application 'dev.agentbridge.ios'
+    t =    14.00s     Wait for dev.agentbridge.ios to idle
+    t =    14.44s Find the Target Application 'dev.agentbridge.ios'
+    t =    14.57s Added attachment named 'rich-ui-浅色-merged-turn-large-text'
+    t =    14.57s Tear Down
+Test Case '-[AgentBridgeUITests.MockPathTests testLargeTextMergedReplySummary]' passed (14.820 seconds).
+Test Case '-[AgentBridgeUITests.MockPathTests testLightPaths]' started.
+    t =     0.00s Start Test at 2026-11-04 16:42:46.185
+    t =     0.04s Set Up
+    t =     0.04s Open dev.agentbridge.ios
+    t =     0.04s     Launch dev.agentbridge.ios
+    t =     0.04s         Terminate dev.agentbridge.ios:51141
+2026-11-04 16:42:47.294 xcodebuild[41353:1532834] [MT] IDELaunchParametersSnapshot: debugger version lookup failed for path '<nil>': noURL
+2026-11-04 16:42:47.295 xcodebuild[41353:1532834] [MT] IDELaunchParametersSnapshot: no debugger version
+    t =     1.32s         Setting up automation session
+    t =     3.51s         Wait for dev.agentbridge.ios to idle
+    t =     5.19s Waiting 10.0s for "工作台" NavigationBar to exist
+    t =     6.22s     Checking `Expect predicate `existsNoRetry == 1` for object "工作台" NavigationBar`
+    t =     6.22s         Checking existence of `"工作台" NavigationBar`
+    t =     6.38s Find the "chat-fab" Button
+    t =     6.42s Find the "settings-entry" Button
+    t =     6.47s Find the "approval-entry" Button
+    t =     6.52s Checking existence of `"home-approval-a1" Any`
+    t =     6.56s Find the Target Application 'dev.agentbridge.ios'
+    t =     6.68s Added attachment named 'rich-ui-浅色-home'
+    t =     6.68s Tap "Codex" Button
+    t =     6.68s     Wait for dev.agentbridge.ios to idle
+    t =     6.68s     Find the "Codex" Button
+    t =     6.72s     Check for interrupting elements affecting "Codex" Button
+    t =     6.75s     Synthesize event
+    t =     7.04s     Wait for dev.agentbridge.ios to idle
+    t =     7.04s Waiting 3.0s for "project-p3" Button to exist
+    t =     8.07s     Checking `Expect predicate `existsNoRetry == 1` for object "project-p3" Button`
+    t =     8.07s         Checking existence of `"project-p3" Button`
+    t =     8.14s Checking existence of `"project-p1" Button`
+    t =     8.17s Tap "Herdr" Button
+    t =     8.17s     Wait for dev.agentbridge.ios to idle
+    t =     8.17s     Find the "Herdr" Button
+    t =     8.20s     Check for interrupting elements affecting "Herdr" Button
+    t =     8.23s     Synthesize event
+    t =     8.53s     Wait for dev.agentbridge.ios to idle
+    t =     8.53s Waiting 3.0s for "未安装 Herdr" StaticText to exist
+    t =     9.54s     Checking `Expect predicate `existsNoRetry == 1` for object "未安装 Herdr" StaticText`
+    t =     9.55s         Checking existence of `"未安装 Herdr" StaticText`
+    t =     9.61s Checking existence of `"chat-fab" Button`
+    t =     9.64s Tap "Claude Code" Button
+    t =     9.64s     Wait for dev.agentbridge.ios to idle
+    t =     9.64s     Find the "Claude Code" Button
+    t =     9.67s     Check for interrupting elements affecting "Claude Code" Button
+    t =     9.70s     Synthesize event
+    t =     9.99s     Wait for dev.agentbridge.ios to idle
+    t =    10.00s Tap "搜索项目" Button
+    t =    10.00s     Wait for dev.agentbridge.ios to idle
+    t =    10.01s     Find the "搜索项目" Button
+    t =    10.06s     Check for interrupting elements affecting "magnifyingglass" Button
+    t =    10.09s     Synthesize event
+    t =    10.39s     Wait for dev.agentbridge.ios to idle
+    t =    10.39s Waiting 3.0s for "搜索项目" TextField to exist
+    t =    11.41s     Checking `Expect predicate `existsNoRetry == 1` for object "搜索项目" TextField`
+    t =    11.41s         Checking existence of `"搜索项目" TextField`
+    t =    11.48s Tap "搜索项目" TextField
+    t =    11.48s     Wait for dev.agentbridge.ios to idle
+    t =    11.48s     Find the "搜索项目" TextField
+    t =    11.52s     Check for interrupting elements affecting "搜索项目" TextField
+    t =    11.55s     Synthesize event
+    t =    11.84s     Wait for dev.agentbridge.ios to idle
+    t =    12.43s Type '/ui/service' into "搜索项目" TextField
+    t =    12.43s     Wait for dev.agentbridge.ios to idle
+    t =    12.82s     Find the "搜索项目" TextField
+    t =    12.90s     Check for interrupting elements affecting "搜索项目" TextField
+    t =    12.95s     Synthesize event
+    t =    13.35s     Wait for dev.agentbridge.ios to idle
+    t =    13.68s Checking existence of `"project-p2" Button`
+    t =    13.72s Checking existence of `"project-p1" Button`
+    t =    13.77s Type '-missing' into "搜索项目" TextField
+    t =    13.77s     Wait for dev.agentbridge.ios to idle
+    t =    13.77s     Find the "搜索项目" TextField
+    t =    13.81s     Check for interrupting elements affecting "搜索项目" TextField
+    t =    13.85s     Synthesize event
+    t =    14.19s     Wait for dev.agentbridge.ios to idle
+    t =    14.20s Waiting 3.0s for "没有匹配的项目" StaticText to exist
+    t =    15.22s     Checking `Expect predicate `existsNoRetry == 1` for object "没有匹配的项目" StaticText`
+    t =    15.22s         Checking existence of `"没有匹配的项目" StaticText`
+    t =    15.29s Tap "清除项目搜索" Button
+    t =    15.29s     Wait for dev.agentbridge.ios to idle
+    t =    15.62s     Find the "清除项目搜索" Button
+    t =    15.78s     Check for interrupting elements affecting "xmark.circle.fill" Button
+    t =    15.82s     Synthesize event
+    t =    16.15s     Wait for dev.agentbridge.ios to idle
+    t =    16.29s Tap "搜索项目" Button
+    t =    16.29s     Wait for dev.agentbridge.ios to idle
+    t =    16.30s     Find the "搜索项目" Button
+    t =    16.37s     Check for interrupting elements affecting "magnifyingglass" Button
+    t =    16.41s     Synthesize event
+    t =    16.71s     Wait for dev.agentbridge.ios to idle
+    t =    16.71s Tap "project-p1" Button
+    t =    16.71s     Wait for dev.agentbridge.ios to idle
+    t =    16.72s     Find the "project-p1" Button
+    t =    16.76s     Check for interrupting elements affecting "project-p1" Button
+    t =    16.80s     Synthesize event
+    t =    17.09s     Wait for dev.agentbridge.ios to idle
+    t =    17.60s Waiting 3.0s for "session-s-rich" Button to exist
+    t =    18.63s     Checking `Expect predicate `existsNoRetry == 1` for object "session-s-rich" Button`
+    t =    18.63s         Checking existence of `"session-s-rich" Button`
+    t =    18.71s Checking existence of `"session-s-desktop" Button`
+    t =    18.74s Tap "source-cli" Button
+    t =    18.74s     Wait for dev.agentbridge.ios to idle
+    t =    18.74s     Find the "source-cli" Button
+    t =    18.78s     Check for interrupting elements affecting "source-cli" Button
+    t =    18.81s     Synthesize event
+    t =    19.11s     Wait for dev.agentbridge.ios to idle
+    t =    19.12s Checking existence of `"session-s-rich" Button`
+    t =    19.17s Checking existence of `"session-s-desktop" Button`
+    t =    19.20s Tap "source-desktop" Button
+    t =    19.20s     Wait for dev.agentbridge.ios to idle
+    t =    19.21s     Find the "source-desktop" Button
+    t =    19.24s     Check for interrupting elements affecting "source-desktop" Button
+    t =    19.27s     Synthesize event
+    t =    19.57s     Wait for dev.agentbridge.ios to idle
+    t =    19.58s Checking existence of `"session-s-rich" Button`
+    t =    19.63s Checking existence of `"session-s-desktop" Button`
+    t =    19.66s Tap "source-all" Button
+    t =    19.66s     Wait for dev.agentbridge.ios to idle
+    t =    19.66s     Find the "source-all" Button
+    t =    19.69s     Check for interrupting elements affecting "source-all" Button
+    t =    19.72s     Synthesize event
+    t =    20.02s     Wait for dev.agentbridge.ios to idle
+    t =    20.02s Tap "conversation-search" TextField
+    t =    20.03s     Wait for dev.agentbridge.ios to idle
+    t =    20.03s     Find the "conversation-search" TextField
+    t =    20.08s     Check for interrupting elements affecting "conversation-search" TextField
+    t =    20.12s     Synthesize event
+    t =    20.41s     Wait for dev.agentbridge.ios to idle
+    t =    20.76s Type 'Images' into "conversation-search" TextField
+    t =    20.76s     Wait for dev.agentbridge.ios to idle
+    t =    20.77s     Find the "conversation-search" TextField
+    t =    20.84s     Check for interrupting elements affecting "conversation-search" TextField
+    t =    20.88s     Synthesize event
+    t =    21.19s     Wait for dev.agentbridge.ios to idle
+    t =    21.39s Checking existence of `"session-s-image" Button`
+    t =    21.44s Checking existence of `"session-s-rich" Button`
+    t =    21.48s Tap "清除对话搜索" Button
+    t =    21.48s     Wait for dev.agentbridge.ios to idle
+    t =    21.48s     Find the "清除对话搜索" Button
+    t =    21.52s     Check for interrupting elements affecting "xmark.circle.fill" Button
+    t =    21.55s     Synthesize event
+    t =    21.84s     Wait for dev.agentbridge.ios to idle
+    t =    22.15s Checking existence of `Keyboard (First Match)`
+    t =    22.18s Swipe down Target Application 'dev.agentbridge.ios'
+    t =    22.18s     Wait for dev.agentbridge.ios to idle
+    t =    22.18s     Find the Target Application 'dev.agentbridge.ios'
+    t =    22.21s     Check for interrupting elements affecting "ArcLink" Application
+    t =    22.25s     Synthesize event
+    t =    22.67s     Wait for dev.agentbridge.ios to idle
+    t =    23.17s Find the Target Application 'dev.agentbridge.ios'
+    t =    23.32s Added attachment named 'rich-ui-浅色-project'
+    t =    23.32s Tap "session-s-desktop" Button
+    t =    23.32s     Wait for dev.agentbridge.ios to idle
+    t =    23.32s     Find the "session-s-desktop" Button
+    t =    23.37s     Check for interrupting elements affecting "session-s-desktop" Button
+    t =    23.41s     Synthesize event
+    t =    23.71s     Wait for dev.agentbridge.ios to idle
+    t =    24.24s Waiting 3.0s for "readonly-composer" Any to exist
+    t =    25.26s     Checking `Expect predicate `existsNoRetry == 1` for object "readonly-composer" Any`
+    t =    25.26s         Checking existence of `"readonly-composer" Any`
+    t =    25.31s Checking existence of `"composer" TextField`
+    t =    25.33s Checking existence of `"composer" TextView`
+    t =    25.35s Checking existence of `"发送" Button`
+    t =    25.37s Checking existence of `"终端" Button`
+    t =    25.38s Find the Target Application 'dev.agentbridge.ios'
+    t =    25.49s Added attachment named 'rich-ui-浅色-desktop-readonly'
+    t =    25.49s Tap "新建 CLI 对话" Button
+    t =    25.49s     Wait for dev.agentbridge.ios to idle
+    t =    25.49s     Find the "新建 CLI 对话" Button
+    t =    25.51s     Check for interrupting elements affecting "readonly-composer" Button
+    t =    25.53s     Synthesize event
+    t =    25.83s     Wait for dev.agentbridge.ios to idle
+    t =    25.98s Checking existence of `"composer" TextField`
+    t =    26.02s Waiting 3.0s for "composer" TextField to exist
+    t =    27.04s     Checking `Expect predicate `existsNoRetry == 1` for object "composer" TextField`
+    t =    27.04s         Checking existence of `"composer" TextField`
+    t =    27.09s Find the "发送" Button
+    t =    27.12s Tap Button (Element at index 0)
+    t =    27.12s     Wait for dev.agentbridge.ios to idle
+    t =    27.12s     Find the Button (Element at index 0)
+    t =    27.14s     Check for interrupting elements affecting "BackButton" Button
+    t =    27.16s     Synthesize event
+    t =    27.46s     Wait for dev.agentbridge.ios to idle
+    t =    27.78s Tap Button (Element at index 0)
+    t =    27.78s     Wait for dev.agentbridge.ios to idle
+    t =    27.79s     Find the Button (Element at index 0)
+    t =    27.81s     Check for interrupting elements affecting "BackButton" Button
+    t =    27.84s     Synthesize event
+    t =    28.14s     Wait for dev.agentbridge.ios to idle
+    t =    28.67s Get number of matches for: Elements matching predicate 'identifier BEGINSWITH "session-"'
+    t =    28.73s Tap "session-s-rich" Button
+    t =    28.74s     Wait for dev.agentbridge.ios to idle
+    t =    28.74s     Find the "session-s-rich" Button
+    t =    28.79s     Check for interrupting elements affecting "session-s-rich" Button
+    t =    28.83s     Synthesize event
+    t =    29.13s     Wait for dev.agentbridge.ios to idle
+    t =    29.28s Checking existence of `"composer" TextField`
+    t =    29.70s Find the "composer" TextField
+    t =    29.81s Checking existence of `"Dashboard 调整方案" StaticText`
+    t =    29.89s Find the "Dashboard 调整方案" StaticText
+    t =    30.02s Press Target Application 'dev.agentbridge.ios'[0.98, 0.25] for 0.0 seconds, then drag to Target Application 'dev.agentbridge.ios'[0.98, 0.74] with velocity of 500.00 pixels per second, and then hold for 0.0 seconds 
+    t =    30.02s     Wait for dev.agentbridge.ios to idle
+    t =    30.23s     Find the Target Application 'dev.agentbridge.ios'
+    t =    30.35s     Check for interrupting elements affecting "ArcLink" Application
+    t =    30.40s     Synthesize event
+    t =    30.41s         Find the Target Application 'dev.agentbridge.ios'
+    t =    30.45s         Find the Target Application 'dev.agentbridge.ios'
+    t =    30.51s         Find the Target Application 'dev.agentbridge.ios'
+    t =    30.57s         Find the Target Application 'dev.agentbridge.ios'
+    t =    30.63s         Find the Target Application 'dev.agentbridge.ios'
+    t =    31.78s     Wait for dev.agentbridge.ios to idle
+    t =    32.24s Checking existence of `"composer" TextField`
+    t =    32.36s Find the Target Application 'dev.agentbridge.ios'
+    t =    32.41s Checking existence of `"Dashboard 调整方案" StaticText`
+    t =    32.47s Press Target Application 'dev.agentbridge.ios'[0.98, 0.25] for 0.0 seconds, then drag to Target Application 'dev.agentbridge.ios'[0.98, 0.74] with velocity of 500.00 pixels per second, and then hold for 0.0 seconds 
+    t =    32.47s     Wait for dev.agentbridge.ios to idle
+    t =    32.47s     Find the Target Application 'dev.agentbridge.ios'
+    t =    32.52s     Check for interrupting elements affecting "ArcLink" Application
+    t =    32.56s     Synthesize event
+    t =    32.57s         Find the Target Application 'dev.agentbridge.ios'
+    t =    32.61s         Find the Target Application 'dev.agentbridge.ios'
+    t =    32.66s         Find the Target Application 'dev.agentbridge.ios'
+    t =    32.70s         Find the Target Application 'dev.agentbridge.ios'
+    t =    32.74s         Find the Target Application 'dev.agentbridge.ios'
+    t =    33.88s     Wait for dev.agentbridge.ios to idle
+    t =    33.88s Checking existence of `"composer" TextField`
+    t =    33.94s Find the Target Application 'dev.agentbridge.ios'
+    t =    33.97s Checking existence of `"Dashboard 调整方案" StaticText`
+    t =    34.01s Press Target Application 'dev.agentbridge.ios'[0.98, 0.25] for 0.0 seconds, then drag to Target Application 'dev.agentbridge.ios'[0.98, 0.74] with velocity of 500.00 pixels per second, and then hold for 0.0 seconds 
+    t =    34.01s     Wait for dev.agentbridge.ios to idle
+    t =    34.01s     Find the Target Application 'dev.agentbridge.ios'
+    t =    34.04s     Check for interrupting elements affecting "ArcLink" Application
+    t =    34.07s     Synthesize event
+    t =    34.07s         Find the Target Application 'dev.agentbridge.ios'
+    t =    34.10s         Find the Target Application 'dev.agentbridge.ios'
+    t =    34.13s         Find the Target Application 'dev.agentbridge.ios'
+    t =    34.15s         Find the Target Application 'dev.agentbridge.ios'
+    t =    34.18s         Find the Target Application 'dev.agentbridge.ios'
+    t =    35.37s     Wait for dev.agentbridge.ios to idle
+    t =    35.81s Checking existence of `"composer" TextField`
+    t =    35.85s Find the Target Application 'dev.agentbridge.ios'
+    t =    35.87s Checking existence of `"Dashboard 调整方案" StaticText`
+    t =    35.91s Press Target Application 'dev.agentbridge.ios'[0.98, 0.25] for 0.0 seconds, then drag to Target Application 'dev.agentbridge.ios'[0.98, 0.74] with velocity of 500.00 pixels per second, and then hold for 0.0 seconds 
+    t =    35.91s     Wait for dev.agentbridge.ios to idle
+    t =    35.91s     Find the Target Application 'dev.agentbridge.ios'
+    t =    35.94s     Check for interrupting elements affecting "ArcLink" Application
+    t =    35.97s     Synthesize event
+    t =    35.97s         Find the Target Application 'dev.agentbridge.ios'
+    t =    36.00s         Find the Target Application 'dev.agentbridge.ios'
+    t =    36.02s         Find the Target Application 'dev.agentbridge.ios'
+    t =    36.05s         Find the Target Application 'dev.agentbridge.ios'
+    t =    36.08s         Find the Target Application 'dev.agentbridge.ios'
+    t =    37.20s     Wait for dev.agentbridge.ios to idle
+    t =    38.90s Checking existence of `"composer" TextField`
+    t =    38.94s Find the Target Application 'dev.agentbridge.ios'
+    t =    38.96s Checking existence of `"Dashboard 调整方案" StaticText`
+    t =    38.99s Press Target Application 'dev.agentbridge.ios'[0.98, 0.25] for 0.0 seconds, then drag to Target Application 'dev.agentbridge.ios'[0.98, 0.74] with velocity of 500.00 pixels per second, and then hold for 0.0 seconds 
+    t =    38.99s     Wait for dev.agentbridge.ios to idle
+    t =    39.00s     Find the Target Application 'dev.agentbridge.ios'
+    t =    39.02s     Check for interrupting elements affecting "ArcLink" Application
+    t =    39.05s     Synthesize event
+    t =    39.06s         Find the Target Application 'dev.agentbridge.ios'
+    t =    39.09s         Find the Target Application 'dev.agentbridge.ios'
+    t =    39.12s         Find the Target Application 'dev.agentbridge.ios'
+    t =    39.14s         Find the Target Application 'dev.agentbridge.ios'
+    t =    39.17s         Find the Target Application 'dev.agentbridge.ios'
+    t =    40.29s     Wait for dev.agentbridge.ios to idle
+    t =    40.77s Checking existence of `"composer" TextField`
+    t =    40.83s Find the Target Application 'dev.agentbridge.ios'
+    t =    40.86s Checking existence of `"Dashboard 调整方案" StaticText`
+    t =    40.89s Press Target Application 'dev.agentbridge.ios'[0.98, 0.25] for 0.0 seconds, then drag to Target Application 'dev.agentbridge.ios'[0.98, 0.74] with velocity of 500.00 pixels per second, and then hold for 0.0 seconds 
+    t =    40.89s     Wait for dev.agentbridge.ios to idle
+    t =    40.89s     Find the Target Application 'dev.agentbridge.ios'
+    t =    40.92s     Check for interrupting elements affecting "ArcLink" Application
+    t =    40.95s     Synthesize event
+    t =    40.95s         Find the Target Application 'dev.agentbridge.ios'
+    t =    40.98s         Find the Target Application 'dev.agentbridge.ios'
+    t =    41.01s         Find the Target Application 'dev.agentbridge.ios'
+    t =    41.03s         Find the Target Application 'dev.agentbridge.ios'
+    t =    41.06s         Find the Target Application 'dev.agentbridge.ios'
+    t =    42.18s     Wait for dev.agentbridge.ios to idle
+    t =    43.82s Checking existence of `"composer" TextField`
+    t =    43.87s Find the Target Application 'dev.agentbridge.ios'
+    t =    43.89s Checking existence of `"Dashboard 调整方案" StaticText`
+    t =    43.93s Press Target Application 'dev.agentbridge.ios'[0.98, 0.25] for 0.0 seconds, then drag to Target Application 'dev.agentbridge.ios'[0.98, 0.74] with velocity of 500.00 pixels per second, and then hold for 0.0 seconds 
+    t =    43.93s     Wait for dev.agentbridge.ios to idle
+    t =    43.93s     Find the Target Application 'dev.agentbridge.ios'
+    t =    43.97s     Check for interrupting elements affecting "ArcLink" Application
+    t =    44.00s     Synthesize event
+    t =    44.00s         Find the Target Application 'dev.agentbridge.ios'
+    t =    44.03s         Find the Target Application 'dev.agentbridge.ios'
+    t =    44.06s         Find the Target Application 'dev.agentbridge.ios'
+    t =    44.08s         Find the Target Application 'dev.agentbridge.ios'
+    t =    44.11s         Find the Target Application 'dev.agentbridge.ios'
+    t =    45.24s     Wait for dev.agentbridge.ios to idle
+    t =    45.73s Checking existence of `"composer" TextField`
+    t =    45.79s Find the Target Application 'dev.agentbridge.ios'
+    t =    45.82s Checking existence of `"Dashboard 调整方案" StaticText`
+    t =    45.85s Press Target Application 'dev.agentbridge.ios'[0.98, 0.25] for 0.0 seconds, then drag to Target Application 'dev.agentbridge.ios'[0.98, 0.74] with velocity of 500.00 pixels per second, and then hold for 0.0 seconds 
+    t =    45.85s     Wait for dev.agentbridge.ios to idle
+    t =    45.85s     Find the Target Application 'dev.agentbridge.ios'
+    t =    45.88s     Check for interrupting elements affecting "ArcLink" Application
+    t =    45.91s     Synthesize event
+    t =    45.91s         Find the Target Application 'dev.agentbridge.ios'
+    t =    45.94s         Find the Target Application 'dev.agentbridge.ios'
+    t =    45.96s         Find the Target Application 'dev.agentbridge.ios'
+    t =    45.99s         Find the Target Application 'dev.agentbridge.ios'
+    t =    46.02s         Find the Target Application 'dev.agentbridge.ios'
+    t =    47.14s     Wait for dev.agentbridge.ios to idle
+    t =    48.77s Checking existence of `"Dashboard 调整方案" StaticText`
+/Users/mac/mac-dev/agent-bridge/ios/AgentBridgeUITests/MockPathTests.swift:502: error: -[AgentBridgeUITests.MockPathTests testLightPaths] : XCTAssertTrue failed - Expected visible element: "Dashboard 调整方案" StaticText
+    t =    48.91s Tear Down
+Test Case '-[AgentBridgeUITests.MockPathTests testLightPaths]' failed (49.259 seconds).
+Test Case '-[AgentBridgeUITests.MockPathTests testLiveStepDetailRefreshesWhileOpen]' started.
+    t =     0.00s Start Test at 2026-11-04 16:43:35.445
+    t =     0.04s Set Up
+    t =     0.04s Open dev.agentbridge.ios
+    t =     0.04s     Launch dev.agentbridge.ios
+    t =     0.04s         Terminate dev.agentbridge.ios:51664
+2026-11-04 16:43:36.545 xcodebuild[41353:1532834] [MT] IDELaunchParametersSnapshot: debugger version lookup failed for path '<nil>': noURL
+2026-11-04 16:43:36.545 xcodebuild[41353:1532834] [MT] IDELaunchParametersSnapshot: no debugger version
+    t =     1.32s         Setting up automation session
+    t =     3.48s         Wait for dev.agentbridge.ios to idle
+    t =     5.05s Tap "project-p1" Button
+    t =     5.05s     Wait for dev.agentbridge.ios to idle
+    t =     5.05s     Find the "project-p1" Button
+    t =     5.24s     Check for interrupting elements affecting "project-p1" Button
+    t =     5.27s     Synthesize event
+    t =     5.56s     Wait for dev.agentbridge.ios to idle
+    t =     5.67s Tap "session-s-rich" Button
+    t =     5.67s     Wait for dev.agentbridge.ios to idle
+    t =     6.12s     Find the "session-s-rich" Button
+    t =     6.19s     Check for interrupting elements affecting "session-s-rich" Button
+    t =     6.24s     Synthesize event
+    t =     6.53s     Wait for dev.agentbridge.ios to idle
+    t =     6.69s Checking existence of `"composer" TextField`
+    t =     6.77s Find the "composer" TextField
+    t =     6.83s Checking existence of `Button (First Match)`
+    t =     6.91s Find the Button (First Match)
+    t =     7.04s Find the "工具步骤 · 1 项" Button
+    t =     7.14s Find the "工具步骤 · 1 项" Button
+    t =     7.23s Find the NavigationBar (First Match)
+    t =     7.25s Tap "工具步骤 · 1 项" Button
+    t =     7.25s     Wait for dev.agentbridge.ios to idle
+    t =     7.26s     Find the "工具步骤 · 1 项" Button
+    t =     7.33s     Check for interrupting elements affecting "工具步骤 · 1 项" Button
+    t =     7.37s     Synthesize event
+    t =     7.67s     Wait for dev.agentbridge.ios to idle
+    t =     7.67s Tap "live-step-execution" Button
+    t =     7.67s     Wait for dev.agentbridge.ios to idle
+    t =     7.68s     Find the "live-step-execution" Button
+    t =     7.72s     Check for interrupting elements affecting "live-step-execution" Button
+    t =     7.75s     Synthesize event
+    t =     8.05s     Wait for dev.agentbridge.ios to idle
+    t =     8.50s Waiting 2.0s for "等待输出…" StaticText to exist
+    t =     9.52s     Checking `Expect predicate `existsNoRetry == 1` for object "等待输出…" StaticText`
+    t =     9.52s         Checking existence of `"等待输出…" StaticText`
+    t =     9.59s Waiting 30.0s for "LIVE_OUTPUT_UPDATED" StaticText to exist
+    t =    10.61s     Checking `Expect predicate `existsNoRetry == 1` for object "LIVE_OUTPUT_UPDATED" StaticText`
+    t =    10.61s         Checking existence of `"LIVE_OUTPUT_UPDATED" StaticText`
+    t =    10.68s         Capturing element debug description
+    t =    11.68s     Checking `Expect predicate `existsNoRetry == 1` for object "LIVE_OUTPUT_UPDATED" StaticText`
+    t =    11.68s         Checking existence of `"LIVE_OUTPUT_UPDATED" StaticText`
+    t =    11.74s         Capturing element debug description
+    t =    12.66s     Checking `Expect predicate `existsNoRetry == 1` for object "LIVE_OUTPUT_UPDATED" StaticText`
+    t =    12.66s         Checking existence of `"LIVE_OUTPUT_UPDATED" StaticText`
+    t =    12.71s         Capturing element debug description
+    t =    13.63s     Checking `Expect predicate `existsNoRetry == 1` for object "LIVE_OUTPUT_UPDATED" StaticText`
+    t =    13.63s         Checking existence of `"LIVE_OUTPUT_UPDATED" StaticText`
+    t =    13.69s         Capturing element debug description
+    t =    14.60s     Checking `Expect predicate `existsNoRetry == 1` for object "LIVE_OUTPUT_UPDATED" StaticText`
+    t =    14.61s         Checking existence of `"LIVE_OUTPUT_UPDATED" StaticText`
+    t =    14.66s         Capturing element debug description
+    t =    15.59s     Checking `Expect predicate `existsNoRetry == 1` for object "LIVE_OUTPUT_UPDATED" StaticText`
+    t =    15.59s         Checking existence of `"LIVE_OUTPUT_UPDATED" StaticText`
+    t =    15.65s         Capturing element debug description
+    t =    16.68s     Checking `Expect predicate `existsNoRetry == 1` for object "LIVE_OUTPUT_UPDATED" StaticText`
+    t =    16.68s         Checking existence of `"LIVE_OUTPUT_UPDATED" StaticText`
+    t =    16.74s         Capturing element debug description
+    t =    17.66s     Checking `Expect predicate `existsNoRetry == 1` for object "LIVE_OUTPUT_UPDATED" StaticText`
+    t =    17.66s         Checking existence of `"LIVE_OUTPUT_UPDATED" StaticText`
+    t =    17.72s         Capturing element debug description
+    t =    18.64s     Checking `Expect predicate `existsNoRetry == 1` for object "LIVE_OUTPUT_UPDATED" StaticText`
+    t =    18.64s         Checking existence of `"LIVE_OUTPUT_UPDATED" StaticText`
+    t =    18.69s         Capturing element debug description
+    t =    19.62s     Checking `Expect predicate `existsNoRetry == 1` for object "LIVE_OUTPUT_UPDATED" StaticText`
+    t =    19.62s         Checking existence of `"LIVE_OUTPUT_UPDATED" StaticText`
+    t =    19.68s         Capturing element debug description
+    t =    20.60s     Checking `Expect predicate `existsNoRetry == 1` for object "LIVE_OUTPUT_UPDATED" StaticText`
+    t =    20.60s         Checking existence of `"LIVE_OUTPUT_UPDATED" StaticText`
+    t =    20.66s         Capturing element debug description
+    t =    21.59s     Checking `Expect predicate `existsNoRetry == 1` for object "LIVE_OUTPUT_UPDATED" StaticText`
+    t =    21.59s         Checking existence of `"LIVE_OUTPUT_UPDATED" StaticText`
+    t =    21.64s         Capturing element debug description
+    t =    22.67s     Checking `Expect predicate `existsNoRetry == 1` for object "LIVE_OUTPUT_UPDATED" StaticText`
+    t =    22.67s         Checking existence of `"LIVE_OUTPUT_UPDATED" StaticText`
+    t =    22.71s         Capturing element debug description
+    t =    23.63s     Checking `Expect predicate `existsNoRetry == 1` for object "LIVE_OUTPUT_UPDATED" StaticText`
+    t =    23.63s         Checking existence of `"LIVE_OUTPUT_UPDATED" StaticText`
+    t =    23.69s         Capturing element debug description
+    t =    24.61s     Checking `Expect predicate `existsNoRetry == 1` for object "LIVE_OUTPUT_UPDATED" StaticText`
+    t =    24.61s         Checking existence of `"LIVE_OUTPUT_UPDATED" StaticText`
+    t =    24.67s         Capturing element debug description
+    t =    25.62s     Checking `Expect predicate `existsNoRetry == 1` for object "LIVE_OUTPUT_UPDATED" StaticText`
+    t =    25.62s         Checking existence of `"LIVE_OUTPUT_UPDATED" StaticText`
+    t =    25.67s         Capturing element debug description
+    t =    26.59s     Checking `Expect predicate `existsNoRetry == 1` for object "LIVE_OUTPUT_UPDATED" StaticText`
+    t =    26.59s         Checking existence of `"LIVE_OUTPUT_UPDATED" StaticText`
+    t =    26.63s         Capturing element debug description
+    t =    27.64s     Checking `Expect predicate `existsNoRetry == 1` for object "LIVE_OUTPUT_UPDATED" StaticText`
+    t =    27.64s         Checking existence of `"LIVE_OUTPUT_UPDATED" StaticText`
+    t =    27.67s         Capturing element debug description
+    t =    28.60s     Checking `Expect predicate `existsNoRetry == 1` for object "LIVE_OUTPUT_UPDATED" StaticText`
+    t =    28.60s         Checking existence of `"LIVE_OUTPUT_UPDATED" StaticText`
+    t =    28.66s         Capturing element debug description
+    t =    29.59s     Checking `Expect predicate `existsNoRetry == 1` for object "LIVE_OUTPUT_UPDATED" StaticText`
+    t =    29.59s         Checking existence of `"LIVE_OUTPUT_UPDATED" StaticText`
+    t =    29.65s         Capturing element debug description
+    t =    30.67s     Checking `Expect predicate `existsNoRetry == 1` for object "LIVE_OUTPUT_UPDATED" StaticText`
+    t =    30.67s         Checking existence of `"LIVE_OUTPUT_UPDATED" StaticText`
+    t =    30.73s         Capturing element debug description
+    t =    31.65s     Checking `Expect predicate `existsNoRetry == 1` for object "LIVE_OUTPUT_UPDATED" StaticText`
+    t =    31.66s         Checking existence of `"LIVE_OUTPUT_UPDATED" StaticText`
+    t =    31.71s         Capturing element debug description
+    t =    32.63s     Checking `Expect predicate `existsNoRetry == 1` for object "LIVE_OUTPUT_UPDATED" StaticText`
+    t =    32.64s         Checking existence of `"LIVE_OUTPUT_UPDATED" StaticText`
+    t =    32.68s         Capturing element debug description
+    t =    33.59s     Checking `Expect predicate `existsNoRetry == 1` for object "LIVE_OUTPUT_UPDATED" StaticText`
+    t =    33.60s         Checking existence of `"LIVE_OUTPUT_UPDATED" StaticText`
+    t =    33.63s         Capturing element debug description
+    t =    34.66s     Checking `Expect predicate `existsNoRetry == 1` for object "LIVE_OUTPUT_UPDATED" StaticText`
+    t =    34.66s         Checking existence of `"LIVE_OUTPUT_UPDATED" StaticText`
+    t =    34.70s         Capturing element debug description
+    t =    35.62s     Checking `Expect predicate `existsNoRetry == 1` for object "LIVE_OUTPUT_UPDATED" StaticText`
+    t =    35.62s         Checking existence of `"LIVE_OUTPUT_UPDATED" StaticText`
+    t =    35.66s         Capturing element debug description
+    t =    36.68s     Checking `Expect predicate `existsNoRetry == 1` for object "LIVE_OUTPUT_UPDATED" StaticText`
+    t =    36.69s         Checking existence of `"LIVE_OUTPUT_UPDATED" StaticText`
+    t =    36.72s         Capturing element debug description
+    t =    37.63s     Checking `Expect predicate `existsNoRetry == 1` for object "LIVE_OUTPUT_UPDATED" StaticText`
+    t =    37.64s         Checking existence of `"LIVE_OUTPUT_UPDATED" StaticText`
+    t =    37.70s         Capturing element debug description
+    t =    38.61s     Checking `Expect predicate `existsNoRetry == 1` for object "LIVE_OUTPUT_UPDATED" StaticText`
+    t =    38.61s         Checking existence of `"LIVE_OUTPUT_UPDATED" StaticText`
+    t =    38.65s         Capturing element debug description
+    t =    39.60s     Checking `Expect predicate `existsNoRetry == 1` for object "LIVE_OUTPUT_UPDATED" StaticText`
+    t =    39.60s         Checking existence of `"LIVE_OUTPUT_UPDATED" StaticText`
+    t =    39.64s         Capturing element debug description
+    t =    39.64s     Checking existence of `"LIVE_OUTPUT_UPDATED" StaticText`
+    t =    39.67s Collecting debug information to assist test failure triage
+    t =    39.67s     Requesting snapshot of accessibility hierarchy for app with pid 53439
+/Users/mac/mac-dev/agent-bridge/ios/AgentBridgeUITests/MockPathTests.swift:75: error: -[AgentBridgeUITests.MockPathTests testLiveStepDetailRefreshesWhileOpen] : XCTAssertTrue failed
+    t =    39.74s Tear Down
+Test Case '-[AgentBridgeUITests.MockPathTests testLiveStepDetailRefreshesWhileOpen]' failed (39.996 seconds).
+Test Case '-[AgentBridgeUITests.MockPathTests testNewConversationFormSendsTextAndImage]' started.
+    t =     0.00s Start Test at 2026-11-04 16:44:15.442
+    t =     0.03s Set Up
+    t =     0.04s Open dev.agentbridge.ios
+    t =     0.04s     Launch dev.agentbridge.ios
+    t =     0.05s         Terminate dev.agentbridge.ios:53439
+2026-11-04 16:44:16.552 xcodebuild[41353:1532834] [MT] IDELaunchParametersSnapshot: debugger version lookup failed for path '<nil>': noURL
+2026-11-04 16:44:16.552 xcodebuild[41353:1532834] [MT] IDELaunchParametersSnapshot: no debugger version
+    t =     1.33s         Setting up automation session
+    t =     3.90s         Wait for dev.agentbridge.ios to idle
+    t =     6.21s Tap "chat-fab" Button
+    t =     6.21s     Wait for dev.agentbridge.ios to idle
+    t =     6.21s     Find the "chat-fab" Button
+    t =     6.41s     Check for interrupting elements affecting "chat-fab" Button
+    t =     6.45s     Synthesize event
+    t =     6.77s     Wait for dev.agentbridge.ios to idle
+    t =     7.57s Waiting 3.0s for "新对话" NavigationBar to exist
+    t =     8.60s     Checking `Expect predicate `existsNoRetry == 1` for object "新对话" NavigationBar`
+    t =     8.60s         Checking existence of `"新对话" NavigationBar`
+    t =     8.76s Find the "start-conversation" Button
+    t =     8.82s Tap "current-project-picker" Button
+    t =     8.82s     Wait for dev.agentbridge.ios to idle
+    t =     8.82s     Find the "current-project-picker" Button
+    t =     8.89s     Check for interrupting elements affecting "current-project-picker" Button
+    t =     8.94s     Synthesize event
+    t =     9.23s     Wait for dev.agentbridge.ios to idle
+    t =    10.51s Tap "service" Button
+    t =    10.51s     Wait for dev.agentbridge.ios to idle
+    t =    10.51s     Find the "service" Button
+    t =    10.63s     Check for interrupting elements affecting "service" Button
+    t =    10.69s     Synthesize event
+    t =    10.99s     Wait for dev.agentbridge.ios to idle
+    t =    12.45s Tap "只读" Button
+    t =    12.45s     Wait for dev.agentbridge.ios to idle
+    t =    12.45s     Find the "只读" Button
+    t =    13.49s         Find the "只读" Button (retry 1)
+** BUILD INTERRUPTED **
