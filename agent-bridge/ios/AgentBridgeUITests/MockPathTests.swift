@@ -8,7 +8,7 @@ final class MockPathTests: XCTestCase {
 
     override func setUpWithError() throws {
         continueAfterFailure = false
-        app = XCUIApplication(bundleIdentifier: "dev.agentbridge.ios")
+        app = XCUIApplication(bundleIdentifier: "com.xula.ArcLink")
     }
 
     func testLightPaths() throws { try runPaths(theme: "浅色") }

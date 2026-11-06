@@ -8,7 +8,7 @@ final class MultiDeviceUITests: XCTestCase {
 
     private func exercise(theme: String, includeScanner: Bool = true) throws {
         continueAfterFailure = false
-        let app = XCUIApplication(bundleIdentifier: "dev.agentbridge.ios")
+        let app = XCUIApplication(bundleIdentifier: "com.xula.ArcLink")
         let id = UUID().uuidString
         func workspace(_ name: String) -> [String: Any] {
             ["selectedAgent": "Claude Code", "projects": [["id": "shared-project", "name": name, "path": "/test", "agent": "Claude Code"]],
