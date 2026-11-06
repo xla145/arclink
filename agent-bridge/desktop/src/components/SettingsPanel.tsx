@@ -121,118 +121,144 @@ export function SettingsPanel({
       setBusy(false);
     }
   }
+  const awakeStatus = awakeLoading
+    ? "正在读取保持活跃状态…"
+    : !awake
+      ? "未能读取保持活跃状态"
+      : !awake.supported
+        ? "当前系统暂不支持保持活跃"
+        : awake.active
+          ? "已生效 · ArcLink 运行期间保持电脑活跃"
+          : awake.enabled
+            ? "已开启偏好，但当前未生效"
+            : "关闭时遵循系统休眠设置";
   return (
     <div className="settings-content">
       {error && <ErrorBanner error={error} />}
-      <h2 className="settings-heading">通用</h2>
-      <div className="field">
-        <label htmlFor="device-name">主机名称</label>
-        <input
-          id="device-name"
-          value={settings.device_name}
-          maxLength={64}
-          onChange={(event) => {
-            setSettings({ device_name: event.target.value });
-            setSaved(false);
-          }}
-        />
-        <button
-          className="button secondary"
-          onClick={() => void save()}
-          disabled={
-            busy ||
-            !settings.device_name.trim() ||
-            settings.device_name === snapshot.settings.device_name
-          }
-        >
-          {saved ? "已保存" : busy ? "保存中…" : "保存名称"}
-        </button>
-      </div>
-      <div className="setting-row">
-        <div>
-          <strong>登录时启动</strong>
-          <p>登录后在菜单栏保持可用</p>
+      <section className="settings-section">
+        <h2 className="settings-heading">通用</h2>
+        <div className="settings-group">
+          <div className="settings-item field">
+            <label htmlFor="device-name">主机名称</label>
+            <div className="input-row">
+              <input
+                id="device-name"
+                value={settings.device_name}
+                maxLength={64}
+                onChange={(event) => {
+                  setSettings({ device_name: event.target.value });
+                  setSaved(false);
+                }}
+              />
+              <button
+                className="button secondary compact"
+                onClick={() => void save()}
+                disabled={
+                  busy ||
+                  !settings.device_name.trim() ||
+                  settings.device_name === snapshot.settings.device_name
+                }
+              >
+                {saved ? "已保存" : busy ? "保存中…" : "保存"}
+              </button>
+            </div>
+          </div>
+          <div className="settings-item setting-row">
+            <div>
+              <strong>登录时启动</strong>
+              <p>
+                {autostart === null
+                  ? "尚未读取系统登录启动状态"
+                  : "登录后在菜单栏保持可用"}
+              </p>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={autostart ?? false}
+              aria-label="登录时启动"
+              className={`switch ${autostart ? "enabled" : ""}`}
+              disabled={busy || autostart === null}
+              onClick={() => void toggleAutostart()}
+            >
+              <span />
+            </button>
+          </div>
+          <div className="settings-item">
+            <div className="setting-row">
+              <div>
+                <strong>保持电脑活跃</strong>
+                <p>防止自动休眠，允许熄屏和锁屏</p>
+              </div>
+              <button
+                type="button"
+                role="switch"
+                aria-label="保持电脑活跃"
+                aria-checked={awake?.enabled ?? false}
+                className={`switch ${awake?.enabled ? "enabled" : ""}`}
+                disabled={busy || awakeLoading || !awake?.supported}
+                onClick={() => void toggleAwake()}
+              >
+                <span />
+              </button>
+            </div>
+            <p
+              className={`setting-status ${awake?.active ? "active" : ""}`}
+              role="status"
+            >
+              {awakeStatus}
+            </p>
+            {!awake && !awakeLoading && (
+              <button
+                className="text-button"
+                onClick={() => void reloadAwake()}
+              >
+                重试读取保持活跃状态
+              </button>
+            )}
+            {awake?.error && <ErrorBanner error={awake.error} />}
+          </div>
         </div>
-        <button
-          type="button"
-          role="switch"
-          aria-checked={autostart ?? false}
-          aria-label="登录时启动"
-          className={`switch ${autostart ? "enabled" : ""}`}
-          disabled={busy || autostart === null}
-          onClick={() => void toggleAutostart()}
-        >
-          <span />
-        </button>
-      </div>
-      {autostart === null && <p className="subtle">尚未读取系统登录启动状态</p>}
-      <div className="setting-row">
-        <div>
-          <strong>保持电脑活跃</strong>
-          <p>防止自动休眠，允许熄屏和锁屏</p>
+      </section>
+      <section className="settings-section">
+        <h2 className="settings-heading">连接</h2>
+        <div className="settings-group">
+          <div className="settings-item setting-row">
+            <strong>连接方式</strong>
+            <span className="setting-value">自动连接 · 优先直连</span>
+          </div>
+          <div className="settings-item">
+            <strong>连接身份</strong>
+            <code className="endpoint">
+              {snapshot.status.network.endpoint_id ?? "等待网络服务启动"}
+            </code>
+          </div>
         </div>
-        <button
-          type="button"
-          role="switch"
-          aria-label="保持电脑活跃"
-          aria-checked={awake?.enabled ?? false}
-          className={`switch ${awake?.enabled ? "enabled" : ""}`}
-          disabled={busy || awakeLoading || !awake?.supported}
-          onClick={() => void toggleAwake()}
-        >
-          <span />
-        </button>
-      </div>
-      <p className="subtle" role="status">
-        {awakeLoading
-          ? "正在读取保持活跃状态…"
-          : !awake
-            ? "未能读取保持活跃状态"
-            : !awake.supported
-              ? "当前系统暂不支持保持活跃"
-              : awake.active
-                ? "已生效 · ArcLink 运行期间保持电脑活跃"
-                : awake.enabled
-                  ? "已开启偏好，但当前未生效"
-                  : "关闭时遵循系统休眠设置"}
-      </p>
-      {!awake && !awakeLoading && (
-        <button className="text-button" onClick={() => void reloadAwake()}>
-          重试读取保持活跃状态
-        </button>
-      )}
-      {awake?.error && <ErrorBanner error={awake.error} />}
-      <h2 className="settings-heading">连接</h2>
-      <div className="field">
-        <label>连接方式</label>
-        <strong>自动连接 · 优先直连</strong>
-        <p className="subtle">
-          手机扫码即可连接，直连不可用时自动使用中继，无需填写地址或密钥。
+        <p className="settings-note">
+          手机扫码即可连接，直连不可用时自动使用中继，无需填写地址或密钥。仅向你信任的设备授予访问权限。
         </p>
-      </div>
-      <div className="field">
-        <label>连接身份</label>
-        <code className="endpoint">
-          {snapshot.status.network.endpoint_id ?? "等待网络服务启动"}
-        </code>
-        <p className="subtle">仅向你信任的设备授予访问权限。</p>
-      </div>
-      <h2 className="settings-heading">诊断</h2>
-      <button className="settings-link" onClick={onLogs}>
-        <span>
-          <strong>运行日志</strong>
-          <small>查看最近记录、复制或导出</small>
-        </span>
-        <span aria-hidden="true">›</span>
+      </section>
+      <section className="settings-section">
+        <h2 className="settings-heading">诊断</h2>
+        <div className="settings-group">
+          <button className="settings-link" onClick={onLogs}>
+            <span>
+              <strong>运行日志</strong>
+              <small>查看最近记录、复制或导出</small>
+            </span>
+            <span aria-hidden="true" className="chevron">
+              ›
+            </span>
+          </button>
+        </div>
+      </section>
+      <section className="settings-section">
+        <h2 className="settings-heading">应用</h2>
+        <div className="settings-group">{application}</div>
+      </section>
+      <button className="button danger-outline full" onClick={onExit}>
+        退出应用
       </button>
-      <h2 className="settings-heading">应用</h2>
-      {application}
-      <div className="setting-row">
-        <span className="subtle">ArcLink</span>
-        <button className="text-button danger-text" onClick={onExit}>
-          退出应用
-        </button>
-      </div>
     </div>
   );
 }

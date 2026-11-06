@@ -6,7 +6,7 @@ final class RelayNetworkUITests: XCTestCase {
 
     private func exercise(theme: String) throws {
         continueAfterFailure = false
-        let app = XCUIApplication(bundleIdentifier: "dev.agentbridge.ios")
+        let app = XCUIApplication(bundleIdentifier: "com.xula.ArcLink")
         let state: [String: Any] = ["version": 2, "selectedDeviceID": "relay-device", "devices": [
             ["id": "relay-device", "name": "测试 Mac", "endpointID": "invalid-ui-test-endpoint",
              "network": ["relayURL": "https://iroh.classktv.com/", "directAddresses": []],

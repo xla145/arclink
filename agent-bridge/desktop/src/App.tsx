@@ -110,6 +110,31 @@ export function App({
       : uptime >= 60
         ? `${Math.floor(uptime / 60)}m`
         : `${uptime}s`;
+  const statusTone =
+    loading && !snapshot
+      ? "connecting"
+      : !running
+        ? "error"
+        : network?.state === "error"
+          ? "warning"
+          : network?.state === "starting"
+            ? "connecting"
+            : "online";
+  const statusLabel = loading
+    ? "正在启动"
+    : running
+      ? network?.state === "error"
+        ? "网络异常"
+        : "运行中"
+      : "服务不可用";
+  const statusDetail = snapshot?.status.connected_devices
+    ? `${snapshot.status.connected_devices} 台在线`
+    : network?.state === "ready"
+      ? "等待连接"
+      : network?.state === "starting"
+        ? "连接中"
+        : "未连接";
+  const mainView = !pairing && !settings && !logs;
   return (
     <main className="shell">
       {preview && <div className="preview-label">界面预览 · 示例数据</div>}
@@ -135,54 +160,45 @@ export function App({
               </button>
             ) : (
               <div className="logo">
-                <img src={arclinkIcon} width={28} height={28} alt="" />
+                <img src={arclinkIcon} width={30} height={30} alt="" />
               </div>
             )}
-            <h1>
-              {logs
-                ? "运行日志"
-                : pairing
-                  ? "配对新设备"
-                  : settings
-                    ? "设置"
-                    : "ArcLink"}
-            </h1>
+            <div className="header-title">
+              <h1>
+                {logs
+                  ? "运行日志"
+                  : pairing
+                    ? "配对新设备"
+                    : settings
+                      ? "设置"
+                      : "ArcLink"}
+              </h1>
+              {mainView && (
+                <span className="header-sub">
+                  {statusDetail}
+                  {running && ` · 运行 ${uptimeLabel}`}
+                </span>
+              )}
+            </div>
           </div>
-          {!pairing && !settings && !logs && (
-            <button
-              className="icon-button"
-              aria-label="设置"
-              onClick={() => setSettings(true)}
-            >
-              <Icon name="settings" />
-            </button>
+          {mainView && (
+            <div className="header-right">
+              <span className={`status-pill ${statusTone}`} aria-live="polite">
+                <span className={`status-dot ${statusTone}`} />
+                {statusLabel}
+              </span>
+              <button
+                className="icon-button"
+                aria-label="设置"
+                onClick={() => setSettings(true)}
+              >
+                <Icon name="settings" />
+              </button>
+            </div>
           )}
         </div>
-        {!pairing && !settings && !logs && (
+        {mainView && (
           <>
-            <div className="status-bar" aria-live="polite">
-              <span
-                className={`status-dot ${running && network?.state !== "error" ? "online" : loading || network?.state === "starting" ? "connecting" : "offline"}`}
-              />
-              <span>
-                {loading
-                  ? "正在启动"
-                  : running
-                    ? network?.state === "error"
-                      ? "网络异常"
-                      : "运行中"
-                    : "服务不可用"}
-              </span>
-              <span className="status-detail">
-                {snapshot?.status.connected_devices
-                  ? `${snapshot.status.connected_devices} 台在线`
-                  : network?.state === "ready"
-                    ? "等待连接"
-                    : network?.state === "starting"
-                      ? "连接中"
-                      : "未连接"}
-              </span>
-            </div>
             <nav className="view-tabs" aria-label="面板视图">
               {(["devices", "agents", "processes"] as const).map((value) => (
                 <button
@@ -210,14 +226,18 @@ export function App({
           !settings &&
           !logs &&
           ["available", "ready"].includes(update.status?.phase ?? "") && (
-            <section className="panel">
-              <button className="text-button" onClick={() => setSettings(true)}>
+            <section className="panel banner-panel">
+              <button
+                className="update-banner"
+                onClick={() => setSettings(true)}
+              >
+                <Icon name="refresh" size={14} />
                 新版本 {update.status?.version} 可用 · 查看更新
               </button>
             </section>
           )}
         {!pairing && !logs && shownError && (
-          <section className="panel">
+          <section className="panel banner-panel">
             <ErrorBanner
               error={shownError}
               onRetry={() =>
@@ -439,9 +459,12 @@ export function App({
           )
         )}
       </div>
-      {!pairing && !logs && (
+      {mainView && (
         <footer className="panel footer">
-          <span>agentd · {running ? `运行 ${uptimeLabel}` : "等待启动"}</span>
+          <span className="footer-label">
+            <Icon name="terminal" size={12} />
+            agentd · {running ? "本机服务已启动" : "等待启动"}
+          </span>
           <button
             className="text-button"
             disabled={!!busy}

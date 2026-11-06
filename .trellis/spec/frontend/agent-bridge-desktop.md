@@ -57,6 +57,16 @@ Use a 14px rounded outer shell and transparent corner areas in the native window
 so the operating-system window does not fill CSS corners with an opaque square.
 Follow the supplied HTML's compact sections and segmented navigation, local
 fonts, light/dark colors, bounded scrolling and readable long-label behavior.
+Colors come from the `:root` tokens in `src/styles/panel.css` (brand ink/cyan/blue,
+`--accent`, `--on-accent`, `--danger-fill`, `--tab-active`); never hard-code a
+color in components. Service status lives in the header (status pill with
+online/connecting/warning/error tones plus an "N 台在线 · 运行 X" sub-line); keep
+the main header ≤ 110px so lists stay visible at 480px, and do not repeat uptime
+in the footer. Lists use grouped containers (`.device-list` / `.agent-list` /
+`.process-list`); destructive row actions stay low-contrast until hover/focus.
+Settings uses `.settings-section` > `.settings-heading` + `.settings-group` cards
+of `.settings-item` rows (inline input+save, switch rows, update row with inline
+"检查更新"); quit is a bottom `.button.danger-outline`; the footer is main-view only.
 
 Autostart changes only through a deliberate user operation and is queried back
 from the OS. Data/log locations use Tauri app-scoped path APIs. `open_logs` opens
