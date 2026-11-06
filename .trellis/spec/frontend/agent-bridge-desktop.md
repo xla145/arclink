@@ -64,6 +64,9 @@ online/connecting/warning/error tones plus an "N 台在线 · 运行 X" sub-line
 the main header ≤ 110px so lists stay visible at 480px, and do not repeat uptime
 in the footer. Lists use grouped containers (`.device-list` / `.agent-list` /
 `.process-list`); destructive row actions stay low-contrast until hover/focus.
+Settings uses `.settings-section` > `.settings-heading` + `.settings-group` cards
+of `.settings-item` rows (inline input+save, switch rows, update row with inline
+"检查更新"); quit is a bottom `.button.danger-outline`; the footer is main-view only.
 
 Autostart changes only through a deliberate user operation and is queried back
 from the OS. Data/log locations use Tauri app-scoped path APIs. `open_logs` opens

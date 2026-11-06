@@ -459,7 +459,7 @@ export function App({
           )
         )}
       </div>
-      {!pairing && !logs && (
+      {mainView && (
         <footer className="panel footer">
           <span className="footer-label">
             <Icon name="terminal" size={12} />

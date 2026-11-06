@@ -33,9 +33,22 @@ export function UpdatePanel({
     error: "更新未完成",
   };
   return (
-    <div className="field update-panel" aria-label="软件更新">
-      <label>软件更新{status ? ` · ${status.current_version}` : ""}</label>
-      <p role="status">{phase ? labels[phase] : "正在读取更新状态…"}</p>
+    <div className="settings-item update-panel" aria-label="软件更新">
+      <div className="setting-row">
+        <div>
+          <strong>
+            软件更新{status ? ` · ${status.current_version}` : ""}
+          </strong>
+          <p role="status">{phase ? labels[phase] : "正在读取更新状态…"}</p>
+        </div>
+        <button
+          className="button secondary compact"
+          disabled={busy || status?.restart_required}
+          onClick={onCheck}
+        >
+          检查更新
+        </button>
+      </div>
       {(error ?? status?.error) && (
         <ErrorBanner error={(error ?? status?.error)!} />
       )}
@@ -62,20 +75,13 @@ export function UpdatePanel({
           本机服务已停止，请重试安装或退出后重新打开。
         </p>
       )}
-      <div className="inline-actions">
-        <button
-          className="button secondary"
-          disabled={busy || status?.restart_required}
-          onClick={onCheck}
-        >
-          检查更新
-        </button>
+      <div className="update-actions">
         {(phase === "available" ||
           (phase === "error" &&
             status?.version &&
             !status.restart_required)) && (
           <button
-            className="button primary"
+            className="button primary full"
             disabled={busy}
             onClick={onDownload}
           >
@@ -84,7 +90,7 @@ export function UpdatePanel({
         )}
         {(phase === "ready" || status?.restart_required) && (
           <button
-            className="button primary"
+            className="button primary full"
             disabled={busy}
             onClick={onInstall}
           >
