@@ -13,7 +13,7 @@ dependencies = [
 
 [[package]]
 name = "abp-test-harness"
-version = "0.1.3"
+version = "0.1.4"
 dependencies = [
  "abp-protocol",
  "agent-adapters",
@@ -69,7 +69,7 @@ dependencies = [
 
 [[package]]
 name = "agent-adapters"
-version = "0.1.3"
+version = "0.1.4"
 dependencies = [
  "libc",
  "serde",
@@ -80,7 +80,7 @@ dependencies = [
 
 [[package]]
 name = "agent-bridge-client"
-version = "0.1.3"
+version = "0.1.4"
 dependencies = [
  "abp-protocol",
  "bridge-network",
@@ -97,7 +97,7 @@ dependencies = [
 
 [[package]]
 name = "agent-bridge-desktop"
-version = "0.1.3"
+version = "0.1.4"
 dependencies = [
  "agentd",
  "bridge-network",
@@ -121,7 +121,7 @@ dependencies = [
 
 [[package]]
 name = "agentd"
-version = "0.1.3"
+version = "0.1.4"
 dependencies = [
  "abp-protocol",
  "agent-adapters",
@@ -770,7 +770,7 @@ dependencies = [
 
 [[package]]
 name = "bridge-network"
-version = "0.1.3"
+version = "0.1.4"
 dependencies = [
  "abp-protocol",
  "iroh",
