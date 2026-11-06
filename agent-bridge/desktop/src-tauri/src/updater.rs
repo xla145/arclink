@@ -308,3 +308,7 @@ mod tests {
         assert!(inner.require_version("9.9.9").is_err());
     }
 }
+
+#[cfg(test)]
+#[path = "updater_endpoint_tests.rs"]
+mod endpoint_tests;

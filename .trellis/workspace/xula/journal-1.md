@@ -126,3 +126,27 @@ Implemented the approved Rust daemon/client delivery: bounded ABP, SQLite author
 ### Next Steps
 
 - 按版本匹配发布完整签名双架构更新和latest.json，再验证公开下载、签名及隔离安装；本次未发布或替换正在运行的客户端。
+
+
+## Session 5: ArcLink R2 下载上线与边缘缓存验收
+<!-- trellis-session: v=2 fp=f85a6a86239c9a47 -->
+
+**Date**: 2026-11-05
+**Task**: ArcLink R2 下载上线与边缘缓存验收
+**Branch**: `codex/arclink-r2-distribution`
+
+### Summary
+
+完成 R2 双架构签名发布镜像、官网0.1.3下载上线和99项质量检查；真实R2原生下载/签名/临时副本安装通过，用户应用不变；验证版本文件 MISS→HIT、DMG Range HIT，根latest保持DYNAMIC/no-store。未重发旧tag/二进制，现有0.1.3客户端更新入口随后续版本迁移。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `e3a8639` | feat(分发): 接入 R2 客户端下载与签名更新镜像 |
+| `58b3170` | chore(分发): 记录 R2 线上验收并同步官网发布元数据 |
+| `38e0f9e` | docs(分发): 确认 R2 缓存命中与最新版不缓存 |
+
+### Status
+
+[OK] **Completed**
