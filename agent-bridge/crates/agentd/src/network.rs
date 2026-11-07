@@ -628,6 +628,12 @@ struct DirectoryBody {
 }
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
+struct CreateDirectoryBody {
+    parent: String,
+    name: String,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 struct ThreadMessagesBody {
     agent_id: String,
     thread_id: String,
@@ -640,7 +646,8 @@ async fn rpc(daemon: &Daemon, peer: &str, request: RpcRequest) -> Result<String>
                 "io_resume_offsets_v1",
                 "io_lease_replace_v1",
                 "io_ndjson_records_v1",
-                "list_directory_v1"
+                "list_directory_v1",
+                "create_directory_v1"
             ])
             .to_string())
         }
@@ -696,6 +703,16 @@ async fn rpc(daemon: &Daemon, peer: &str, request: RpcRequest) -> Result<String>
                 Err(crate::directories::DirectoryError::Unavailable) => {
                     Err(error("not_found", "Folder not found or not readable."))
                 }
+            }
+        }
+        "CreateDirectory" => {
+            daemon.authorize(peer, &["session"])?;
+            let args: CreateDirectoryBody = body(&request.body_json)?;
+            let base = dirs::home_dir().unwrap_or_default();
+            match crate::directories::create_directory(&args.parent, &args.name, &base) {
+                Ok(listing) => json(&listing),
+                Err(crate::directories::DirectoryError::Forbidden) => Err(error("forbidden", "Folder name or location is not allowed.")),
+                Err(crate::directories::DirectoryError::Unavailable) => Err(error("directory_unavailable", "Folder cannot be created or already exists.")),
             }
         }
         "GetThreadMessages" => {

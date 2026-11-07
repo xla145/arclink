@@ -237,7 +237,7 @@ struct AddProjectView: View {
     var editingId: String?
 
     @State private var agent: AgentKind = .claude
-    @State private var pathText = ""
+    @State private var selectedPath = ""
     @State private var name = ""
     @State private var confirmDelete = false
     @State private var selectedPaths: Set<String> = []
@@ -249,8 +249,7 @@ struct AddProjectView: View {
     @State private var macProjects: [MacProject]?
 
     private var editing: Bool { editingId != nil }
-    private var manualPath: String { pathText.trimmingCharacters(in: .whitespaces) }
-    private var canSave: Bool { editing ? !manualPath.isEmpty : (!selectedPaths.isEmpty || !manualPath.isEmpty) }
+    private var canSave: Bool { editing ? !selectedPath.isEmpty : (!selectedPaths.isEmpty || !selectedPath.isEmpty) }
 
     var body: some View {
         Form {
@@ -307,15 +306,17 @@ struct AddProjectView: View {
                     Text("导入只是登记路径，发送第一条消息时才会在 Mac 上创建对话。")
                 }
             }
-            Section(editing ? "项目地址" : "或选择 Mac 上的文件夹") {
+            Section(editing ? "项目文件夹" : "或选择 Mac 上的文件夹") {
                 Button { browsingFolders = true } label: {
-                    Label("浏览 Mac 上的文件夹", systemImage: "folder.badge.plus")
+                    Label("选择或新建 Mac 上的文件夹", systemImage: "folder.badge.plus")
                 }
                 .accessibilityIdentifier("browse-mac-folders")
-                TextField("~/path/to/project", text: $pathText)
-                    .font(.body.monospaced())
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
+                if !selectedPath.isEmpty {
+                    Text(selectedPath)
+                        .font(.body.monospaced())
+                        .foregroundStyle(ArcTheme.inkMuted)
+                        .textSelection(.enabled)
+                }
                 TextField(editing ? "名称" : "名称（可选，默认取文件夹名）", text: $name)
             }
             if editing {
@@ -341,7 +342,7 @@ struct AddProjectView: View {
         .onAppear {
             if let editingId, let project = store.project(editingId) {
                 agent = project.agent
-                pathText = project.path
+                selectedPath = project.path
                 name = project.name
             } else {
                 agent = store.selectedAgent.installed ? store.selectedAgent : .claude
@@ -350,7 +351,7 @@ struct AddProjectView: View {
         .onChange(of: agent) { _, _ in selectedPaths = [] }
         .sheet(isPresented: $browsingFolders) {
             MacFolderPicker { chosen in
-                pathText = chosen
+                selectedPath = chosen
                 if name.trimmingCharacters(in: .whitespaces).isEmpty {
                     name = (chosen as NSString).lastPathComponent
                 }
@@ -370,9 +371,9 @@ struct AddProjectView: View {
 
     private func save() {
         let manualName = name.trimmingCharacters(in: .whitespaces)
-        let fallbackName = (manualPath as NSString).lastPathComponent
+        let fallbackName = (selectedPath as NSString).lastPathComponent
         if let editingId {
-            store.updateProject(id: editingId, name: manualName.isEmpty ? fallbackName : manualName, path: manualPath, agent: agent)
+            store.updateProject(id: editingId, name: manualName.isEmpty ? fallbackName : manualName, path: selectedPath, agent: agent)
             dismiss()
             return
         }
@@ -382,8 +383,8 @@ struct AddProjectView: View {
                 createdAt: project.lastSeen.flatMap { AppStore.parseRFC3339($0) }
             )
         }
-        if !manualPath.isEmpty {
-            store.addProject(name: manualName.isEmpty ? fallbackName : manualName, path: manualPath, agent: agent)
+        if !selectedPath.isEmpty {
+            store.addProject(name: manualName.isEmpty ? fallbackName : manualName, path: selectedPath, agent: agent)
         }
         dismiss()
     }

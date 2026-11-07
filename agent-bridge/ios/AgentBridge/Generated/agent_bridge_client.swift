@@ -633,6 +633,8 @@ public protocol BridgeConnectionProtocol: AnyObject, Sendable {
      */
     func connect() async  -> ConnectionState
 
+    func createDirectory(parent: String, name: String) async throws  -> MacDirectoryListing
+
     func disconnect() async
 
     func getProcessStatus(processId: String, generation: String) async throws  -> ProcessInfo
@@ -824,6 +826,22 @@ open func connect()async  -> ConnectionState  {
             liftFunc: FfiConverterTypeConnectionState_lift,
             errorHandler: nil
 
+        )
+}
+
+open func createDirectory(parent: String, name: String)async throws  -> MacDirectoryListing  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_agent_bridge_client_fn_method_bridgeconnection_create_directory(
+                        self.uniffiCloneHandle(),FfiConverterString.lower(parent),FfiConverterString.lower(name)
+                )
+            },
+            pollFunc: ffi_agent_bridge_client_rust_future_poll_rust_buffer,
+            completeFunc: ffi_agent_bridge_client_rust_future_complete_rust_buffer,
+            freeFunc: ffi_agent_bridge_client_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterTypeMacDirectoryListing_lift,
+            errorHandler: FfiConverterTypeBridgeError_lift
         )
 }
 
@@ -3115,6 +3133,9 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_agent_bridge_client_checksum_method_bridgeconnection_connect() != 42479) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_agent_bridge_client_checksum_method_bridgeconnection_create_directory() != 59738) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_agent_bridge_client_checksum_method_bridgeconnection_disconnect() != 58728) {

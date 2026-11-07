@@ -375,6 +375,10 @@ impl BridgeConnection {
         let body = serde_json::json!({"path": path}).to_string();
         parse(&self.call("ListDirectory", body, 5_000).await?)
     }
+    pub async fn create_directory(&self, parent: String, name: String) -> Result<MacDirectoryListing, BridgeError> {
+        let body = serde_json::json!({"parent": parent, "name": name}).to_string();
+        parse(&self.call("CreateDirectory", body, 10_000).await?)
+    }
     pub async fn list_agent_models(&self, agent_id: String) -> Result<Vec<MacModel>, BridgeError> {
         let body = serde_json::json!({"agent_id": agent_id}).to_string();
         parse(&self.call("ListAgentModels", body, 15_000).await?)

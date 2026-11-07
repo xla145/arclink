@@ -78,6 +78,20 @@ pub fn list_directory(path: Option<&str>, home: &Path) -> Result<DirectoryListin
     Ok(DirectoryListing { path: dir.to_string_lossy().into_owned(), parent, entries, truncated })
 }
 
+/// Create exactly one visible child of a folder the phone can browse.
+pub fn create_directory(parent: &str, name: &str, home: &Path) -> Result<DirectoryListing, DirectoryError> {
+    let name = name.trim();
+    if name.is_empty() || name == "." || name == ".." || name.starts_with('.')
+        || name.as_bytes().len() > 255 || name.contains('/') || name.contains('\\')
+        || name.chars().any(char::is_control) {
+        return Err(DirectoryError::Forbidden);
+    }
+    let parent = list_directory(Some(parent), home)?.path;
+    let child = Path::new(&parent).join(name);
+    std::fs::create_dir(&child).map_err(|_| DirectoryError::Unavailable)?;
+    list_directory(child.to_str(), home)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -125,5 +139,25 @@ mod tests {
         let (_root, home) = home();
         assert_eq!(list_directory(Some("~/nope"), &home), Err(DirectoryError::Unavailable));
         assert_eq!(list_directory(Some("~/readme.txt"), &home), Err(DirectoryError::Unavailable));
+    }
+
+    #[test]
+    fn creates_one_child_and_rejects_invalid_or_existing_names() {
+        let (root, home) = home();
+        let work = home.join("work");
+        let created = create_directory(work.to_str().unwrap(), "new project", &home).unwrap();
+        assert_eq!(created.path, work.join("new project").to_string_lossy());
+        assert!(created.entries.is_empty());
+        assert_eq!(create_directory(work.to_str().unwrap(), "new project", &home), Err(DirectoryError::Unavailable));
+        for name in ["", "..", "../escape", ".hidden", "a/b", "a\\b", "bad\nname"] {
+            assert_eq!(create_directory(work.to_str().unwrap(), name, &home), Err(DirectoryError::Forbidden));
+        }
+        assert_eq!(create_directory(root.path().join("outside").to_str().unwrap(), "escape", &home), Err(DirectoryError::Forbidden));
+        assert!(!root.path().join("outside/escape").exists());
+        #[cfg(unix)] {
+            std::os::unix::fs::symlink(root.path().join("outside"), home.join("outside-link")).unwrap();
+            assert_eq!(create_directory(home.join("outside-link").to_str().unwrap(), "escape", &home), Err(DirectoryError::Forbidden));
+            assert!(!root.path().join("outside/escape").exists());
+        }
     }
 }

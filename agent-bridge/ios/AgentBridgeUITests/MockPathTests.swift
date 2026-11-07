@@ -84,6 +84,7 @@ final class MockPathTests: XCTestCase {
         XCTAssertTrue(app.buttons["添加项目"].waitForExistence(timeout: 10))
         app.buttons["添加项目"].tap()
         app.buttons["browse-mac-folders"].tap()
+        XCTAssertTrue(app.buttons["create-folder"].waitForExistence(timeout: 3))
         XCTAssertTrue(app.buttons["folder-work"].waitForExistence(timeout: 3))
         app.buttons["folder-work"].tap()
         XCTAssertTrue(app.buttons["folder-app"].waitForExistence(timeout: 3))
@@ -92,8 +93,8 @@ final class MockPathTests: XCTestCase {
         XCTAssertTrue(app.staticTexts["~/work/app"].waitForExistence(timeout: 3))
         XCTAssertTrue(app.buttons["folder-up"].exists)
         app.buttons["choose-folder"].tap()
-        XCTAssertTrue(app.textFields["~/path/to/project"].waitForExistence(timeout: 3))
-        XCTAssertEqual(app.textFields["~/path/to/project"].value as? String, "/Users/test/work/app")
+        XCTAssertFalse(app.textFields["~/path/to/project"].exists)
+        XCTAssertTrue(app.staticTexts["/Users/test/work/app"].waitForExistence(timeout: 3))
         app.buttons["save-project"].tap()
         XCTAssertTrue(app.staticTexts["app"].waitForExistence(timeout: 3))
     }
