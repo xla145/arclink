@@ -1056,7 +1056,7 @@ final class AppStore {
         let message: String
         if let codexError = error as? CodexChatError { message = codexError.localizedDescription }
         else if case let BridgeError.Failed(code, diagnostic) = error {
-            message = Self.localizedPairError(code: code, message: diagnostic)
+            message = Self.localizedChatError(code: code, message: diagnostic)
         } else { message = "远程 Codex 调用失败，请检查 Mac 的连接和登录状态。" }
         entry.error = message
         if recoverable {
@@ -1684,6 +1684,21 @@ final class AppStore {
             return "配对邀请已失效或被取消，请在 Mac 上重新生成二维码。"
         default:
             return message.isEmpty ? "配对失败，请重试。" : "配对失败（\(code)），请重试。"
+        }
+    }
+
+    static func localizedChatError(code: String, message: String) -> String {
+        switch code {
+        case "invalid_cwd":
+            return "项目文件夹在 Mac 上不存在，或不是绝对路径。请在项目设置中改为 Mac 上已有的文件夹。"
+        case "invalid_params" where message.contains("Working directory must be an existing absolute directory"):
+            return "项目文件夹在 Mac 上不存在，或不是绝对路径。请在项目设置中改为 Mac 上已有的文件夹。"
+        case "unauthorized":
+            return "Mac 已取消此设备的对话权限，请在 Mac 上重新授权。"
+        case "disconnected", "network_error", "timeout":
+            return "Mac 连接中断，请确认 Mac 在线后重试。"
+        default:
+            return message.isEmpty ? "远程对话失败（\(code)），请重试。" : "远程对话失败（\(code)）：\(message)"
         }
     }
 

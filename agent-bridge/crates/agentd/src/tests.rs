@@ -323,6 +323,21 @@ async fn duplicate_start_returns_result_even_if_agent_disappears() {
     service.shutdown().await.unwrap();
 }
 
+#[tokio::test]
+async fn missing_working_directory_reports_path_error_without_starting_process() {
+    let dir = tempfile::tempdir().unwrap();
+    let service = daemon(dir.path(), "exec cat");
+    pair(&service, "peer").await;
+    let missing = dir.path().join("missing-project");
+    let error = service
+        .start_process("peer", "missing", "fixture", missing.to_str().unwrap())
+        .await
+        .unwrap_err();
+    assert_eq!(error.code, "invalid_cwd");
+    assert!(service.list_processes().await.is_empty());
+    service.shutdown().await.unwrap();
+}
+
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn snapshots_keep_process_count_and_rows_in_one_revision() {
     let dir = tempfile::tempdir().unwrap();

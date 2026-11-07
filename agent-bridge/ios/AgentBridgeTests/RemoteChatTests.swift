@@ -92,6 +92,20 @@ final class RemoteChatTests: XCTestCase {
         XCTAssertFalse(store.canConfigureUnsentSession("session"))
     }
 
+    func testMissingProjectDirectoryShowsPathErrorInsteadOfPairingError() async throws {
+        let driver = RemoteChatFake()
+        driver.startError = BridgeError.Failed(code: "invalid_cwd", message: "Working directory must exist.")
+        let (store, _) = try fixture(a: driver)
+        let first = await store.sendMessage(sessionId: "session", text: "Draft", images: [])
+        XCTAssertFalse(first)
+        XCTAssertTrue(store.chatError(sessionId: "session")?.contains("项目文件夹") == true)
+        XCTAssertFalse(store.chatError(sessionId: "session")?.contains("二维码") == true)
+        XCTAssertTrue(AppStore.localizedChatError(code: "invalid_params", message: "Working directory must be an existing absolute directory.").contains("项目文件夹"))
+        driver.startError = nil
+        let second = await store.sendMessage(sessionId: "session", text: "Draft", images: [])
+        XCTAssertTrue(second)
+    }
+
     private func fixture(a: RemoteChatFake, b: RemoteChatFake? = nil, catalog: RemoteCatalogFake? = nil, previousProcessState: String = "exited") throws -> (AppStore, DeviceStorage) {
         let second = b ?? RemoteChatFake()
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)

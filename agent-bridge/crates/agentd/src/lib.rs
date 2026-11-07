@@ -612,7 +612,8 @@ impl Daemon {
             return Ok(self.current_or_lost(info));
         }
         if !Path::new(cwd).is_absolute() || !Path::new(cwd).is_dir() {
-            return Err(invalid(
+            return Err(BridgeError::new(
+                "invalid_cwd",
                 "Working directory must be an existing absolute directory.",
             ));
         }

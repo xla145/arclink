@@ -243,7 +243,7 @@ struct NewConversationSheet: View {
             submitting = false
             guard device == store.selectedDeviceID else { return }
             if accepted { onStart(project.id, id); dismiss() }
-            else { error = "对话未能开启，内容已保留。请确认 Mac 在线、模型可用后重试。" }
+            else { error = store.chatError(sessionId: id) ?? "对话未能开启，内容已保留。请确认 Mac 在线、模型可用后重试。" }
         }
     }
 }
