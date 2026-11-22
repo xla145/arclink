@@ -383,43 +383,57 @@ struct HomeView: View {
                     let totalCount = conversations.count
 
                     Button { openProject(project) } label: {
-                        HStack(spacing: 11) {
+                        HStack(spacing: 12) {
                             Text(Self.projectMonogram(project.name))
-                                .font(.system(size: 9.5, weight: .bold, design: .rounded))
+                                .font(.system(size: 10.5, weight: .bold, design: .rounded))
                                 .foregroundStyle(running ? ArcTheme.live : ArcTheme.inkMuted)
-                                .frame(width: 24, height: 24)
+                                .frame(width: 28, height: 28)
                                 .background(
                                     running ? ArcTheme.liveSoft : ArcTheme.surfaceSunken,
-                                    in: RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                    in: RoundedRectangle(cornerRadius: 7, style: .continuous)
                                 )
                                 .accessibilityHidden(true)
 
-                            Text(project.name)
-                                .font(.system(size: 15.5, weight: running ? .medium : .regular))
-                                .foregroundStyle(running ? ArcTheme.ink : ArcTheme.ink.opacity(0.85))
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(project.name)
+                                    .font(.system(size: 15.5, weight: .medium))
+                                    .foregroundStyle(ArcTheme.ink)
+                                    .lineLimit(1)
+                                    .truncationMode(.middle)
+
+                                HStack(spacing: 5) {
+                                    if running {
+                                        Circle()
+                                            .fill(ArcTheme.live)
+                                            .frame(width: 5.5, height: 5.5)
+                                        Text("运行中")
+                                            .foregroundStyle(ArcTheme.live)
+                                        Text("·")
+                                            .foregroundStyle(ArcTheme.inkFaint)
+                                    } else if pending > 0 {
+                                        Text("\(pending) 待审批")
+                                            .foregroundStyle(ArcTheme.warning)
+                                        Text("·")
+                                            .foregroundStyle(ArcTheme.inkFaint)
+                                    }
+                                    Text(totalCount > 0 ? "\(totalCount) 条对话" : "暂无对话")
+                                        .monospacedDigit()
+                                        .foregroundStyle(ArcTheme.inkFaint)
+                                }
+                                .font(.caption)
                                 .lineLimit(1)
-                                .truncationMode(.middle)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-
-                            if pending > 0 {
-                                Text("\(pending) 待审批")
-                                    .font(.caption)
-                                    .foregroundStyle(ArcTheme.warning)
-                            } else if running {
-                                Circle()
-                                    .fill(ArcTheme.live)
-                                    .frame(width: 6, height: 6)
                             }
+                            .frame(maxWidth: .infinity, alignment: .leading)
 
-                            if totalCount > 0 {
-                                Text("\(totalCount)")
-                                    .font(.subheadline)
+                            if let timeText = Self.compactTime(project.lastActivity) {
+                                Text(timeText)
+                                    .font(.caption)
                                     .monospacedDigit()
                                     .foregroundStyle(ArcTheme.inkFaint)
                             }
                         }
                         .padding(.horizontal, 10)
-                        .frame(minHeight: 44)
+                        .padding(.vertical, 9)
                         .background(
                             running ? ArcTheme.surface : Color.clear,
                             in: RoundedRectangle(cornerRadius: 10, style: .continuous)
@@ -452,6 +466,30 @@ struct HomeView: View {
                 }
             }
         }
+    }
+
+    private static let timeFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "HH:mm"
+        return f
+    }()
+
+    private static let monthDayFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "M/d"
+        return f
+    }()
+
+    private static func compactTime(_ date: Date?) -> String? {
+        guard let date, date > .distantPast else { return nil }
+        let now = Date()
+        let diff = now.timeIntervalSince(date)
+        if diff < 60 && diff >= -60 { return "刚刚" }
+        if diff >= 60 && diff < 3600 { return "\(Int(diff / 60)) 分钟前" }
+        let cal = Calendar.current
+        if cal.isDateInToday(date) { return timeFormatter.string(from: date) }
+        if cal.isDateInYesterday(date) { return "昨天" }
+        return monthDayFormatter.string(from: date)
     }
 
     private static func projectMonogram(_ name: String) -> String {
