@@ -628,19 +628,156 @@ struct DirectoryBody {
 }
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
+struct CreateDirectoryBody {
+    parent: String,
+    name: String,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct GitBranchesBody {
+    path: String,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct PrepareGitWorkspaceBody {
+    path: String,
+    mode: String,
+    #[serde(default)]
+    branch: Option<String>,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 struct ThreadMessagesBody {
     agent_id: String,
     thread_id: String,
 }
-async fn rpc(daemon: &Daemon, peer: &str, request: RpcRequest) -> Result<String> {
+async fn rpc(daemon: &Arc<Daemon>, peer: &str, request: RpcRequest) -> Result<String> {
     match request.method.as_str() {
+        "environment.describe" => json(&daemon.describe_environment(peer)?),
+        "projects.create" => {
+            let args = body(&request.body_json)?;
+            json(&daemon.create_managed_project(peer, args).await?)
+        }
+        "projects.list" => managed_catalog_json(&daemon.managed_projects(peer)?),
+        "threads.create" => {
+            let args = body(&request.body_json)?;
+            json(&daemon.create_managed_thread(peer, args).await?)
+        }
+        "threads.list" => {
+            #[derive(serde::Deserialize)]
+            #[serde(deny_unknown_fields)]
+            struct Args {
+                project_id: String,
+            }
+            let args: Args = body(&request.body_json)?;
+            managed_catalog_json(&daemon.managed_threads(peer, &args.project_id)?)
+        }
+        "threads.get" => {
+            #[derive(serde::Deserialize)]
+            #[serde(deny_unknown_fields)]
+            struct Args {
+                thread_id: String,
+            }
+            let args: Args = body(&request.body_json)?;
+            json(&daemon.managed_thread(peer, &args.thread_id)?)
+        }
+        "threads.snapshot" => {
+            #[derive(serde::Deserialize)]
+            #[serde(deny_unknown_fields)]
+            struct Args {
+                thread_id: String,
+            }
+            let args: Args = body(&request.body_json)?;
+            json(&daemon.managed_thread_snapshot(peer, &args.thread_id)?)
+        }
+        "threads.replay" => {
+            #[derive(serde::Deserialize)]
+            #[serde(deny_unknown_fields)]
+            struct Args {
+                environment_id: String,
+                thread_id: String,
+                after_sequence: String,
+            }
+            let args: Args = body(&request.body_json)?;
+            json(&daemon.replay_managed_thread(
+                peer,
+                &args.environment_id,
+                &args.thread_id,
+                &args.after_sequence,
+            )?)
+        }
+        "threads.send" => {
+            let args = body(&request.body_json)?;
+            json(&daemon.send_managed_thread(peer, args).await?)
+        }
+        "threads.provider.set" => {
+            let args = body(&request.body_json)?;
+            json(&daemon.set_managed_thread_provider(peer, args).await?)
+        }
+        "threads.model.set" => {
+            let args = body(&request.body_json)?;
+            json(&daemon.set_managed_thread_model(peer, args).await?)
+        }
+        "threads.interrupt" => {
+            let args = body(&request.body_json)?;
+            daemon.interrupt_managed_thread(peer, args).await?;
+            Ok(r#"{"ok":true}"#.into())
+        }
+        "threads.approval" => {
+            let args = body(&request.body_json)?;
+            daemon.resolve_managed_approval(peer, args).await?;
+            Ok(r#"{"ok":true}"#.into())
+        }
+        "threads.history" => {
+            #[derive(serde::Deserialize)]
+            #[serde(deny_unknown_fields)]
+            struct Args {
+                thread_id: String,
+                before_id: Option<String>,
+            }
+            let args: Args = body(&request.body_json)?;
+            json(&daemon.managed_thread_history(
+                peer,
+                &args.thread_id,
+                args.before_id.as_deref(),
+            )?)
+        }
+        "threads.wait" => {
+            #[derive(serde::Deserialize)]
+            #[serde(deny_unknown_fields)]
+            struct Args {
+                environment_id: String,
+                thread_id: String,
+                after_sequence: String,
+            }
+            let args: Args = body(&request.body_json)?;
+            json(
+                &daemon
+                    .wait_managed_thread(
+                        peer,
+                        &args.environment_id,
+                        &args.thread_id,
+                        &args.after_sequence,
+                    )
+                    .await?,
+            )
+        }
         "GetCapabilities" => {
             daemon.authorize(peer, &["view"])?;
             Ok(serde_json::json!([
                 "io_resume_offsets_v1",
                 "io_lease_replace_v1",
                 "io_ndjson_records_v1",
-                "list_directory_v1"
+                "list_directory_v1",
+                "create_directory_v1",
+                "git_workspace_v1",
+                "managed_catalog_v1",
+                "thread_sync_reads_v1",
+                "managed_execution_v1",
+                "managed_claude_v1",
+                "thread_events_v1",
+                "history_pages_v1",
+                "approval_api_v1"
             ])
             .to_string())
         }
@@ -690,11 +827,69 @@ async fn rpc(daemon: &Daemon, peer: &str, request: RpcRequest) -> Result<String>
             let base = dirs::home_dir().unwrap_or_default();
             match crate::directories::list_directory(args.path.as_deref(), &base) {
                 Ok(listing) => json(&listing),
-                Err(crate::directories::DirectoryError::Forbidden) => {
-                    Err(error("forbidden", "Only folders inside the home directory can be browsed."))
-                }
+                Err(crate::directories::DirectoryError::Forbidden) => Err(error(
+                    "forbidden",
+                    "Only folders inside the home directory can be browsed.",
+                )),
                 Err(crate::directories::DirectoryError::Unavailable) => {
                     Err(error("not_found", "Folder not found or not readable."))
+                }
+            }
+        }
+        "CreateDirectory" => {
+            daemon.authorize(peer, &["session"])?;
+            let args: CreateDirectoryBody = body(&request.body_json)?;
+            let base = dirs::home_dir().unwrap_or_default();
+            match crate::directories::create_directory(&args.parent, &args.name, &base) {
+                Ok(listing) => json(&listing),
+                Err(crate::directories::DirectoryError::Forbidden) => Err(error(
+                    "forbidden",
+                    "Folder name or location is not allowed.",
+                )),
+                Err(crate::directories::DirectoryError::Unavailable) => Err(error(
+                    "directory_unavailable",
+                    "Folder cannot be created or already exists.",
+                )),
+            }
+        }
+        "ListGitBranches" => {
+            daemon.authorize(peer, &["view"])?;
+            let args: GitBranchesBody = body(&request.body_json)?;
+            let base = dirs::home_dir().unwrap_or_default();
+            match crate::git_workspace::list_git_branches(&args.path, &base) {
+                Ok(info) => json(&info),
+                Err(crate::git_workspace::GitWorkspaceError::Forbidden) => Err(error(
+                    "forbidden",
+                    "Only folders inside the home directory can be inspected.",
+                )),
+                Err(crate::git_workspace::GitWorkspaceError::Unavailable(msg)) => {
+                    Err(error("not_found", &msg))
+                }
+                Err(crate::git_workspace::GitWorkspaceError::GitFailed(msg)) => {
+                    Err(error("git_error", &msg))
+                }
+            }
+        }
+        "PrepareGitWorkspace" => {
+            daemon.authorize(peer, &["session"])?;
+            let args: PrepareGitWorkspaceBody = body(&request.body_json)?;
+            let base = dirs::home_dir().unwrap_or_default();
+            match crate::git_workspace::prepare_git_workspace(
+                &args.path,
+                &args.mode,
+                args.branch.as_deref(),
+                &base,
+            ) {
+                Ok(prepared) => json(&prepared),
+                Err(crate::git_workspace::GitWorkspaceError::Forbidden) => Err(error(
+                    "forbidden",
+                    "Only folders inside the home directory can be prepared.",
+                )),
+                Err(crate::git_workspace::GitWorkspaceError::Unavailable(msg)) => {
+                    Err(error("directory_unavailable", &msg))
+                }
+                Err(crate::git_workspace::GitWorkspaceError::GitFailed(msg)) => {
+                    Err(error("git_error", &msg))
                 }
             }
         }
@@ -744,6 +939,18 @@ async fn rpc(daemon: &Daemon, peer: &str, request: RpcRequest) -> Result<String>
         }
         _ => Err(error("unsupported", "Unknown method.")),
     }
+}
+
+// Explicit failure rather than a silent partial catalog or an oversized ABP response.
+fn managed_catalog_json<T: serde::Serialize>(value: &T) -> Result<String> {
+    let encoded = json(value)?;
+    if encoded.len() > 256 * 1024 {
+        return Err(error(
+            "resource_limit",
+            "Managed catalog exceeds this API's response budget.",
+        ));
+    }
+    Ok(encoded)
 }
 
 struct AbortTask(JoinHandle<()>);

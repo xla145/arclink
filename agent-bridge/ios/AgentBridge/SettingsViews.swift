@@ -112,9 +112,12 @@ struct DevicePickerSheet: View {
                 .toolbar {
                     ToolbarItem(placement: .confirmationAction) {
                         Button("完成") { dismiss() }
+                            .foregroundStyle(ArcTheme.ink)
                     }
                 }
         }
+        .presentationDetents([.medium, .large])
+        .presentationDragIndicator(.visible)
     }
 }
 
@@ -128,79 +131,153 @@ struct DeviceListView: View {
     @State private var scanSucceeded = false
 
     var body: some View {
-        List {
-            Section {
-                ForEach(store.devices) { device in
-                    Button {
-                        store.selectDevice(device.id)
-                        if store.selectedDeviceID == device.id {
-                            path = NavigationPath()
-                            onSelection?()
+        ScrollView {
+            VStack(alignment: .leading, spacing: 18) {
+                // Paired devices section
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack(spacing: 6) {
+                        Text("已配对设备")
+                            .font(.footnote.weight(.semibold))
+                            .foregroundStyle(ArcTheme.inkMuted)
+                            .accessibilityAddTraits(.isHeader)
+                        if !store.devices.isEmpty {
+                            Text("\(store.devices.count)")
+                                .font(.caption2.weight(.semibold))
+                                .monospacedDigit()
+                                .foregroundStyle(ArcTheme.inkFaint)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(ArcTheme.surfaceSunken, in: Capsule())
                         }
-                    } label: {
-                        HStack(spacing: ArcTheme.Space.s3) {
-                            IconTile(symbol: "desktopcomputer", accent: device.id == store.selectedDeviceID)
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(device.displayName).font(.callout.weight(.medium)).foregroundStyle(ArcTheme.ink)
-                                HStack(spacing: 6) {
-                                    Circle().fill(store.isOnline(device.id) ? ArcTheme.live : ArcTheme.inkFaint).frame(width: 7, height: 7)
-                                    Text(store.connectionLabel(for: device.id))
+                        Spacer()
+                    }
+                    .padding(.horizontal, 4)
+
+                    if store.devices.isEmpty {
+                        VStack(spacing: 8) {
+                            Image(systemName: "laptopcomputer")
+                                .font(.title2)
+                                .foregroundStyle(ArcTheme.inkFaint)
+                            Text("尚未配对 Mac")
+                                .font(.subheadline.weight(.medium))
+                                .foregroundStyle(ArcTheme.ink)
+                            Text("点击下方按钮扫描桌面端二维码即可连接")
+                                .font(.caption)
+                                .foregroundStyle(ArcTheme.inkMuted)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 28)
+                        .background(ArcTheme.surface, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                .stroke(ArcTheme.line.opacity(0.7), lineWidth: 0.75)
+                        )
+                    } else {
+                        VStack(spacing: 0) {
+                            ForEach(store.devices) { device in
+                                if device.id != store.devices.first?.id {
+                                    ArcDivider(inset: 64)
                                 }
-                                .font(.footnote).foregroundStyle(ArcTheme.inkMuted)
-                                if let endpoint = device.endpointID {
-                                    Text(String(endpoint.prefix(10))).font(.caption.monospaced()).foregroundStyle(ArcTheme.inkMuted)
-                                }
-                            }
-                            Spacer()
-                            if device.id == store.selectedDeviceID {
-                                Image(systemName: "checkmark").font(.body.weight(.semibold)).foregroundStyle(ArcTheme.primary)
-                                    .accessibilityLabel("当前设备")
+                                deviceRow(device)
                             }
                         }
-                        .padding(.vertical, 4)
-                        .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityIdentifier("device-\(device.id)")
-                    .swipeActions {
-                        Button("移除", role: .destructive) { removeID = device.id }
-                    }
-                    Button("重新扫码连接 \(device.displayName)", systemImage: "qrcode.viewfinder") {
-                            repairingDeviceID = device.id
-                            showQR = true
+                        .background(ArcTheme.surface, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                .stroke(ArcTheme.line.opacity(0.7), lineWidth: 0.75)
+                        )
                     }
                 }
-            } header: { Text("已配对设备 · \(store.devices.count)") } footer: {
-                Text("扫码即可同时设置直连和中继，优先直连，不可用时自动使用中继。重新扫码会更新连接信息，保留项目和会话。")
-                Text("多台电脑可同时连接。点选设备切换项目和会话，其他连接会保留。")
-            }
-            .listRowBackground(ArcTheme.surface)
-            Section {
-                Button { repairingDeviceID = nil; showQR = true } label: {
-                    Label("添加设备", systemImage: "plus")
-                }
-                .accessibilityIdentifier("add-device")
-            }
-            .listRowBackground(ArcTheme.surface)
-            if !store.macAgents.isEmpty {
-                Section("\(store.hostName) 上的 Agent") {
-                    ForEach(store.macAgents, id: \.id) { agent in
-                        LabeledContent(agent.name, value: Self.agentStatusLabel(agent.status))
+
+                // Connected Mac agents (compact card with official icons)
+                if !store.macAgents.isEmpty {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("\(store.hostName) 上的 Agent")
+                            .font(.footnote.weight(.semibold))
+                            .foregroundStyle(ArcTheme.inkMuted)
+                            .padding(.horizontal, 4)
+                            .accessibilityAddTraits(.isHeader)
+
+                        VStack(spacing: 0) {
+                            ForEach(store.macAgents, id: \.id) { agent in
+                                if agent.id != store.macAgents.first?.id {
+                                    ArcDivider(inset: 48)
+                                }
+                                let kind: AgentKind? = agent.id == "claude" ? .claude : (agent.id == "codex" ? .codex : nil)
+                                let isAvailable = ["running", "installed", "available"].contains(agent.status)
+                                HStack(spacing: 12) {
+                                    if let kind {
+                                        AgentIcon(agent: kind, size: 16)
+                                            .frame(width: 28, height: 28)
+                                            .background(kind.tint.opacity(0.1), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+                                    } else {
+                                        Image(systemName: "cpu")
+                                            .font(.caption)
+                                            .foregroundStyle(ArcTheme.inkMuted)
+                                            .frame(width: 28, height: 28)
+                                            .background(ArcTheme.surfaceSunken, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+                                    }
+                                    Text(agent.name)
+                                        .font(.subheadline.weight(.medium))
+                                        .foregroundStyle(ArcTheme.ink)
+                                    Spacer()
+                                    HStack(spacing: 5) {
+                                        Circle()
+                                            .fill(isAvailable ? ArcTheme.success : ArcTheme.inkFaint)
+                                            .frame(width: 6, height: 6)
+                                        Text(Self.agentStatusLabel(agent.status))
+                                            .font(.caption)
+                                            .foregroundStyle(ArcTheme.inkMuted)
+                                    }
+                                }
+                                .padding(.horizontal, 14)
+                                .padding(.vertical, 10)
+                            }
+                        }
+                        .background(ArcTheme.surface, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                .stroke(ArcTheme.line.opacity(0.7), lineWidth: 0.75)
+                        )
                     }
                 }
-            .listRowBackground(ArcTheme.surface)
             }
-            Section {
-                Button("移除当前设备", role: .destructive) { removeID = store.selectedDeviceID }
-                    .disabled(store.selectedDeviceID == nil)
-            } footer: {
-                Text("仅移除这台手机保存的设备与本机记录。Mac 上的访问授权可在桌面端撤销。")
-            }
-            .listRowBackground(ArcTheme.surface)
+            .padding(.horizontal, 16)
+            .padding(.top, 12)
+            .padding(.bottom, 20)
         }
-        .arcGroupedList()
+        .background(ArcTheme.bg)
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            VStack(spacing: 8) {
+                Button {
+                    repairingDeviceID = nil
+                    showQR = true
+                } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: "qrcode.viewfinder")
+                            .font(.subheadline.weight(.semibold))
+                        Text("扫码添加设备")
+                            .font(.subheadline.weight(.semibold))
+                    }
+                    .foregroundStyle(ArcTheme.onPrimary)
+                    .frame(maxWidth: .infinity, minHeight: 48)
+                    .background(ArcTheme.primary, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("add-device")
+
+                Text("优先局域网直连，不可用时自动切换中继")
+                    .font(.caption2)
+                    .foregroundStyle(ArcTheme.inkFaint)
+            }
+            .padding(.horizontal, 16)
+            .padding(.top, 10)
+            .padding(.bottom, 10)
+            .background(ArcTheme.bg)
+        }
         .navigationTitle("我的设备")
         .navigationBarTitleDisplayMode(.inline)
+        .tint(ArcTheme.ink)
         .task { await store.refreshMacStatus() }
         .refreshable { await store.refreshMacStatus() }
         .confirmationDialog("移除这台设备及其本机记录？", isPresented: Binding(get: { removeID != nil }, set: { if !$0 { removeID = nil } }), titleVisibility: .visible) {
@@ -210,7 +287,6 @@ struct DeviceListView: View {
             }
             Button("取消", role: .cancel) { removeID = nil }
         }
-
         .fullScreenCover(isPresented: $showQR, onDismiss: {
             if scanSucceeded {
                 path = NavigationPath()
@@ -224,6 +300,105 @@ struct DeviceListView: View {
                 return success
             }
         }
+    }
+
+    private func deviceRow(_ device: PairedMac) -> some View {
+        let isSelected = device.id == store.selectedDeviceID
+        let online = store.isOnline(device.id)
+        return HStack(spacing: 12) {
+            Button {
+                store.selectDevice(device.id)
+                if store.selectedDeviceID == device.id {
+                    path = NavigationPath()
+                    onSelection?()
+                }
+            } label: {
+                HStack(spacing: 12) {
+                    Image(systemName: "laptopcomputer")
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundStyle(online ? ArcTheme.live : (isSelected ? ArcTheme.primary : ArcTheme.inkMuted))
+                        .frame(width: 38, height: 38)
+                        .background(online ? ArcTheme.liveSoft : (isSelected ? ArcTheme.primarySoft : ArcTheme.surfaceSunken),
+                                    in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                        .accessibilityHidden(true)
+
+                    VStack(alignment: .leading, spacing: 3) {
+                        HStack(spacing: 6) {
+                            Text(device.displayName)
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(ArcTheme.ink)
+                                .lineLimit(1)
+                            if isSelected {
+                                Text("当前")
+                                    .font(.system(size: 10, weight: .semibold))
+                                    .foregroundStyle(ArcTheme.primary)
+                                    .padding(.horizontal, 6)
+                                    .padding(.vertical, 2)
+                                    .background(ArcTheme.primarySoft, in: Capsule())
+                            }
+                        }
+                        HStack(spacing: 5) {
+                            Circle()
+                                .fill(online ? ArcTheme.live : ArcTheme.inkFaint)
+                                .frame(width: 6, height: 6)
+                            Text(store.connectionLabel(for: device.id))
+                                .font(.caption)
+                                .foregroundStyle(ArcTheme.inkMuted)
+                                .lineLimit(1)
+                            if let endpoint = device.endpointID {
+                                Text("· \(String(endpoint.prefix(8)))")
+                                    .font(.system(size: 11, design: .monospaced))
+                                    .foregroundStyle(ArcTheme.inkFaint)
+                                    .lineLimit(1)
+                            }
+                        }
+                    }
+                    Spacer(minLength: 4)
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("device-\(device.id)")
+
+            if !online {
+                Button {
+                    repairingDeviceID = device.id
+                    showQR = true
+                } label: {
+                    Text("重连")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(ArcTheme.primary)
+                        .padding(.horizontal, 10)
+                        .frame(height: 28)
+                        .background(ArcTheme.primarySoft, in: Capsule())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("重新扫码连接 \(device.displayName)")
+            }
+
+            Menu {
+                Button {
+                    repairingDeviceID = device.id
+                    showQR = true
+                } label: {
+                    Label("重新扫码连接", systemImage: "qrcode.viewfinder")
+                }
+                Button(role: .destructive) {
+                    removeID = device.id
+                } label: {
+                    Label("移除设备", systemImage: "trash")
+                }
+            } label: {
+                Image(systemName: "ellipsis")
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(ArcTheme.inkMuted)
+                    .frame(width: 32, height: 36)
+                    .contentShape(Rectangle())
+            }
+            .accessibilityLabel("设备操作")
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
     }
 
     private static func agentStatusLabel(_ status: String) -> String {

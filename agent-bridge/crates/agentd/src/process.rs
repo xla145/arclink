@@ -3,12 +3,15 @@ use agent_adapters::AdapterSpec;
 use std::{
     collections::{HashMap, VecDeque},
     process::Stdio,
-    sync::{Arc, Mutex},
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc, Mutex,
+    },
     time::Duration,
 };
 use tokio::{
     io::{AsyncRead, AsyncReadExt, AsyncWriteExt},
-    sync::{mpsc, oneshot, Notify},
+    sync::{mpsc, oneshot, Mutex as AsyncMutex, Notify},
 };
 use uuid::Uuid;
 
@@ -57,10 +60,15 @@ impl Ring {
     }
 }
 struct WriteRequest {
-    peer: String,
+    owner: ProcessOwner,
     lease: String,
     bytes: Vec<u8>,
     done: oneshot::Sender<Result<()>>,
+}
+#[derive(Clone, Debug, PartialEq, Eq)]
+enum ProcessOwner {
+    Device(String),
+    Server,
 }
 struct Managed {
     info: Mutex<ProcessInfo>,
@@ -70,12 +78,30 @@ struct Managed {
     stop: Mutex<Option<oneshot::Sender<()>>>,
     lease: Mutex<Option<String>>,
     store: Arc<Store>,
+    owner: ProcessOwner,
+    stdout_closed: AtomicBool,
+}
+impl Managed {
+    fn authorize_owner(&self, owner: &ProcessOwner) -> Result<()> {
+        if &self.owner != owner {
+            return Err(BridgeError::new(
+                "unauthorized",
+                "The process belongs to another owner.",
+            ));
+        }
+        match owner {
+            ProcessOwner::Device(peer) => self.store.authorize(peer, &["task", "approval"]),
+            ProcessOwner::Server => Ok(()),
+        }
+    }
 }
 pub(crate) struct ProcessManager {
     entries: Mutex<HashMap<String, Arc<Managed>>>,
     store: Arc<Store>,
     changed: Changed,
     snapshot_gate: Arc<Mutex<()>>,
+    start_gate: AsyncMutex<()>,
+    stopping: AtomicBool,
 }
 impl ProcessManager {
     pub fn new(store: Arc<Store>, snapshot_gate: Arc<Mutex<()>>, changed: Changed) -> Self {
@@ -84,6 +110,8 @@ impl ProcessManager {
             store,
             changed,
             snapshot_gate,
+            start_gate: AsyncMutex::new(()),
+            stopping: AtomicBool::new(false),
         }
     }
     pub fn list(&self) -> Vec<ProcessInfo> {
@@ -121,6 +149,28 @@ impl ProcessManager {
         Ok(entry)
     }
     pub async fn start(&self, peer: &str, spec: &AdapterSpec, cwd: &str) -> Result<ProcessInfo> {
+        self.start_owned(ProcessOwner::Device(peer.into()), spec, cwd)
+            .await
+    }
+    /// Starts a daemon-owned provider. This path is crate-private and never receives a
+    /// peer-controlled owner value, so remote payloads cannot bypass device grants.
+    pub(crate) async fn start_managed(&self, spec: &AdapterSpec, cwd: &str) -> Result<ProcessInfo> {
+        self.start_owned(ProcessOwner::Server, spec, cwd).await
+    }
+    async fn start_owned(
+        &self,
+        owner: ProcessOwner,
+        spec: &AdapterSpec,
+        cwd: &str,
+    ) -> Result<ProcessInfo> {
+        // The daemon's legacy mutation gate does not cover internal provider actors.
+        let _start = self.start_gate.lock().await;
+        if self.stopping.load(Ordering::SeqCst) {
+            return Err(BridgeError::new(
+                "unavailable",
+                "The host is shutting down.",
+            ));
+        }
         if self
             .list()
             .iter()
@@ -155,7 +205,10 @@ impl ProcessManager {
             process_id: Uuid::new_v4().to_string(),
             generation: Uuid::new_v4().to_string(),
             agent_id: spec.id.clone(),
-            owner_device_id: peer.into(),
+            owner_device_id: match &owner {
+                ProcessOwner::Device(peer) => peer.clone(),
+                ProcessOwner::Server => String::new(),
+            },
             pid: child.id(),
             state: "running".into(),
             started_at: now(),
@@ -181,6 +234,8 @@ impl ProcessManager {
             stop: Mutex::new(Some(stop)),
             lease: Mutex::new(None),
             store: self.store.clone(),
+            owner: owner.clone(),
+            stdout_closed: AtomicBool::new(false),
         });
         let saved = {
             let _snapshot = self.snapshot_gate.lock().unwrap();
@@ -220,7 +275,7 @@ impl ProcessManager {
                     )));
                     continue;
                 }
-                if let Err(error) = p.store.authorize(&request.peer, &["task", "approval"]) {
+                if let Err(error) = p.authorize_owner(&request.owner) {
                     let _ = request.done.send(Err(error));
                     continue;
                 }
@@ -322,6 +377,9 @@ impl ProcessManager {
     pub fn attach(&self, peer: &str, id: &str, generation: &str) -> Result<IoSession> {
         self.attach_options(peer, id, generation, None, false)
     }
+    pub(crate) fn attach_managed(&self, id: &str, generation: &str) -> Result<IoSession> {
+        self.attach_internal(None, id, generation, None, true)
+    }
     pub fn attach_options(
         &self,
         peer: &str,
@@ -330,18 +388,26 @@ impl ProcessManager {
         resume: Option<&abp_protocol::IoResume>,
         record_framed: bool,
     ) -> Result<IoSession> {
-        self.store.authorize(peer, &["task", "approval"])?;
+        self.attach_internal(Some(peer), id, generation, resume, record_framed)
+    }
+    fn attach_internal(
+        &self,
+        peer: Option<&str>,
+        id: &str,
+        generation: &str,
+        resume: Option<&abp_protocol::IoResume>,
+        record_framed: bool,
+    ) -> Result<IoSession> {
         let p = self.managed(id, generation)?;
+        let owner = peer
+            .map(|peer| ProcessOwner::Device(peer.into()))
+            .unwrap_or(ProcessOwner::Server);
+        p.authorize_owner(&owner)?;
         {
             let info = p.info.lock().unwrap();
-            if info.owner_device_id != peer {
-                return Err(BridgeError::new(
-                    "unauthorized",
-                    "The process belongs to another device.",
-                ));
-            }
             if info.state != "running"
-                && !(resume.is_some() && matches!(info.state.as_str(), "exited" | "failed"))
+                && !((resume.is_some() || matches!(owner, ProcessOwner::Server))
+                    && matches!(info.state.as_str(), "exited" | "failed"))
             {
                 return Err(BridgeError::new(
                     "process_gone",
@@ -382,7 +448,7 @@ impl ProcessManager {
         p.changed.notify_waiters();
         Ok(IoSession {
             process: p,
-            peer: peer.into(),
+            owner,
             lease,
             cursor: 1,
             resume_offsets: if record_framed || resume.is_some() {
@@ -398,14 +464,15 @@ impl ProcessManager {
     }
     pub fn notify_revocation(&self) {
         for p in self.entries.lock().unwrap().values() {
-            let owner = p.info.lock().unwrap().owner_device_id.clone();
-            if p.store.authorize(&owner, &["task", "approval"]).is_err() {
+            if p.authorize_owner(&p.owner).is_err() {
                 *p.lease.lock().unwrap() = None;
             }
             p.changed.notify_waiters();
         }
     }
     pub async fn shutdown(&self) -> Result<()> {
+        let _start = self.start_gate.lock().await;
+        self.stopping.store(true, Ordering::SeqCst);
         let list = self.list();
         let mut failure = None;
         for p in list {
@@ -429,6 +496,9 @@ async fn drain<R: AsyncRead + Unpin>(mut reader: R, p: Arc<Managed>, channel: &s
             }
         }
     }
+    if channel == "stdout" {
+        p.stdout_closed.store(true, Ordering::SeqCst);
+    }
     let mut ring = p.ring.lock().unwrap();
     ring.open_readers = ring.open_readers.saturating_sub(1);
     drop(ring);
@@ -437,7 +507,7 @@ async fn drain<R: AsyncRead + Unpin>(mut reader: R, p: Arc<Managed>, channel: &s
 
 pub struct IoSession {
     process: Arc<Managed>,
-    peer: String,
+    owner: ProcessOwner,
     lease: String,
     cursor: u64,
     resume_offsets: Option<(u64, u64)>,
@@ -476,9 +546,7 @@ impl IoSession {
             ));
         }
         self.check_lease()?;
-        self.process
-            .store
-            .authorize(&self.peer, &["task", "approval"])?;
+        self.process.authorize_owner(&self.owner)?;
         if self.process.info.lock().unwrap().state != "running" {
             return Err(BridgeError::new(
                 "process_gone",
@@ -489,7 +557,7 @@ impl IoSession {
         self.process
             .writer
             .try_send(WriteRequest {
-                peer: self.peer.clone(),
+                owner: self.owner.clone(),
                 lease: self.lease.clone(),
                 bytes,
                 done,
@@ -504,12 +572,19 @@ impl IoSession {
         loop {
             let notified = self.process.changed.notified();
             self.check_lease()?;
-            self.process
-                .store
-                .authorize(&self.peer, &["task", "approval"])?;
+            self.process.authorize_owner(&self.owner)?;
             {
                 let ring = self.process.ring.lock().unwrap();
                 if let Some((stdout, stderr)) = self.resume_offsets.as_mut() {
+                    // Managed JSONL has no meaningful continuation after stdout
+                    // EOF, even if stderr or the child itself remains alive.
+                    // Deliver retained stdout first; do not wait for stderr.
+                    if matches!(self.owner, ProcessOwner::Server)
+                        && self.process.stdout_closed.load(Ordering::SeqCst)
+                        && *stdout >= ring.stdout_offset
+                    {
+                        return Ok(None);
+                    }
                     // Report each channel independently, including a channel whose
                     // retained chunks have all been evicted by the other channel.
                     for (channel, next, end) in [
@@ -629,5 +704,208 @@ mod resume_tests {
         }
         assert!(ring.bytes <= OUTPUT_BUDGET);
         assert!(ring.stdout_offset > 0 && ring.stderr_offset > 0);
+    }
+
+    #[cfg(unix)]
+    fn manager(directory: &std::path::Path) -> (Arc<Store>, Arc<ProcessManager>, AdapterSpec) {
+        let store = Arc::new(Store::open(&directory.join("host.sqlite3")).unwrap());
+        let manager = Arc::new(ProcessManager::new(
+            store.clone(),
+            Arc::new(Mutex::new(())),
+            Arc::new(|_| {}),
+        ));
+        let spec = AdapterSpec {
+            id: "fixture".into(),
+            name: "Fixture".into(),
+            program: "/bin/cat".into(),
+            args: vec![],
+            verified_version: None,
+        };
+        (store, manager, spec)
+    }
+
+    #[tokio::test]
+    #[cfg(unix)]
+    async fn managed_owner_cannot_be_impersonated_and_survives_device_revocation() {
+        let directory = tempfile::tempdir().unwrap();
+        let (store, manager, spec) = manager(directory.path());
+        store
+            .grant("phone", "Phone", vec!["task".into(), "approval".into()])
+            .unwrap();
+        // Even a legacy store principal matching the diagnostic marker is not Server.
+        store
+            .grant(
+                "",
+                "Invalid legacy marker",
+                vec!["task".into(), "approval".into()],
+            )
+            .unwrap();
+        let info = manager
+            .start_managed(&spec, directory.path().to_str().unwrap())
+            .await
+            .unwrap();
+        assert!(info.owner_device_id.is_empty());
+        assert!(
+            matches!(manager.attach("phone", &info.process_id, &info.generation), Err(error) if error.code == "unauthorized")
+        );
+        assert!(
+            matches!(manager.attach("", &info.process_id, &info.generation), Err(error) if error.code == "unauthorized")
+        );
+        assert!(
+            matches!(manager.attach_managed(&info.process_id, "stale"), Err(error) if error.code == "process_gone")
+        );
+        let mut session = manager
+            .attach_managed(&info.process_id, &info.generation)
+            .unwrap();
+        assert!(
+            matches!(manager.attach_managed(&info.process_id, &info.generation), Err(error) if error.code == "conflict")
+        );
+        let legacy = manager
+            .start("phone", &spec, directory.path().to_str().unwrap())
+            .await
+            .unwrap();
+        assert!(
+            matches!(manager.attach_managed(&legacy.process_id, &legacy.generation), Err(error) if error.code == "unauthorized")
+        );
+        let legacy_session = manager
+            .attach("phone", &legacy.process_id, &legacy.generation)
+            .unwrap();
+        store.revoke("phone").unwrap();
+        manager.notify_revocation();
+        assert_eq!(
+            legacy_session
+                .write(b"denied".to_vec())
+                .await
+                .unwrap_err()
+                .code,
+            "unauthorized"
+        );
+        session.write_record(b"managed\n".to_vec()).await.unwrap();
+        let output = tokio::time::timeout(Duration::from_secs(2), session.next())
+            .await
+            .unwrap()
+            .unwrap()
+            .unwrap();
+        assert_eq!(output.data, b"managed\n");
+        assert_eq!(output.offset, "0");
+        assert!(!output.gap);
+        assert_eq!(
+            session
+                .write_record(vec![b'x'; RECORD_LIMIT + 1])
+                .await
+                .unwrap_err()
+                .code,
+            "invalid_params"
+        );
+        let mut oversized = vec![b'x'; RECORD_LIMIT + 1];
+        *oversized.last_mut().unwrap() = b'\n';
+        assert_eq!(
+            session.write_record(oversized).await.unwrap_err().code,
+            "resource_limit"
+        );
+        manager
+            .stop(&info.process_id, &info.generation)
+            .await
+            .unwrap();
+        drop(session);
+        // An internal actor can drain a fast-exiting provider from its retained offsets.
+        let mut retained = manager
+            .attach_managed(&info.process_id, &info.generation)
+            .unwrap();
+        assert_eq!(retained.next().await.unwrap().unwrap().data, b"managed\n");
+        assert!(retained.next().await.unwrap().is_none());
+        manager.shutdown().await.unwrap();
+    }
+
+    #[tokio::test]
+    #[cfg(unix)]
+    async fn managed_concurrent_starts_share_the_process_budget() {
+        let directory = tempfile::tempdir().unwrap();
+        let (_, manager, spec) = manager(directory.path());
+        let mut starts = tokio::task::JoinSet::new();
+        for _ in 0..9 {
+            let manager = manager.clone();
+            let spec = spec.clone();
+            let cwd = directory.path().to_str().unwrap().to_owned();
+            starts.spawn(async move { manager.start_managed(&spec, &cwd).await });
+        }
+        let mut accepted = 0;
+        let mut refused = 0;
+        while let Some(result) = starts.join_next().await {
+            match result.unwrap() {
+                Ok(_) => accepted += 1,
+                Err(error) => {
+                    assert_eq!(error.code, "resource_limit");
+                    refused += 1;
+                }
+            }
+        }
+        assert_eq!((accepted, refused), (8, 1));
+        manager.shutdown().await.unwrap();
+    }
+
+    #[tokio::test]
+    #[cfg(unix)]
+    async fn shutdown_fences_queued_and_future_starts() {
+        let directory = tempfile::tempdir().unwrap();
+        let (_, manager, spec) = manager(directory.path());
+        let gate = manager.start_gate.lock().await;
+        let shutdown_manager = manager.clone();
+        let shutdown = tokio::spawn(async move { shutdown_manager.shutdown().await });
+        // Tokio's mutex is FIFO. Queue shutdown before the waiting launch.
+        tokio::task::yield_now().await;
+        let launch_manager = manager.clone();
+        let launch_spec = spec.clone();
+        let cwd = directory.path().to_str().unwrap().to_owned();
+        let launch =
+            tokio::spawn(async move { launch_manager.start_managed(&launch_spec, &cwd).await });
+        tokio::task::yield_now().await;
+        drop(gate);
+        shutdown.await.unwrap().unwrap();
+        assert_eq!(launch.await.unwrap().unwrap_err().code, "unavailable");
+        assert_eq!(
+            manager
+                .start_managed(&spec, directory.path().to_str().unwrap())
+                .await
+                .unwrap_err()
+                .code,
+            "unavailable"
+        );
+        assert!(manager.list().is_empty());
+    }
+
+    #[tokio::test]
+    #[cfg(unix)]
+    async fn managed_stdout_eof_does_not_wait_for_stderr_or_process_exit() {
+        let directory = tempfile::tempdir().unwrap();
+        let (_, manager, mut spec) = manager(directory.path());
+        spec.program = "/bin/sh".into();
+        spec.args = vec!["-c".into(), "printf 'last\\n'; exec 1>&-; sleep 30".into()];
+        let info = manager
+            .start_managed(&spec, directory.path().to_str().unwrap())
+            .await
+            .unwrap();
+        let mut io = manager
+            .attach_managed(&info.process_id, &info.generation)
+            .unwrap();
+        let frame = tokio::time::timeout(Duration::from_secs(2), io.next())
+            .await
+            .unwrap()
+            .unwrap()
+            .unwrap();
+        assert_eq!(frame.data, b"last\n");
+        assert!(tokio::time::timeout(Duration::from_secs(2), io.next())
+            .await
+            .unwrap()
+            .unwrap()
+            .is_none());
+        assert_eq!(
+            manager
+                .get(&info.process_id, &info.generation)
+                .unwrap()
+                .state,
+            "running"
+        );
+        manager.shutdown().await.unwrap();
     }
 }

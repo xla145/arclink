@@ -43,10 +43,17 @@ pub fn discover_specs() -> Vec<AdapterSpec> {
                 "stream-json",
                 "--output-format",
                 "stream-json",
+                "--verbose",
+                "--include-partial-messages",
+                "--permission-prompts",
+                "host",
+                "--permission-prompt-tool",
+                "stdio",
+                "--permission-mode",
+                "manual",
             ],
         ),
         ("codex", "Codex CLI", vec!["app-server", "--stdio"]),
-        ("herdr", "Herdr", vec![]),
     ]
     .into_iter()
     .map(|(id, name, args)| AdapterSpec {
@@ -139,8 +146,13 @@ pub async fn probe(spec: &AdapterSpec) -> AgentInfo {
     let result = probe_version(spec).await;
     match result {
         Ok(version) => {
-            let verified = if spec.id == "codex" {
-                match probe_codex_transport(spec).await {
+            let verified = if matches!(spec.id.as_str(), "codex" | "claude") {
+                let transport = if spec.id == "codex" {
+                    probe_codex_transport(spec).await
+                } else {
+                    probe_claude_transport(spec, Duration::from_secs(8)).await
+                };
+                match transport {
                     Ok(()) => true,
                     Err(message) => {
                         info.version = Some(version);
@@ -158,6 +170,9 @@ pub async fn probe(spec: &AdapterSpec) -> AgentInfo {
             if verified {
                 info.validation = "verified".into();
                 info.capabilities = vec!["stdio".into()];
+                if spec.id == "claude" {
+                    info.capabilities.push("claude_stream_json_v1".into());
+                }
             } else {
                 info.diagnostic = Some(
                     "已检测到安装；ArcLink 尚未验证此 Agent 的接入协议，不代表账号未登录。".into(),
@@ -210,6 +225,50 @@ async fn probe_codex_transport(spec: &AdapterSpec) -> Result<(), String> {
             return Ok(());
         }
     }).await.unwrap_or_else(|_| Err("Codex 通信检测超时，请检查本机配置后刷新。".to_owned()));
+    drop(group);
+    let _ = child.kill().await;
+    let _ = child.wait().await;
+    result
+}
+
+/// Initialize only: this proves transport support, not login or model access.
+/// Discard startup hooks and account metadata; never log native payloads.
+async fn probe_claude_transport(spec: &AdapterSpec, deadline: Duration) -> Result<(), String> {
+    let mut child = command(spec)
+        .args(&spec.args)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .spawn()
+        .map_err(|_| "无法启动 Claude 通信检测，请检查程序路径。".to_owned())?;
+    let group = ProbeGroup(child.id());
+    let mut input = child.stdin.take().expect("piped stdin");
+    let mut output = child.stdout.take().expect("piped stdout");
+    let result = tokio::time::timeout(deadline, async {
+        input.write_all(b"{\"type\":\"control_request\",\"request_id\":\"arclink-probe\",\"request\":{\"subtype\":\"initialize\",\"hooks\":{}}}\n")
+            .await.map_err(|_| "无法写入 Claude 握手请求。".to_owned())?;
+        let mut line = Vec::new();
+        let mut total = 0usize;
+        loop {
+            let byte = output.read_u8().await.map_err(|_| "Claude 在完成握手前退出。".to_owned())?;
+            total += 1;
+            if total > 64 * 1024 {
+                return Err("Claude 握手响应超出限制。".to_owned());
+            }
+            if byte != b'\n' { line.push(byte); continue; }
+            let record: serde_json::Value = serde_json::from_slice(&line)
+                .map_err(|_| "Claude 返回了无效的协议响应。".to_owned())?;
+            line.clear();
+            if record.get("type").and_then(|v| v.as_str()) != Some("control_response") { continue; }
+            let response = &record["response"];
+            if response.get("request_id").and_then(|v| v.as_str()) != Some("arclink-probe") { continue; }
+            if response.get("subtype").and_then(|v| v.as_str()) != Some("success")
+                || !response.get("response").is_some_and(|r| r.is_object()) {
+                return Err("Claude 拒绝了通信握手，请检查版本及本机配置。".to_owned());
+            }
+            return Ok(());
+        }
+    }).await.unwrap_or_else(|_| Err("Claude 通信检测超时，请检查本机配置后刷新。".to_owned()));
     drop(group);
     let _ = child.kill().await;
     let _ = child.wait().await;
@@ -289,6 +348,12 @@ pub fn terminate_group(pid: Option<u32>) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn discovery_contains_only_supported_agents() {
+        let ids: Vec<_> = discover_specs().into_iter().map(|spec| spec.id).collect();
+        assert_eq!(ids, ["claude", "codex"]);
+    }
+
     #[tokio::test]
     async fn missing_agent_does_not_claim_availability() {
         let spec = AdapterSpec {
@@ -347,5 +412,108 @@ mod tests {
             assert_eq!(info.status, expected);
             assert_eq!(info.executable_path.as_deref(), path.to_str());
         }
+    }
+    #[test]
+    fn claude_launch_uses_host_permissions_and_streaming_without_bypass() {
+        let spec = discover_specs()
+            .into_iter()
+            .find(|spec| spec.id == "claude")
+            .unwrap();
+        for flag in ["--print", "--verbose", "--include-partial-messages"] {
+            assert!(spec.args.iter().any(|arg| arg == flag));
+        }
+        assert!(spec
+            .args
+            .windows(2)
+            .any(|args| args == ["--permission-prompts", "host"]));
+        assert!(spec
+            .args
+            .windows(2)
+            .any(|args| args == ["--permission-mode", "manual"]));
+        assert!(!spec
+            .args
+            .iter()
+            .any(|arg| arg.contains("bypass") || arg.contains("skip-permissions")));
+    }
+
+    #[cfg(unix)]
+    fn claude_fixture(dir: &Path, body: &str) -> AdapterSpec {
+        use std::os::unix::fs::PermissionsExt;
+        let path = dir.join("claude-fixture");
+        std::fs::write(&path, format!("#!/bin/sh\nif [ \"$1\" = --version ]; then echo 'fixture-claude 1'; exit; fi\nread request\n{body}\n")).unwrap();
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o700)).unwrap();
+        AdapterSpec {
+            id: "claude".into(),
+            name: "Claude".into(),
+            program: path,
+            args: vec![],
+            verified_version: Some("fixture-claude 1".into()),
+        }
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn claude_requires_correlated_real_initialize_and_does_not_expose_metadata() {
+        let dir = tempfile::tempdir().unwrap();
+        let spec = claude_fixture(
+            dir.path(),
+            r#"
+case "$request" in *'"subtype":"initialize"'*) ;; *) exit 1;; esac
+echo '{"type":"system","subtype":"hook_response","output":"PRIVATE"}'
+echo '{"type":"control_response","response":{"subtype":"error","request_id":"unrelated","error":"PRIVATE"}}'
+echo '{"type":"control_response","response":{"subtype":"success","request_id":"arclink-probe","response":{"account":"PRIVATE"}}}'
+read next
+"#,
+        );
+        let info = probe(&spec).await;
+        assert_eq!(info.validation, "verified");
+        assert_eq!(info.capabilities, ["stdio", "claude_stream_json_v1"]);
+        assert!(!serde_json::to_string(&info).unwrap().contains("PRIVATE"));
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn claude_rejects_error_malformed_empty_and_oversize_handshakes() {
+        let dir = tempfile::tempdir().unwrap();
+        for body in [
+            "echo '{\"type\":\"control_response\",\"response\":{\"subtype\":\"error\",\"request_id\":\"arclink-probe\",\"error\":\"PRIVATE\"}}'",
+            "echo '{\"type\":\"control_response\",\"response\":{\"subtype\":\"success\",\"request_id\":\"arclink-probe\",\"response\":null}}'",
+            "echo malformed",
+            "exit 0",
+            "awk 'BEGIN {for(i=0;i<65537;i++) printf \"x\"}'",
+        ] {
+            let info = probe(&claude_fixture(dir.path(), body)).await;
+            assert_eq!(info.validation, "failed", "{body}");
+            assert!(info.capabilities.is_empty());
+            assert!(!info.diagnostic.unwrap().contains("PRIVATE"));
+        }
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn claude_handshake_timeout_is_bounded() {
+        let dir = tempfile::tempdir().unwrap();
+        let spec = claude_fixture(dir.path(), "sleep 30");
+        let result = tokio::time::timeout(
+            Duration::from_secs(2),
+            probe_claude_transport(&spec, Duration::from_millis(50)),
+        )
+        .await
+        .unwrap();
+        assert!(result.unwrap_err().contains("超时"));
+    }
+    #[tokio::test]
+    #[ignore = "requires an installed Claude CLI; initializes transport without a model request"]
+    async fn installed_claude_initialize_smoke() {
+        let spec = discover_specs()
+            .into_iter()
+            .find(|spec| spec.id == "claude")
+            .unwrap();
+        let info = probe(&spec).await;
+        assert_eq!(info.validation, "verified", "{:?}", info.diagnostic);
+        assert!(info
+            .capabilities
+            .iter()
+            .any(|capability| capability == "claude_stream_json_v1"));
     }
 }

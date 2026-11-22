@@ -35,13 +35,17 @@ pub enum DirectoryError {
 /// `home` stands in for the user's home directory so tests never touch the
 /// real one. `path` may be absolute, `~`, or `~/…`; `None` means home.
 pub fn list_directory(path: Option<&str>, home: &Path) -> Result<DirectoryListing, DirectoryError> {
-    let home = home.canonicalize().map_err(|_| DirectoryError::Unavailable)?;
+    let home = home
+        .canonicalize()
+        .map_err(|_| DirectoryError::Unavailable)?;
     let requested = match path.map(str::trim).filter(|p| !p.is_empty()) {
         None | Some("~") => home.clone(),
         Some(p) if p.starts_with("~/") => home.join(&p[2..]),
         Some(p) => PathBuf::from(p),
     };
-    let dir = requested.canonicalize().map_err(|_| DirectoryError::Unavailable)?;
+    let dir = requested
+        .canonicalize()
+        .map_err(|_| DirectoryError::Unavailable)?;
     if !dir.starts_with(&home) {
         return Err(DirectoryError::Forbidden);
     }
@@ -57,7 +61,9 @@ pub fn list_directory(path: Option<&str>, home: &Path) -> Result<DirectoryListin
             continue;
         }
         // Follow symlinks only when they still land inside home.
-        let Ok(target) = item.path().canonicalize() else { continue };
+        let Ok(target) = item.path().canonicalize() else {
+            continue;
+        };
         if !target.starts_with(&home) || !target.is_dir() {
             continue;
         }
@@ -75,7 +81,36 @@ pub fn list_directory(path: Option<&str>, home: &Path) -> Result<DirectoryListin
     let parent = (dir != home)
         .then(|| dir.parent().map(|p| p.to_string_lossy().into_owned()))
         .flatten();
-    Ok(DirectoryListing { path: dir.to_string_lossy().into_owned(), parent, entries, truncated })
+    Ok(DirectoryListing {
+        path: dir.to_string_lossy().into_owned(),
+        parent,
+        entries,
+        truncated,
+    })
+}
+
+/// Create exactly one visible child of a folder the phone can browse.
+pub fn create_directory(
+    parent: &str,
+    name: &str,
+    home: &Path,
+) -> Result<DirectoryListing, DirectoryError> {
+    let name = name.trim();
+    if name.is_empty()
+        || name == "."
+        || name == ".."
+        || name.starts_with('.')
+        || name.as_bytes().len() > 255
+        || name.contains('/')
+        || name.contains('\\')
+        || name.chars().any(char::is_control)
+    {
+        return Err(DirectoryError::Forbidden);
+    }
+    let parent = list_directory(Some(parent), home)?.path;
+    let child = Path::new(&parent).join(name);
+    std::fs::create_dir(&child).map_err(|_| DirectoryError::Unavailable)?;
+    list_directory(child.to_str(), home)
 }
 
 #[cfg(test)]
@@ -100,30 +135,100 @@ mod tests {
         let top = list_directory(None, &home).unwrap();
         assert_eq!(top.path, home.to_string_lossy());
         assert_eq!(top.parent, None);
-        assert_eq!(top.entries.iter().map(|e| e.name.as_str()).collect::<Vec<_>>(), ["work"]);
+        assert_eq!(
+            top.entries
+                .iter()
+                .map(|e| e.name.as_str())
+                .collect::<Vec<_>>(),
+            ["work"]
+        );
         let work = list_directory(Some("~/work"), &home).unwrap();
-        assert_eq!(work.parent.as_deref(), Some(home.to_string_lossy().as_ref()));
-        let names: Vec<_> = work.entries.iter().map(|e| (e.name.as_str(), e.is_project)).collect();
+        assert_eq!(
+            work.parent.as_deref(),
+            Some(home.to_string_lossy().as_ref())
+        );
+        let names: Vec<_> = work
+            .entries
+            .iter()
+            .map(|e| (e.name.as_str(), e.is_project))
+            .collect();
         assert_eq!(names, [("app", true), ("notes", false)]);
     }
 
     #[test]
     fn refuses_paths_and_symlinks_outside_home() {
         let (root, home) = home();
-        assert_eq!(list_directory(Some(root.path().to_str().unwrap()), &home), Err(DirectoryError::Forbidden));
-        assert_eq!(list_directory(Some("~/work/../.."), &home), Err(DirectoryError::Forbidden));
+        assert_eq!(
+            list_directory(Some(root.path().to_str().unwrap()), &home),
+            Err(DirectoryError::Forbidden)
+        );
+        assert_eq!(
+            list_directory(Some("~/work/../.."), &home),
+            Err(DirectoryError::Forbidden)
+        );
         #[cfg(unix)]
         {
             std::os::unix::fs::symlink(root.path().join("outside"), home.join("escape")).unwrap();
-            assert_eq!(list_directory(Some("~/escape"), &home), Err(DirectoryError::Forbidden));
-            assert!(list_directory(None, &home).unwrap().entries.iter().all(|e| e.name != "escape"));
+            assert_eq!(
+                list_directory(Some("~/escape"), &home),
+                Err(DirectoryError::Forbidden)
+            );
+            assert!(list_directory(None, &home)
+                .unwrap()
+                .entries
+                .iter()
+                .all(|e| e.name != "escape"));
         }
     }
 
     #[test]
     fn missing_paths_and_files_are_unavailable() {
         let (_root, home) = home();
-        assert_eq!(list_directory(Some("~/nope"), &home), Err(DirectoryError::Unavailable));
-        assert_eq!(list_directory(Some("~/readme.txt"), &home), Err(DirectoryError::Unavailable));
+        assert_eq!(
+            list_directory(Some("~/nope"), &home),
+            Err(DirectoryError::Unavailable)
+        );
+        assert_eq!(
+            list_directory(Some("~/readme.txt"), &home),
+            Err(DirectoryError::Unavailable)
+        );
+    }
+
+    #[test]
+    fn creates_one_child_and_rejects_invalid_or_existing_names() {
+        let (root, home) = home();
+        let work = home.join("work");
+        let created = create_directory(work.to_str().unwrap(), "new project", &home).unwrap();
+        assert_eq!(created.path, work.join("new project").to_string_lossy());
+        assert!(created.entries.is_empty());
+        assert_eq!(
+            create_directory(work.to_str().unwrap(), "new project", &home),
+            Err(DirectoryError::Unavailable)
+        );
+        for name in ["", "..", "../escape", ".hidden", "a/b", "a\\b", "bad\nname"] {
+            assert_eq!(
+                create_directory(work.to_str().unwrap(), name, &home),
+                Err(DirectoryError::Forbidden)
+            );
+        }
+        assert_eq!(
+            create_directory(
+                root.path().join("outside").to_str().unwrap(),
+                "escape",
+                &home
+            ),
+            Err(DirectoryError::Forbidden)
+        );
+        assert!(!root.path().join("outside/escape").exists());
+        #[cfg(unix)]
+        {
+            std::os::unix::fs::symlink(root.path().join("outside"), home.join("outside-link"))
+                .unwrap();
+            assert_eq!(
+                create_directory(home.join("outside-link").to_str().unwrap(), "escape", &home),
+                Err(DirectoryError::Forbidden)
+            );
+            assert!(!root.path().join("outside/escape").exists());
+        }
     }
 }

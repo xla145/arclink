@@ -128,6 +128,21 @@ pub struct MacDirectoryListing {
     pub truncated: bool,
 }
 
+#[derive(uniffi::Record, Clone, Debug, serde::Deserialize)]
+pub struct MacGitInfo {
+    pub is_git_repo: bool,
+    pub repo_root: Option<String>,
+    pub current_branch: Option<String>,
+    pub branches: Vec<String>,
+}
+
+#[derive(uniffi::Record, Clone, Debug, serde::Deserialize)]
+pub struct MacPreparedWorkspace {
+    pub path: String,
+    pub branch: Option<String>,
+    pub is_worktree: bool,
+}
+
 /// A project path the Mac's Agent already tracked itself, plus the newest
 /// on-disk timestamp we could find for it (RFC3339), if any.
 #[derive(uniffi::Record, Clone, Debug, serde::Deserialize)]
@@ -136,6 +151,112 @@ pub struct MacProject {
     pub last_seen: Option<String>,
     pub name: Option<String>,
     pub threads: Vec<MacThread>,
+}
+
+#[derive(uniffi::Record, Clone, Debug, serde::Deserialize)]
+pub struct ManagedProject {
+    pub id: String,
+    pub canonical_root: String,
+    pub name: String,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+#[derive(uniffi::Record, Clone, Debug, serde::Deserialize)]
+pub struct EnvironmentDescriptor {
+    pub environment_id: String,
+    pub service_instance: String,
+    pub capabilities: Vec<String>,
+}
+
+#[derive(uniffi::Record, Clone, Debug, serde::Deserialize)]
+pub struct ManagedThread {
+    pub id: String,
+    pub project_id: String,
+    pub provider_id: String,
+    #[serde(default)]
+    pub model: Option<String>,
+    pub title: String,
+    pub cwd: String,
+    pub status: String,
+    pub revision: String,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+#[derive(uniffi::Record, Clone, Debug, serde::Deserialize)]
+pub struct ManagedThreadSnapshot {
+    pub environment_id: String,
+    pub sequence: String,
+    pub thread: ManagedThread,
+    pub messages: Vec<ManagedMessage>,
+    #[serde(default)]
+    pub runs: Vec<ManagedRun>,
+    #[serde(default)]
+    pub approvals: Vec<ManagedApproval>,
+    pub has_older_messages: bool,
+}
+
+#[derive(uniffi::Record, Clone, Debug, serde::Deserialize)]
+pub struct ManagedRun {
+    pub id: String,
+    pub thread_id: String,
+    pub status: String,
+    pub revision: String,
+}
+
+#[derive(uniffi::Record, Clone, Debug, serde::Deserialize)]
+pub struct ManagedApproval {
+    pub id: String,
+    pub run_id: String,
+    pub state: String,
+    pub kind: String,
+    pub target: String,
+    pub detail: String,
+}
+
+#[derive(uniffi::Record, Clone, Debug, serde::Deserialize)]
+pub struct ManagedThreadHistory {
+    pub thread_id: String,
+    pub messages: Vec<ManagedMessage>,
+    pub has_more: bool,
+    pub next_before_id: Option<String>,
+}
+
+#[derive(uniffi::Record, Clone, Debug, serde::Deserialize)]
+pub struct ManagedThreadEvent {
+    pub sequence: String,
+    pub aggregate_id: String,
+    pub event_type: String,
+    pub schema_version: u32,
+    #[serde(rename = "payload", deserialize_with = "structured_json")]
+    pub payload_json: String,
+}
+
+#[derive(uniffi::Record, Clone, Debug, serde::Deserialize)]
+pub struct ManagedMessage {
+    pub id: String,
+    pub thread_id: String,
+    pub run_id: Option<String>,
+    pub client_message_id: Option<String>,
+    pub role: String,
+    #[serde(rename = "content", deserialize_with = "structured_json")]
+    pub content_json: String,
+    pub revision: String,
+}
+
+#[derive(uniffi::Record, Clone, Debug, serde::Deserialize)]
+pub struct ManagedThreadReplay {
+    pub environment_id: String,
+    pub thread_id: String,
+    pub sequence: String,
+    pub events: Vec<ManagedThreadEvent>,
+    pub has_more: bool,
+}
+
+fn structured_json<'de, D: serde::Deserializer<'de>>(deserializer: D) -> Result<String, D::Error> {
+    let value = <serde_json::Value as serde::Deserialize>::deserialize(deserializer)?;
+    Ok(value.to_string())
 }
 #[derive(serde::Deserialize)]
 struct RawNetworkInfo {
@@ -344,6 +465,175 @@ impl BridgeConnection {
     pub async fn ping(&self) -> Result<(), BridgeError> {
         self.call("Ping", "null".into(), 5_000).await.map(|_| ())
     }
+    pub async fn describe_environment(&self) -> Result<EnvironmentDescriptor, BridgeError> {
+        parse(
+            &self
+                .call("environment.describe", "null".into(), 5_000)
+                .await?,
+        )
+    }
+    pub async fn list_managed_projects(&self) -> Result<Vec<ManagedProject>, BridgeError> {
+        parse(&self.call("projects.list", "null".into(), 5_000).await?)
+    }
+    pub async fn create_managed_project(
+        &self,
+        command_id: String,
+        path: String,
+        name: String,
+    ) -> Result<ManagedProject, BridgeError> {
+        let body = serde_json::json!({"command_id":command_id,"path":path,"name":name}).to_string();
+        parse(&self.call("projects.create", body, 10_000).await?)
+    }
+    pub async fn list_managed_threads(
+        &self,
+        project_id: String,
+    ) -> Result<Vec<ManagedThread>, BridgeError> {
+        let body = serde_json::json!({"project_id": project_id}).to_string();
+        parse(&self.call("threads.list", body, 5_000).await?)
+    }
+    pub async fn create_managed_thread(
+        &self,
+        command_id: String,
+        project_id: String,
+        provider_id: String,
+        title: String,
+    ) -> Result<ManagedThread, BridgeError> {
+        let body = serde_json::json!({"command_id":command_id,"project_id":project_id,"provider_id":provider_id,"title":title}).to_string();
+        parse(&self.call("threads.create", body, 10_000).await?)
+    }
+    pub async fn get_managed_thread(
+        &self,
+        thread_id: String,
+    ) -> Result<ManagedThread, BridgeError> {
+        let body = serde_json::json!({"thread_id": thread_id}).to_string();
+        parse(&self.call("threads.get", body, 5_000).await?)
+    }
+    pub async fn get_managed_thread_snapshot(
+        &self,
+        thread_id: String,
+    ) -> Result<ManagedThreadSnapshot, BridgeError> {
+        let body = serde_json::json!({"thread_id":thread_id}).to_string();
+        parse(&self.call("threads.snapshot", body, 10_000).await?)
+    }
+    pub async fn set_managed_thread_model(
+        &self,
+        command_id: String,
+        thread_id: String,
+        model: Option<String>,
+        expected_revision: Option<String>,
+    ) -> Result<ManagedThread, BridgeError> {
+        let body = serde_json::json!({"command_id":command_id,"thread_id":thread_id,"model":model,"expected_revision":expected_revision}).to_string();
+        parse(&self.call("threads.model.set", body, 30_000).await?)
+    }
+    /// Change the executor of the same logical conversation. The host owns
+    /// native-session replacement and the public-context handoff.
+    pub async fn set_managed_thread_provider(
+        &self,
+        command_id: String,
+        thread_id: String,
+        provider_id: String,
+        model: Option<String>,
+        expected_revision: Option<String>,
+    ) -> Result<ManagedThread, BridgeError> {
+        let environment = self.describe_environment().await?;
+        if !environment
+            .capabilities
+            .iter()
+            .any(|value| value == "managed_provider_switch_v1")
+        {
+            return Err(BridgeError::new(
+                "unsupported",
+                "Update the Mac app to switch Agents in this conversation.",
+            ));
+        }
+        let body = serde_json::json!({"command_id":command_id,"thread_id":thread_id,"provider_id":provider_id,"model":model,"expected_revision":expected_revision}).to_string();
+        parse(&self.call("threads.provider.set", body, 30_000).await?)
+    }
+    pub async fn replay_managed_thread(
+        &self,
+        environment_id: String,
+        thread_id: String,
+        after_sequence: String,
+    ) -> Result<ManagedThreadReplay, BridgeError> {
+        let body = serde_json::json!({"environment_id":environment_id,"thread_id":thread_id,"after_sequence":after_sequence}).to_string();
+        parse(&self.call("threads.replay", body, 10_000).await?)
+    }
+    pub async fn wait_managed_thread(
+        &self,
+        environment_id: String,
+        thread_id: String,
+        after_sequence: String,
+    ) -> Result<ManagedThreadReplay, BridgeError> {
+        let body = serde_json::json!({"environment_id":environment_id,"thread_id":thread_id,"after_sequence":after_sequence}).to_string();
+        parse(&self.call("threads.wait", body, 30_000).await?)
+    }
+    pub async fn managed_thread_history(
+        &self,
+        thread_id: String,
+        before_id: Option<String>,
+    ) -> Result<ManagedThreadHistory, BridgeError> {
+        let body = serde_json::json!({"thread_id":thread_id,"before_id":before_id}).to_string();
+        parse(&self.call("threads.history", body, 10_000).await?)
+    }
+    /// Returns the durable command receipt. Never retry an uncertain send with a new ID.
+    pub async fn send_managed_thread(
+        &self,
+        command_id: String,
+        thread_id: String,
+        client_message_id: String,
+        text: String,
+        expected_revision: Option<String>,
+    ) -> Result<String, BridgeError> {
+        self.send_managed_thread_with_images(
+            command_id,
+            thread_id,
+            client_message_id,
+            text,
+            expected_revision,
+            Vec::new(),
+        )
+        .await
+    }
+    /// Sends a managed thread message with optional base64-encoded JPEG images.
+    pub async fn send_managed_thread_with_images(
+        &self,
+        command_id: String,
+        thread_id: String,
+        client_message_id: String,
+        text: String,
+        expected_revision: Option<String>,
+        images: Vec<String>,
+    ) -> Result<String, BridgeError> {
+        let mut payload = serde_json::json!({
+            "command_id": command_id,
+            "thread_id": thread_id,
+            "client_message_id": client_message_id,
+            "text": text,
+            "expected_revision": expected_revision,
+        });
+        if !images.is_empty() {
+            payload["images"] = serde_json::json!(images);
+        }
+        self.call("threads.send", payload.to_string(), 60_000).await
+    }
+    pub async fn interrupt_managed_thread(
+        &self,
+        command_id: String,
+        thread_id: String,
+    ) -> Result<String, BridgeError> {
+        let body = serde_json::json!({"command_id":command_id,"thread_id":thread_id}).to_string();
+        self.call("threads.interrupt", body, 40_000).await
+    }
+    pub async fn resolve_managed_approval(
+        &self,
+        command_id: String,
+        thread_id: String,
+        approval_id: String,
+        approved: bool,
+    ) -> Result<String, BridgeError> {
+        let body = serde_json::json!({"command_id":command_id,"thread_id":thread_id,"approval_id":approval_id,"approved":approved}).to_string();
+        self.call("threads.approval", body, 40_000).await
+    }
     pub async fn get_system_info(&self) -> Result<SystemInfo, BridgeError> {
         let raw: RawDaemonStatus = parse(&self.call("GetSystemInfo", "null".into(), 5_000).await?)?;
         Ok(SystemInfo {
@@ -371,9 +661,33 @@ impl BridgeConnection {
     /// Subfolders of `path` (absolute, `~` or `~/…`; `None` = home) on the Mac.
     /// The Mac refuses anything outside the home directory with `forbidden`;
     /// a Mac without this request answers `unsupported`.
-    pub async fn list_directory(&self, path: Option<String>) -> Result<MacDirectoryListing, BridgeError> {
+    pub async fn list_directory(
+        &self,
+        path: Option<String>,
+    ) -> Result<MacDirectoryListing, BridgeError> {
         let body = serde_json::json!({"path": path}).to_string();
         parse(&self.call("ListDirectory", body, 5_000).await?)
+    }
+    pub async fn create_directory(
+        &self,
+        parent: String,
+        name: String,
+    ) -> Result<MacDirectoryListing, BridgeError> {
+        let body = serde_json::json!({"parent": parent, "name": name}).to_string();
+        parse(&self.call("CreateDirectory", body, 10_000).await?)
+    }
+    pub async fn list_git_branches(&self, path: String) -> Result<MacGitInfo, BridgeError> {
+        let body = serde_json::json!({"path": path}).to_string();
+        parse(&self.call("ListGitBranches", body, 5_000).await?)
+    }
+    pub async fn prepare_git_workspace(
+        &self,
+        path: String,
+        mode: String,
+        branch: Option<String>,
+    ) -> Result<MacPreparedWorkspace, BridgeError> {
+        let body = serde_json::json!({"path": path, "mode": mode, "branch": branch}).to_string();
+        parse(&self.call("PrepareGitWorkspace", body, 15_000).await?)
     }
     pub async fn list_agent_models(&self, agent_id: String) -> Result<Vec<MacModel>, BridgeError> {
         let body = serde_json::json!({"agent_id": agent_id}).to_string();
@@ -877,6 +1191,33 @@ async fn open_stream_options(
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn managed_sync_preserves_sequences_and_structured_payloads() {
+        let replay: super::ManagedThreadReplay = serde_json::from_value(serde_json::json!({
+            "environment_id":"e", "thread_id":"t", "sequence":"9007199254740993",
+            "has_more":false, "events":[{"sequence":"9007199254740993", "aggregate_id":"m", "event_type":"message.updated", "schema_version":1, "payload":{"text":"hello"}}]
+        })).unwrap();
+        assert_eq!(replay.sequence, "9007199254740993");
+        assert_eq!(
+            serde_json::from_str::<serde_json::Value>(&replay.events[0].payload_json).unwrap()
+                ["text"],
+            "hello"
+        );
+        let message: super::ManagedMessage = serde_json::from_value(serde_json::json!({
+            "id":"m", "thread_id":"t", "run_id":null, "client_message_id":null,
+            "role":"assistant", "revision":"1", "content":[{"type":"text","text":"你好"}]
+        }))
+        .unwrap();
+        assert_eq!(
+            serde_json::from_str::<serde_json::Value>(&message.content_json).unwrap()[0]["text"],
+            "你好"
+        );
+        let snapshot: super::ManagedThreadSnapshot = serde_json::from_value(serde_json::json!({
+            "environment_id":"e", "sequence":"1", "thread": {"id":"t","project_id":"p","provider_id":"codex","title":"x","cwd":"/tmp","status":"idle","revision":"1","created_at":"now","updated_at":"now"}, "messages":[], "has_older_messages":false
+        })).unwrap();
+        assert!(snapshot.runs.is_empty());
+        assert!(snapshot.approvals.is_empty());
+    }
     #[tokio::test]
     async fn connect_deadline_includes_pre_dial_setup_and_publishes_failure() {
         let directory = tempfile::tempdir().unwrap();
@@ -1051,7 +1392,8 @@ mod tests {
         assert_eq!(listing.parent.as_deref(), Some("/Users/me"));
         assert_eq!(listing.entries.len(), 1);
         assert!(listing.entries[0].is_project);
-        let home: MacDirectoryListing = parse(r#"{"path":"/Users/me","parent":null,"entries":[],"truncated":true}"#).unwrap();
+        let home: MacDirectoryListing =
+            parse(r#"{"path":"/Users/me","parent":null,"entries":[],"truncated":true}"#).unwrap();
         assert!(home.parent.is_none() && home.truncated);
     }
 
@@ -1247,6 +1589,147 @@ mod tests {
             panic!("expected response")
         };
         assert_eq!(response.body_json, r#"{"ok":true}"#);
+    }
+
+    #[tokio::test]
+    async fn managed_command_wrappers_preserve_ids_and_wait_deadline() {
+        let host = Endpoint::builder(presets::Minimal)
+            .alpns(vec![wire::ALPN.to_vec()])
+            .bind()
+            .await
+            .unwrap();
+        let directory = tempfile::tempdir().unwrap();
+        let client = BridgeConnection::with_network(
+            directory
+                .path()
+                .join("phone.key")
+                .to_string_lossy()
+                .into_owned(),
+            host.id().to_string(),
+            crate::PeerNetworkConfig {
+                relay_url: None,
+                relay_access_key: None,
+                direct_addresses: host.addr().ip_addrs().map(ToString::to_string).collect(),
+            },
+        )
+        .unwrap();
+        let listener = host.clone();
+        let server = tokio::spawn(async move {
+            let connection = listener.accept().await.unwrap().await.unwrap();
+            for method in [
+                "threads.send",
+                "threads.interrupt",
+                "threads.approval",
+                "threads.wait",
+                "threads.history",
+            ] {
+                let (mut send, mut recv) = connection.accept_bi().await.unwrap();
+                let Frame::Hello(hello) = wire::read_frame(&mut recv, wire::MAX_FRAME_BYTES)
+                    .await
+                    .unwrap()
+                else {
+                    panic!("hello")
+                };
+                let max = hello.negotiate().unwrap();
+                wire::write_frame(&mut send, &Frame::Hello(Hello::new("managed-host")), max)
+                    .await
+                    .unwrap();
+                assert!(matches!(
+                    wire::read_frame(&mut recv, max).await.unwrap(),
+                    Frame::Open(_)
+                ));
+                wire::write_frame(&mut send, &Frame::Response(RpcResponse::default()), max)
+                    .await
+                    .unwrap();
+                let Frame::Request(request) = wire::read_frame(&mut recv, max).await.unwrap()
+                else {
+                    panic!("request")
+                };
+                assert_eq!(request.method, method);
+                let body: serde_json::Value = serde_json::from_str(&request.body_json).unwrap();
+                assert_eq!(body["thread_id"], "t");
+                match method {
+                    "threads.send" => {
+                        assert_eq!(body["client_message_id"], "m");
+                        assert_eq!(body["expected_revision"], "9007199254740993");
+                        assert_eq!(body["text"], "你好");
+                    }
+                    "threads.approval" => {
+                        assert_eq!(body["approval_id"], "a");
+                        assert_eq!(body["approved"], true);
+                    }
+                    "threads.wait" => {
+                        assert_eq!(request.timeout_ms, 30_000);
+                        assert_eq!(body["after_sequence"], "9007199254740993");
+                    }
+                    "threads.history" => assert_eq!(body["before_id"], "m"),
+                    _ => {}
+                }
+                if method != "threads.wait" && method != "threads.history" {
+                    assert_eq!(body["command_id"], "c");
+                }
+                let result = match method {
+                    "threads.wait" => {
+                        r#"{"environment_id":"e","thread_id":"t","sequence":"9007199254740993","events":[],"has_more":false}"#
+                    }
+                    "threads.history" => {
+                        r#"{"thread_id":"t","messages":[],"has_more":false,"next_before_id":null}"#
+                    }
+                    _ => r#"{"ok":true}"#,
+                };
+                wire::write_frame(
+                    &mut send,
+                    &Frame::Response(RpcResponse {
+                        rpc_id: request.rpc_id,
+                        body_json: result.into(),
+                        ..Default::default()
+                    }),
+                    max,
+                )
+                .await
+                .unwrap();
+                send.finish().unwrap();
+            }
+            connection.closed().await;
+        });
+        assert_eq!(client.connect().await, ConnectionState::Connected);
+        assert_eq!(
+            client
+                .send_managed_thread(
+                    "c".into(),
+                    "t".into(),
+                    "m".into(),
+                    "你好".into(),
+                    Some("9007199254740993".into())
+                )
+                .await
+                .unwrap(),
+            r#"{"ok":true}"#
+        );
+        client
+            .interrupt_managed_thread("c".into(), "t".into())
+            .await
+            .unwrap();
+        client
+            .resolve_managed_approval("c".into(), "t".into(), "a".into(), true)
+            .await
+            .unwrap();
+        assert!(client
+            .wait_managed_thread("e".into(), "t".into(), "9007199254740993".into())
+            .await
+            .unwrap()
+            .events
+            .is_empty());
+        assert!(
+            !client
+                .managed_thread_history("t".into(), Some("m".into()))
+                .await
+                .unwrap()
+                .has_more
+        );
+        client.disconnect().await;
+        server.await.unwrap();
+        host.close().await;
     }
 
     /// Serves multiple RPC streams until explicitly disconnected.

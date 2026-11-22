@@ -5,7 +5,9 @@
 Applies to `agent-bridge/crates/{abp-protocol,agent-adapters,agentd,abp-test-harness}`.
 This greenfield host supersedes the historical server-side session/approval
 architecture in `agent-bridge-control.md`. The host relays opaque bytes;
-native chat semantics remain in the mobile client.
+native chat semantics remain in the mobile client for legacy Process/AgentIO sessions.
+The additive managed Thread path owns Codex execution and durable synchronization
+on the service; legacy Process/AgentIO execution remains independently supported.
 
 ## 2. Signatures
 
@@ -16,8 +18,83 @@ native chat semantics remain in the mobile client.
   are local administration; remote pairing can submit a request, never approve it.
 - Remote `ListAgents`, `ListProcesses`, `StartProcess`, `StopProcess`,
   `GetProcessStatus`, `Ping`, `GetSystemInfo` use the versioned ABP contract.
-- SQLite schema 1: `metadata`, `devices`, `operations`, `processes`, `discovery`.
+- SQLite schema 2 preserves schema 1 tables: `metadata`, `devices`, `operations`, `processes`, `discovery`.
   Operations have primary key `(peer,id)` plus request fingerprint/state/result.
+
+## Managed catalog and synchronization foundation
+
+Schema 1 upgrades transactionally to schema 2 using `store/migrations.rs`. Unknown
+versions fail before DDL. The environment ID persists in metadata, independently
+of the per-launch service instance. Legacy recovery still marks processes lost
+and uncertain operations unknown; managed catalog registration never spawns an Agent.
+
+Capabilities `managed_catalog_v1`, `thread_sync_reads_v1`, `managed_execution_v1`,
+`thread_events_v1`, `history_pages_v1` and `approval_api_v1` identify the managed
+path. `threads.send/interrupt/approval` use durable command receipts; the local
+Tauri dispatcher uses an explicit trusted Local principal, never a fake device.
+Managed execution accepts Codex and Claude text messages; `managed_claude_v1` advertises the additive Claude path. Legacy image/native
+history/fork flows remain available separately and do not join a managed Thread.
+
+New RPCs: `environment.describe`, `projects.create/list`, `threads.create/list/get`,
+`threads.snapshot`, `threads.replay`. Creates use `command_id`; accepted results,
+entity writes and events commit together. Changed requests using an old command ID
+conflict. Check receipts before directory validation so retries survive directory
+removal. Lists return an explicit resource-limit error beyond 100 rows, not an
+apparently complete partial list; catalog JSON is additionally capped at 256 KiB.
+
+Remote catalog reads require `view`; creates require `view` and `session` plus
+project access where applicable. Creating a project grants only its creator access.
+`grant_managed_project` is trusted local administration, never a remote RPC. Device
+revocation deletes project access in the same transaction, so re-pairing does not
+silently recover old shares. Legacy Process owner and AgentIO checks are unchanged.
+
+Snapshots and replay read their projection, environment and high-water cursor in
+one SQLite transaction. Sequence/revision values cross JSON as decimal strings.
+Snapshots include at most 50 recent messages with an explicit older-history flag;
+replay batches at most 100 events, both bounded to 512 KiB. Foreign, pruned or future
+cursors return `resync_required`; malformed cursors return `invalid_params`.
+Global sequence gaps are valid for a thread-filtered stream. Consumers advance the
+cursor only after applying the complete batch. Event high-water uses sqlite_sequence
+so pruning all retained events cannot reset the cursor. `threads.wait` waits at most
+20 seconds for durable replay, checking current ACL every 100 ms; callers use a
+30-second timeout. This intentionally reuses Control RPC framing, not a new push
+stream. Client reducers apply the complete batch before committing its cursor.
+`threads.history` pages backward by an opaque message ID, at most 50 messages and
+512 KiB per response. Snapshot includes recent runs and actionable approvals.
+
+Sending validates current grants, project ACL, Codex transport and directory;
+the service registers user message, Run, effect and receipt atomically before
+native turn input. Duplicate command IDs return the original acceptance; changed
+fingerprints conflict. Competing approvals and interrupts share a durable fence
+across principals. Native turn IDs fence late events. Provider EOF or ambiguous
+input quarantines a Run as `outcome_unknown`; user messages never auto-replay.
+Host restart fails never-sent queued work, marks possibly-sent work unknown, and
+expires process-scoped approval IDs, including approvals on already-unknown runs. Runtime uncertainty expires pending approvals atomically with the Run transition. Completed messages remain readable. Revision, nonempty text and serialized content size are checked before opening a provider; reservation repeats transactional checks to fence races.
+
+`codex_protocol` provides bounded JSONL normalization for the Codex driver. `claude_session` provides bounded Claude stream-json/control normalization; both project only public text, tools and approvals. Only public messages, public reasoning summaries, tools and approvals are
+normalized. Raw response results stay internal to request correlation. Native request
+IDs preserve string/numeric identity. Unknown server requests get explicit refusal;
+late turn ACKs cannot revive a completed turn. This module alone does not establish
+Provider execution support.
+
+`codex_session` owns a bounded initialize/start-or-resume handshake, native request
+correlation, turn input, interruption and one-shot approvals. Its `NativeWrite`
+completion means the entire stdin record was written, not merely queued. Timeout,
+EOF or uncertain writes retire the actor without replaying the mutation. Public
+event backpressure fails visibly; raw native response objects never cross this
+boundary. The service advertises managed execution only after the command, projection, recovery and client paths pass the deterministic iroh acceptance test. Live delivery is a bounded wait/replay protocol whose SQLite cursor remains authoritative.
+
+`ProcessManager::{start_managed,attach_managed}` are crate-private. The private
+`ProcessOwner::Server` variant cannot be selected through remote payloads or
+forged by a device ID. Legacy sessions retain device authorization on writes and
+reads. Server-owned processes retain their input lease across device revocation;
+application commands must separately enforce the current project ACL. All process
+starts share the same serialized process budget. `managed_runtime` bridges only
+stdout into the decoder, terminates on an output gap, and stops its owned process
+when the actor's transport closes.
+
+Validate with agentd unit tests and the real-iroh `managed_catalog` harness test;
+regenerate Swift bindings and both iOS library slices after client API changes.
 
 ## 3. Contracts
 
@@ -335,3 +412,55 @@ Retain empty result rows with explicit outcome and their original call ID/phase.
 Unknown outcomes must not be converted into successful results in UI summaries.
 
 Discovery cache is valid only after fresh probing in the current host lifetime. Never reuse persisted discovery on first startup: it may contain an earlier binary’s version policy and diagnostic text. Retain the five-minute TTL for subsequent reads and always bypass it on explicit refresh.
+
+
+## Managed Claude stream-json
+
+Claude runs in a service-owned ProviderSession using print/input-output stream-json,
+verbose partial messages, host permission prompts, and manual permission mode.
+Probe availability with a bounded correlated initialize/control_response exchange;
+version output alone is insufficient. Never enable bypass permissions. Installation,
+protocol readiness and model/account availability are separate results.
+
+New sessions receive an explicit UUID; only stored ArcLink-owned session UUIDs may
+be passed to --resume. The actor projects public text and tool use/results through
+the shared managed event model. Private thinking, signature deltas and native
+control/account metadata never reach clients. Preserve tool input for explicit
+allow/deny permission responses, and reject unsupported controls. Full stdin write
+acknowledges transport delivery; only the result event completes the Run. EOF or
+uncertain writes quarantine the Run and never replay user input automatically.
+
+Desktop and iOS gate Claude creation on managed_claude_v1, pass provider identity
+explicitly, and display provider-specific labels. Existing Thread/UniFFI DTOs need
+no schema change. Codex and Claude share the deterministic iroh acceptance suite;
+installed handshake and model-backed resume smoke remain separate opt-in evidence.
+
+
+## Scenario: managed thread model selection
+
+### 1. Scope / Trigger
+Capability `managed_models_v1` adds persisted per-thread model choice for Codex and Claude.
+
+### 2. Signatures
+UniFFI: `setManagedThreadModel(commandId: String, threadId: String, model: String?, expectedRevision: String?) async throws -> ManagedThread`. Thread.model is optional with serde defaults; old stored JSON needs no DDL migration.
+
+### 3. Contracts
+Validate against the bounded provider catalog, persist revision/receipt and publish thread.updated. Recreate/reap the runtime when its model differs. Claude receives --model. For Codex explicit-to-default reset, resolve model/list isDefault and persist the actual provider default while Thread.model becomes null; resume must not retain the old selection. Rebuild Swift bindings and both XCFramework slices together.
+
+### 4. Validation & Error Matrix
+Unauthorized, stale revision, busy/active/uncertain execution, or invalid catalog choice rejects before a model mutation. Same command ID/payload reuses its durable receipt; altered payload conflicts. Discovery is not proof of model entitlement.
+
+### 5. Good / Base / Bad Cases
+Good: idle thread changes model then resumes with that choice. Base: old Thread JSON decodes model=null. Bad: clear UI selection but resume Codex with the previous explicit model.
+
+### 6. Tests Required
+Cover legacy decoding, authorization, command deduplication, stale revisions, running/uncertain rejection, events, runtime replacement and explicit-to-default reset. Keep live discovery probes separate from model-backed execution evidence.
+
+### 7. Wrong vs Correct
+Wrong: hardcode model names or treat a UI picker update as completion. Correct: discover provider models and wait for the authoritative mutation result before sending.
+
+
+### Managed provider transitions (2026-11-22)
+`threads.provider.set` requires `managed_provider_switch_v1`, command_id/thread_id/provider_id/model?/expected_revision?. Return the existing Thread DTO. Authorize project and execution grants, resolve exact command receipts before current-state validation, then require idle/no pending approval/no unknown Run and probe the target provider. Same ID with different payload conflicts.
+
+Serialize retire→transaction→next send with mutation_gate. Retired runtime callbacks must check current Entry Arc identity before any projection/native-session writes. Keep Thread/project/cwd/device identity, clear provider-native binding on a cross-provider transition (including A→B→A), record a durable provider_switch system message, and preserve provider attribution. A fresh provider's next turn receives bounded public user/final-assistant context without private reasoning or tool-call replay. Keep uncertain execution quarantined rather than automatically dispatching again.

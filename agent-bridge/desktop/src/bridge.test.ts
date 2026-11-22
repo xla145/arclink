@@ -89,3 +89,16 @@ test("native save dialog can remain open past the normal command timeout", async
     undefined,
   );
 });
+
+test("managed thread creation preserves explicit Claude provider and legacy Codex default", async () => {
+  native.enabled = true;
+  native.invoke.mockResolvedValue({});
+  await bridge.managedCreateThread("command", "project", "Claude task", "claude");
+  expect(native.invoke).toHaveBeenLastCalledWith("managed_call", {
+    operation: "threads.create", request: { command_id: "command", project_id: "project", title: "Claude task", provider_id: "claude" },
+  });
+  await bridge.managedCreateThread("legacy", "project", "Codex task");
+  expect(native.invoke).toHaveBeenLastCalledWith("managed_call", {
+    operation: "threads.create", request: { command_id: "legacy", project_id: "project", title: "Codex task", provider_id: "codex" },
+  });
+});

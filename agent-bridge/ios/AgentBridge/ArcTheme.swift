@@ -11,9 +11,11 @@ enum ArcTheme {
 
     // Surfaces
     static let bg = adaptive(0xF5F6FA, 0x0F1326)
+    static let chatBg = adaptive(0xFFFFFF, 0x10131C)
     static let surface = adaptive(0xFFFFFF, 0x181D33)
-    static let surfaceSunken = adaptive(0xECEEF5, 0x232944)
-    static let line = adaptive(0xE1E4EE, 0x2B3046)
+    static let surfaceSunken = adaptive(0xF2F3F7, 0x202538)
+    static let userBubble = adaptive(0xF2F3F7, 0x22283C)
+    static let line = adaptive(0xE6E8F0, 0x282E44)
 
     // Text
     static let ink = adaptive(0x171C38, 0xF3F5FC)
@@ -30,6 +32,7 @@ enum ArcTheme {
     static let live = adaptive(0x0B7F7B, 0x50E3D4)
     static let success = adaptive(0x1D7F4E, 0x5FD49A)
     static let successSoft = adaptive(0xE4F3EA, 0x173326)
+    static let liveSoft = adaptive(0xE4F7F6, 0x173330)
     static let warning = adaptive(0xA8540F, 0xF5B76F)
     static let warningSoft = adaptive(0xFCF0E1, 0x3A2A17)
     static let danger = adaptive(0xC2362B, 0xFF8A7A)
@@ -38,7 +41,6 @@ enum ArcTheme {
     // Agents: icons only
     static let agentClaude = adaptive(0x9A3FC9, 0xC98AF0)
     static let agentCodex = adaptive(0x1F8A43, 0x5FD47E)
-    static let agentHerdr = adaptive(0x0B78B0, 0x6CD0FB)
 
     // Code, commands and terminal: dark in both themes
     static let codeBg = adaptive(0x141932, 0x0A0D1C)

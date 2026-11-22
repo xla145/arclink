@@ -3,7 +3,11 @@ import SwiftUI
 enum AgentKind: String, CaseIterable, Identifiable, Hashable, Codable {
     case claude = "Claude Code"
     case codex = "Codex"
-    case herdr = "Herdr"
+    /// Retained only so older saved projects remain readable. It is excluded
+    /// from all new-task and discovery lists.
+    case legacyHerdr = "Herdr"
+
+    static var allCases: [AgentKind] { [.claude, .codex] }
 
     var id: String { rawValue }
 
@@ -11,7 +15,7 @@ enum AgentKind: String, CaseIterable, Identifiable, Hashable, Codable {
         switch self {
         case .claude: ArcTheme.agentClaude
         case .codex: ArcTheme.agentCodex
-        case .herdr: ArcTheme.agentHerdr
+        case .legacyHerdr: ArcTheme.inkMuted
         }
     }
 
@@ -19,12 +23,12 @@ enum AgentKind: String, CaseIterable, Identifiable, Hashable, Codable {
     var symbolName: String {
         switch self {
         case .claude: "sparkle"
-        case .codex: "chevron.left.forwardslash.chevron.right"
-        case .herdr: "circle.hexagongrid.fill"
+        case .codex: "atom"
+        case .legacyHerdr: "questionmark"
         }
     }
 
-    var installed: Bool { self != .herdr }
+    var installed: Bool { self != .legacyHerdr }
 
     /// The id string `agentd`/`agent-adapters::discover_specs()` actually
     /// uses on the wire — distinct from `rawValue`, which is display text.
@@ -32,7 +36,7 @@ enum AgentKind: String, CaseIterable, Identifiable, Hashable, Codable {
         switch self {
         case .claude: "claude"
         case .codex: "codex"
-        case .herdr: "herdr"
+        case .legacyHerdr: "herdr"
         }
     }
 }
@@ -143,10 +147,12 @@ struct SessionItem: Identifiable, Hashable, Codable {
     var codexThreadId: String?
     var chatOptions: ChatSessionOptions?
     var source: SessionSource
+    /// Catalog omission is not deletion; retain imported identity and cached content.
+    var sourceUnavailable = false
     var isReadOnly: Bool { source == .desktop || ["Codex 对话", "Claude 对话"].contains(detail) }
 
     enum CodingKeys: String, CodingKey {
-        case id, projectId, title, status, detail, createdAt, realProcessId, realGeneration, codexThreadId, chatOptions, source
+        case id, projectId, title, status, detail, createdAt, realProcessId, realGeneration, codexThreadId, chatOptions, source, sourceUnavailable
     }
 
     init(
@@ -179,6 +185,7 @@ struct SessionItem: Identifiable, Hashable, Codable {
         codexThreadId = try container.decodeIfPresent(String.self, forKey: .codexThreadId)
         chatOptions = try container.decodeIfPresent(ChatSessionOptions.self, forKey: .chatOptions)
         source = try container.decodeIfPresent(SessionSource.self, forKey: .source) ?? Self.legacySource(detail)
+        sourceUnavailable = try container.decodeIfPresent(Bool.self, forKey: .sourceUnavailable) ?? false
     }
 
     private static func legacySource(_ detail: String) -> SessionSource {
@@ -226,6 +233,10 @@ enum Route: Hashable {
     case addProject(editing: String?)
     case settings
     case devices
+    case managedThread(String)
+    case deviceThread(deviceID: String, threadID: String)
+    case unifiedProject(String)
+    case managedWorkspace
 }
 
 @MainActor
@@ -306,9 +317,35 @@ final class AppStore {
     var hostName: String { devices.first { $0.id == selectedDeviceID }?.displayName ?? "" }
     var online: Bool { connectionState == .connected }
     var connectionState: ConnectionState? { selectedDeviceID.flatMap { runtimes[$0]?.state } }
-    var macAgents: [AgentInfo] { selectedDeviceID.flatMap { runtimes[$0]?.agents } ?? [] }
+    var macAgents: [AgentInfo] { selectedDeviceID.map { agents(for: $0) } ?? [] }
     var macBridge: BridgeConnection? {
         selectedDeviceID.flatMap { runtimes[$0]?.transport as? BridgeConnection }
+    }
+    func bridge(for deviceID: String) -> BridgeConnection? {
+        guard devices.contains(where: { $0.id == deviceID }) else { return nil }
+        return runtimes[deviceID]?.transport as? BridgeConnection
+    }
+    func agents(for deviceID: String) -> [AgentInfo] {
+        (runtimes[deviceID]?.agents ?? []).filter { $0.id != "herdr" }
+    }
+    var managedProjects: [String: [ManagedProject]] = [:]
+    var managedThreads: [String: [String: [ManagedThread]]] = [:]
+    var managedCatalogError: [String: String] = [:]
+    func refreshManagedCatalog(deviceID: String) async {
+        guard let bridge = bridge(for: deviceID) else { return }
+        do {
+            let environment = try await bridge.describeEnvironment()
+            guard environment.capabilities.contains("managed_catalog_v1") else { return }
+            let projects = try await bridge.listManagedProjects()
+            var threads: [String: [ManagedThread]] = [:]
+            for project in projects { threads[project.id] = try await bridge.listManagedThreads(projectId: project.id) }
+            guard !Task.isCancelled, self.bridge(for: deviceID) === bridge else { return }
+            managedProjects[deviceID] = projects
+            managedThreads[deviceID] = threads
+            managedCatalogError[deviceID] = nil
+        } catch {
+            if self.bridge(for: deviceID) === bridge { managedCatalogError[deviceID] = "项目同步失败，保留上次内容。请重试。" }
+        }
     }
 
     private var workspace: DeviceWorkspace {
@@ -648,6 +685,15 @@ final class AppStore {
         projects.filter { item in
             item.agent == agent &&
             (query.isEmpty || item.name.localizedCaseInsensitiveContains(query) || item.path.localizedCaseInsensitiveContains(query))
+        }
+    }
+
+    /// Unified project catalog for the workspace. Agent selection belongs to a
+    /// new conversation, so the home screen must not hide projects by provider.
+    func allProjects(query: String = "") -> [ProjectItem] {
+        projects.filter { item in
+            query.isEmpty || item.name.localizedCaseInsensitiveContains(query)
+                || item.path.localizedCaseInsensitiveContains(query)
         }
     }
 
@@ -1056,7 +1102,7 @@ final class AppStore {
         let message: String
         if let codexError = error as? CodexChatError { message = codexError.localizedDescription }
         else if case let BridgeError.Failed(code, diagnostic) = error {
-            message = Self.localizedPairError(code: code, message: diagnostic)
+            message = Self.localizedChatError(code: code, message: diagnostic)
         } else { message = "远程 Codex 调用失败，请检查 Mac 的连接和登录状态。" }
         entry.error = message
         if recoverable {
@@ -1296,8 +1342,7 @@ final class AppStore {
                           runtime.generation == generation,
                           let index = self.devices.firstIndex(where: { $0.id == deviceID }) else { return false }
                     let previous = self.devices[index].workspace
-                    let previousPaths = Set(previous.projectCatalogs?[agent.agentId]?.projects.map(\.path) ?? [])
-                    self.applyMacProjects(projects, agent: agent, deviceIndex: index, previousPaths: previousPaths)
+                    self.applyMacProjects(projects, agent: agent, deviceIndex: index)
                     var catalogs = self.devices[index].workspace.projectCatalogs ?? [:]
                     catalogs[agent.agentId] = ProjectCatalogCache(fetchedAt: self.catalogNow(), projects: projects)
                     self.devices[index].workspace.projectCatalogs = catalogs
@@ -1336,30 +1381,17 @@ final class AppStore {
 
     /// Called only after a successful, generation-checked response. The caller persists
     /// this projection and the source catalog together, or rolls the workspace back.
-    private func applyMacProjects(_ projects: [MacProject], agent kind: AgentKind, deviceIndex index: Int, previousPaths: Set<String>) {
-        let incoming = Set(projects.map(\.path))
-
-        // Drop rows this phone invented from the previous source (trusted
-        // directories / session cwd), which are not Codex projects. Only
-        // rows we auto-imported and that never grew a real process.
-        let stale = devices[index].workspace.projects.filter { item in
-            item.agent == kind && !incoming.contains(item.path)
-                && (previousPaths.contains(item.path) || devices[index].workspace.sessions.contains { $0.projectId == item.id })
-                && devices[index].workspace.sessions.filter { $0.projectId == item.id }.allSatisfy {
-                    $0.realProcessId == nil && (
-                        $0.detail == "从 Mac 导入" || $0.detail == "Codex 对话" || $0.detail == "Claude 对话"
-                    )
-                }
-        }
-        if !stale.isEmpty {
-            let ids = Set(stale.map(\.id))
-            let sessionIds = Set(devices[index].workspace.sessions.filter { ids.contains($0.projectId) }.map(\.id))
-            devices[index].workspace.projects.removeAll { ids.contains($0.id) }
-            devices[index].workspace.sessions.removeAll { ids.contains($0.projectId) }
-            devices[index].workspace.messages.removeAll { sessionIds.contains($0.sessionId) }
-            devices[index].workspace.approvals.removeAll { sessionIds.contains($0.sessionId) }
-        }
+    private func applyMacProjects(_ projects: [MacProject], agent kind: AgentKind, deviceIndex index: Int) {
         let marker = kind == .codex ? "Codex 对话" : "Claude 对话"
+        let knownProjectIDs = Set(devices[index].workspace.projects.filter { $0.agent == kind }.map(\.id))
+        // A bounded/native catalog may omit projects or threads. Keep the last
+        // known rows and body cache; only explicit user deletion removes them.
+        for sessionIndex in devices[index].workspace.sessions.indices {
+            let session = devices[index].workspace.sessions[sessionIndex]
+            if knownProjectIDs.contains(session.projectId), session.isReadOnly {
+                devices[index].workspace.sessions[sessionIndex].sourceUnavailable = true
+            }
+        }
         for project in projects {
             let createdAt = project.lastSeen.flatMap { Self.parseRFC3339($0) } ?? Date()
             let title = Self.projectTitle(project)
@@ -1384,44 +1416,31 @@ final class AppStore {
             _ = syncThreads(project.threads, projectId: projectId, deviceIndex: index, marker: marker)
         }
 
-        let projectIds = Set(devices[index].workspace.projects.filter { $0.agent == kind }.map(\.id))
-        let fake = devices[index].workspace.sessions.filter {
-            projectIds.contains($0.projectId) && $0.title == "默认会话" && $0.detail == "从 Mac 导入" && $0.realProcessId == nil
-        }
-        if !fake.isEmpty {
-            let ids = Set(fake.map(\.id))
-            devices[index].workspace.sessions.removeAll { ids.contains($0.id) }
-        }
     }
 
-    /// Keeps a project's conversation rows aligned with the Agent's own
-    /// thread list. Ids are the Agent's thread ids, so a later refresh
+    /// Updates rediscovered histories without deleting omitted records.
+    /// Ids are the Agent's thread ids, so a later refresh
     /// updates titles instead of inserting duplicates. Rows the user created
     /// in this app use a different `detail` and are left alone.
     private func syncThreads(_ threads: [MacThread], projectId: String, deviceIndex: Int, marker: String) -> Bool {
         var changed = false
-        let incoming = Set(threads.map(\.id))
-        let before = devices[deviceIndex].workspace.sessions.count
-        devices[deviceIndex].workspace.sessions.removeAll {
-            $0.projectId == projectId && $0.detail == marker && !incoming.contains($0.id)
-        }
-        if devices[deviceIndex].workspace.sessions.count != before { changed = true }
         for thread in threads {
             // Phone-created remote conversations already have a durable local
             // row. Catalog refresh must not add a second, read-only copy.
             if devices[deviceIndex].workspace.sessions.contains(where: {
-                !$0.isReadOnly && $0.codexThreadId == thread.id
+                $0.projectId == projectId && !$0.isReadOnly && $0.codexThreadId == thread.id
             }) { continue }
             let created = thread.updatedAt.flatMap { Self.parseRFC3339($0) } ?? Date()
             let source = SessionSource(remoteValue: thread.source)
-            if let existing = devices[deviceIndex].workspace.sessions.firstIndex(where: { $0.id == thread.id }) {
+            if let existing = devices[deviceIndex].workspace.sessions.firstIndex(where: { $0.id == thread.id && $0.projectId == projectId }) {
                 var row = devices[deviceIndex].workspace.sessions[existing]
-                if row.title != thread.title || row.createdAt != created || row.projectId != projectId || row.detail != marker || row.source != source {
+                if row.title != thread.title || row.createdAt != created || row.projectId != projectId || row.detail != marker || row.source != source || row.sourceUnavailable {
                     row.title = thread.title
                     row.createdAt = created
                     row.projectId = projectId
                     row.detail = marker
                     row.source = source
+                    row.sourceUnavailable = false
                     devices[deviceIndex].workspace.sessions[existing] = row
                     changed = true
                 }
@@ -1684,6 +1703,21 @@ final class AppStore {
             return "配对邀请已失效或被取消，请在 Mac 上重新生成二维码。"
         default:
             return message.isEmpty ? "配对失败，请重试。" : "配对失败（\(code)），请重试。"
+        }
+    }
+
+    static func localizedChatError(code: String, message: String) -> String {
+        switch code {
+        case "invalid_cwd":
+            return "项目文件夹在 Mac 上不存在，或不是绝对路径。请在项目设置中改为 Mac 上已有的文件夹。"
+        case "invalid_params" where message.contains("Working directory must be an existing absolute directory"):
+            return "项目文件夹在 Mac 上不存在，或不是绝对路径。请在项目设置中改为 Mac 上已有的文件夹。"
+        case "unauthorized":
+            return "Mac 已取消此设备的对话权限，请在 Mac 上重新授权。"
+        case "disconnected", "network_error", "timeout":
+            return "Mac 连接中断，请确认 Mac 在线后重试。"
+        default:
+            return message.isEmpty ? "远程对话失败（\(code)），请重试。" : "远程对话失败（\(code)）：\(message)"
         }
     }
 

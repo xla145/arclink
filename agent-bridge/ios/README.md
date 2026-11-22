@@ -61,7 +61,7 @@ xcodebuild -project AgentBridge.xcodeproj -scheme AgentBridge \
 
 ## 原生页面与富文本对话
 
-页面参考 `doc/arclink-home-chat.html`。首页固定 Claude／Codex／Herdr 选择器；当前项目按设备和 Agent 记忆，点击项目进入对话列表。右上角铃铛打开审批，齿轮打开设置，左侧设备入口保留多设备切换。右下角圆形对话按钮可切换该 Agent 下的项目，继续最近对话或新建 CLI 对话；只有第一条消息发送时才创建记录。
+页面参考 `doc/arclink-home-chat.html`。首页统一展示 Claude／Codex 项目；当前项目按设备和 Agent 记忆，点击项目进入对话列表。右上角铃铛打开审批，齿轮打开设置，左侧设备入口保留多设备切换。右下角圆形对话按钮可切换项目，继续最近对话或新建 CLI 对话；只有第一条消息发送时才创建记录。
 
 项目对话列表支持全部／CLI／桌面筛选和搜索。旧 `Codex 对话`／`Claude 对话` 记录自动识别为桌面历史，仅供查看，可从底部另建 CLI 对话。来源依据 Mac 上的实际记录区分 CLI／桌面；缺少来源的旧记录显示为未知。来源和只读状态分别判断，导入历史继续只读。
 

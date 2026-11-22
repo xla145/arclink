@@ -5,11 +5,19 @@ import SwiftUI
 struct MacFolderPicker: View {
     @Environment(AppStore.self) private var store
     @Environment(\.dismiss) private var dismiss
+    var deviceID: String? = nil
     var onSelect: (String) -> Void
+
+    private var targetDeviceID: String? { deviceID ?? store.selectedDeviceID }
+    private var targetBridge: BridgeConnection? { targetDeviceID.flatMap { store.bridge(for: $0) } }
+    private var targetName: String { store.devices.first { $0.id == targetDeviceID }?.displayName ?? "Mac" }
 
     @State private var listing: MacDirectoryListing?
     @State private var loading = false
     @State private var failure: String?
+    @State private var creatingFolder = false
+    @State private var newFolderName = ""
+    @State private var creationError: String?
 
     var body: some View {
         NavigationStack {
@@ -19,7 +27,7 @@ struct MacFolderPicker: View {
                 } else if let failure {
                     ContentUnavailableView("无法浏览文件夹", systemImage: "folder.badge.questionmark", description: Text(failure))
                 } else {
-                    ProgressView("正在读取 \(store.hostName) 上的文件夹…").frame(maxWidth: .infinity, maxHeight: .infinity)
+                    ProgressView("正在读取 \(targetName) 上的文件夹…").frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
             }
             .background(ArcTheme.bg)
@@ -27,7 +35,19 @@ struct MacFolderPicker: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("取消") { dismiss() } }
+                ToolbarItem(placement: .primaryAction) {
+                    Button { newFolderName = ""; creationError = nil; creatingFolder = true } label: {
+                        Label("新建文件夹", systemImage: "folder.badge.plus")
+                    }
+                    .disabled(listing == nil || loading)
+                    .accessibilityIdentifier("create-folder")
+                }
             }
+            .alert("新建文件夹", isPresented: $creatingFolder) {
+                TextField("文件夹名称", text: $newFolderName)
+                Button("取消", role: .cancel) { }
+                Button("创建") { Task { await createFolder() } }
+            } message: { Text("将在当前 Mac 文件夹中创建。") }
             .safeAreaInset(edge: .bottom, spacing: 0) {
                 if let listing {
                     Button("选择此文件夹") { onSelect(listing.path); dismiss() }
@@ -43,6 +63,9 @@ struct MacFolderPicker: View {
 
     private func content(_ listing: MacDirectoryListing) -> some View {
         List {
+            if let creationError {
+                Section { Text(creationError).foregroundStyle(ArcTheme.danger) }
+            }
             Section {
                 Label(displayPath(listing.path), systemImage: "folder")
                     .font(.footnote.monospaced()).foregroundStyle(ArcTheme.inkMuted)
@@ -94,11 +117,12 @@ struct MacFolderPicker: View {
 
     private func load(_ path: String?) async {
         failure = nil
+        creationError = nil
         #if DEBUG
         if let fixture = Self.fixture(path) { listing = fixture; homePath = homePath ?? fixture.path; return }
         #endif
-        guard let bridge = store.macBridge else {
-            failure = "\(store.hostName) 未连接。连接后再试，或直接输入路径。"
+        guard let bridge = targetBridge else {
+            failure = "\(targetName) 未连接。连接后再试。"
             return
         }
         loading = true
@@ -108,11 +132,38 @@ struct MacFolderPicker: View {
             listing = result
             if homePath == nil { homePath = result.path }
         } catch BridgeError.Failed(let code, _) where code == "unsupported" {
-            failure = "\(store.hostName) 上的 ArcLink 版本较旧，不支持浏览文件夹。请更新 Mac 端后再试，或直接输入路径。"
+            failure = "\(store.hostName) 上的 ArcLink 版本较旧，不支持浏览文件夹。请更新 Mac 端后再试。"
         } catch BridgeError.Failed(let code, _) where code == "forbidden" {
             failure = "只能浏览个人文件夹（~）里的内容。"
         } catch {
             failure = "读取失败：文件夹不存在或没有权限。"
+        }
+    }
+
+    private func createFolder() async {
+        guard let parent = listing?.path else { return }
+        guard let bridge = targetBridge else {
+            creationError = "Mac 未连接，请连接后重试。"
+            return
+        }
+        let name = newFolderName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty, name != ".", name != "..", !name.hasPrefix("."),
+              !name.contains("/"), !name.contains("\\"),
+              !name.unicodeScalars.contains(where: CharacterSet.controlCharacters.contains) else {
+            creationError = "请输入不含斜杠的文件夹名称。"
+            return
+        }
+        loading = true
+        defer { loading = false }
+        do {
+            listing = try await bridge.createDirectory(parent: parent, name: name)
+            creationError = nil
+        } catch BridgeError.Failed(let code, _) where code == "unsupported" {
+            creationError = "Mac 端版本较旧，请更新 Mac 端后再创建文件夹。"
+        } catch BridgeError.Failed(let code, _) where code == "directory_unavailable" {
+            creationError = "无法创建文件夹：名称已存在，或没有写入权限。"
+        } catch {
+            creationError = "创建失败，请检查 Mac 连接和文件夹权限后重试。"
         }
     }
 

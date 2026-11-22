@@ -344,7 +344,7 @@ impl UdpSocket {
             };
             let (socket, state) = guard.try_get_connected()?;
 
-            let res = socket.try_io(Interest::WRITABLE, || state.send(socket.into(), transmit));
+            let res = socket.try_io(Interest::WRITABLE, || state.try_send(socket.into(), transmit));
 
             match res {
                 Ok(()) => return Ok(()),
@@ -375,7 +375,7 @@ impl UdpSocket {
                 }
                 Poll::Ready(Ok(())) => {
                     let res =
-                        socket.try_io(Interest::WRITABLE, || state.send(socket.into(), transmit));
+                        socket.try_io(Interest::WRITABLE, || state.try_send(socket.into(), transmit));
                     if let Err(err) = res {
                         if err.kind() == io::ErrorKind::WouldBlock {
                             continue;
@@ -983,7 +983,7 @@ impl UdpSender {
             result?;
 
             let (socket, state) = guard.try_get_connected()?;
-            let result = socket.try_io(Interest::WRITABLE, || state.send(socket.into(), transmit));
+            let result = socket.try_io(Interest::WRITABLE, || state.try_send(socket.into(), transmit));
 
             match result {
                 // We thought the socket was writable, but it wasn't, then retry so that either another
@@ -1004,7 +1004,7 @@ impl UdpSender {
         match self.socket.socket.try_read() {
             Ok(guard) => {
                 let (socket, state) = guard.try_get_connected()?;
-                socket.try_io(Interest::WRITABLE, || state.send(socket.into(), transmit))
+                socket.try_io(Interest::WRITABLE, || state.try_send(socket.into(), transmit))
             }
             Err(TryLockError::Poisoned(e)) => panic!("socket lock poisoned: {e}"),
             Err(TryLockError::WouldBlock) => {
@@ -1041,7 +1041,7 @@ impl Future for SendFutNoq<'_, '_> {
                 }
                 Poll::Ready(Ok(())) => {
                     let res = socket.try_io(Interest::WRITABLE, || {
-                        state.send(socket.into(), self.transmit)
+                        state.try_send(socket.into(), self.transmit)
                     });
 
                     if let Err(err) = res {

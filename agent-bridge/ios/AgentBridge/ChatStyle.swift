@@ -12,6 +12,14 @@ struct ChatBottomPreference: PreferenceKey {
     }
 }
 
+/// Non-observed scroll metric holder so high-frequency GeometryReader updates
+/// never trigger SwiftUI body re-evaluation storms during keyboard animation.
+final class ChatScrollTracker {
+    var state = ChatScrollFollowState()
+    var bottomPosition: CGFloat = 0
+    var viewportHeight: CGFloat = 0
+}
+
 /// Content growth alone is not scroll intent. A move toward older content is,
 /// including VoiceOver scroll actions which do not produce a DragGesture.
 struct ChatScrollFollowState {
