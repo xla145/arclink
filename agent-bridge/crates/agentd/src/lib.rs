@@ -1,12 +1,22 @@
-//! Embedded, byte-transparent Agent host. Business state stays with the peer.
+//! Embedded Agent host with legacy byte relay and a durable managed-thread catalog.
 mod agent_models;
 pub mod agent_projects;
+mod claude_session;
+pub mod codex_protocol;
+pub mod codex_session;
 pub mod directories;
+pub mod domain;
+pub mod git_workspace;
 pub mod identity;
+mod managed_execution;
+mod managed_runtime;
+mod managed_sync;
 pub mod network;
 mod pair_http;
 mod process;
 mod store;
+pub mod sync;
+pub mod thread_service;
 pub mod types;
 use agent_adapters::AdapterSpec;
 use fs2::FileExt;
@@ -70,6 +80,7 @@ pub struct Daemon {
     store: Arc<store::Store>,
     hub: Arc<EventHub>,
     processes: process::ProcessManager,
+    managed_sessions: managed_execution::ManagedSessions,
     network: Mutex<NetworkInfo>,
     connected: Mutex<HashSet<String>>,
     paths: Mutex<HashMap<String, String>>,
@@ -152,6 +163,7 @@ impl Daemon {
             store,
             hub,
             processes,
+            managed_sessions: managed_execution::ManagedSessions::new(),
             network: Mutex::new(NetworkInfo {
                 state: "starting".into(),
                 endpoint_id: None,
@@ -729,7 +741,7 @@ impl Daemon {
         }
         match self.store.reserve(peer, operation_id, &fingerprint)? {
             store::Reservation::Finished(info) => {
-                return Ok(self.current_or_lost(Self::check_process_owner(peer, info)?))
+                return Ok(self.current_or_lost(Self::check_process_owner(peer, info)?));
             }
             store::Reservation::New => {}
         }
@@ -777,6 +789,7 @@ impl Daemon {
         }
         // Finish any bounded discovery child before the native shell calls exit().
         let _probe = self.probe_gate.lock().await;
+        self.managed_sessions.close().await;
         let result = self.processes.shutdown().await;
         self.set_network("stopped", None, None);
         result

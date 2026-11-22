@@ -627,6 +627,9 @@ async fn first_discovery_ignores_previous_host_cache() {
     let fresh = service.list_agents(false).await.unwrap();
     assert_eq!(fresh[0].status, "available");
     assert_eq!(fresh[0].diagnostic, None);
-    assert_eq!(service.store.cached_agents().unwrap().unwrap()[0].status, "available");
+    assert_eq!(
+        service.store.cached_agents().unwrap().unwrap()[0].status,
+        "available"
+    );
     service.shutdown().await.unwrap();
 }

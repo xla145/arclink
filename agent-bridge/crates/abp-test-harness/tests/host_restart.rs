@@ -1,9 +1,9 @@
 //! Cold-start reconnects must not rely on a warm address-lookup cache or a new QR.
 use abp_protocol::{self as wire, Frame, PairRequest};
 use abp_test_harness::Peer;
-use agentd::{Daemon, network::NetworkServer};
+use agentd::{network::NetworkServer, Daemon};
 use iroh::{EndpointAddr, SecretKey};
-use serde_json::{Value, json};
+use serde_json::{json, Value};
 use std::{
     net::{SocketAddr, UdpSocket},
     time::Duration,

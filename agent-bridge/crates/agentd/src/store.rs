@@ -1,4 +1,13 @@
-use crate::types::*;
+mod execution;
+mod managed_projection;
+pub(crate) use execution::{AcceptedTurn, NewTurn, TurnOutcome};
+mod migrations;
+mod sync;
+
+use crate::{
+    domain::{Project, Thread},
+    types::*,
+};
 use rusqlite::{params, Connection, OptionalExtension};
 use std::{
     path::Path,
@@ -8,42 +17,425 @@ use std::{
 pub(crate) struct Store {
     conn: Mutex<Connection>,
 }
+
+impl Store {
+    pub(crate) fn project(&self, id: &str) -> Result<Option<Project>> {
+        self.conn()?
+            .query_row("SELECT payload FROM projects WHERE id=?1", [id], |row| {
+                row.get::<_, String>(0)
+            })
+            .optional()
+            .map_err(storage_error)?
+            .map(|payload| serde_json::from_str(&payload).map_err(storage_error))
+            .transpose()
+    }
+
+    pub(crate) fn project_access(&self, project_id: &str, principal: &str) -> Result<bool> {
+        self.conn()?.query_row("SELECT EXISTS(SELECT 1 FROM project_access WHERE project_id=?1 AND principal_id=?2)", params![project_id, principal], |row| row.get(0)).map_err(storage_error)
+    }
+
+    pub(crate) fn project_by_root(&self, root: &str) -> Result<Option<Project>> {
+        self.conn()?
+            .query_row(
+                "SELECT payload FROM projects WHERE canonical_root=?1",
+                [root],
+                |row| row.get::<_, String>(0),
+            )
+            .optional()
+            .map_err(storage_error)?
+            .map(|payload| serde_json::from_str(&payload).map_err(storage_error))
+            .transpose()
+    }
+
+    pub(crate) fn record_existing_project(
+        &self,
+        principal: &str,
+        command_id: &str,
+        fingerprint: &str,
+        project: &Project,
+    ) -> Result<Project> {
+        let mut conn = self.conn()?;
+        let tx = conn.transaction().map_err(storage_error)?;
+        if let Some(result) = command_result(&tx, principal, command_id, fingerprint)? {
+            return serde_json::from_str(&result).map_err(storage_error);
+        }
+        tx.execute("INSERT INTO command_receipts(principal_id,command_id,fingerprint,result,created_at) VALUES(?1,?2,?3,?4,?5)", params![principal, command_id, fingerprint, serde_json::to_string(project).map_err(storage_error)?, now()]).map_err(storage_error)?;
+        tx.commit().map_err(storage_error)?;
+        Ok(project.clone())
+    }
+
+    pub(crate) fn grant_project_access(&self, project_id: &str, principal: &str) -> Result<()> {
+        self.conn()?
+            .execute(
+                "INSERT OR IGNORE INTO project_access VALUES(?1,?2)",
+                params![project_id, principal],
+            )
+            .map_err(storage_error)?;
+        Ok(())
+    }
+
+    pub(crate) fn command_receipt(
+        &self,
+        principal: &str,
+        command_id: &str,
+        fingerprint: &str,
+    ) -> Result<Option<serde_json::Value>> {
+        let mut conn = self.conn()?;
+        let tx = conn.transaction().map_err(storage_error)?;
+        command_result(&tx, principal, command_id, fingerprint)?
+            .map(|result| serde_json::from_str(&result).map_err(storage_error))
+            .transpose()
+    }
+
+    pub(crate) fn environment_id(&self) -> Result<String> {
+        self.conn()?
+            .query_row(
+                "SELECT value FROM metadata WHERE key='environment_id'",
+                [],
+                |row| row.get(0),
+            )
+            .map_err(storage_error)
+    }
+
+    pub(crate) fn create_project(
+        &self,
+        principal: &str,
+        command_id: &str,
+        fingerprint: &str,
+        project: &Project,
+    ) -> Result<Project> {
+        let payload = serde_json::to_string(project).map_err(storage_error)?;
+        let mut conn = self.conn()?;
+        let tx = conn
+            .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
+            .map_err(storage_error)?;
+        if let Some(result) = command_result(&tx, principal, command_id, fingerprint)? {
+            return serde_json::from_str(&result).map_err(storage_error);
+        }
+        tx.execute(
+            "INSERT INTO projects(id,canonical_root,payload) VALUES(?1,?2,?3)",
+            rusqlite::params![project.id, project.canonical_root, payload],
+        )
+        .map_err(storage_error)?;
+        tx.execute(
+            "INSERT INTO project_access VALUES(?1,?2)",
+            params![project.id, principal],
+        )
+        .map_err(storage_error)?;
+        record_command_and_event(
+            &tx,
+            principal,
+            command_id,
+            fingerprint,
+            "project.created",
+            &project.id,
+            &serde_json::to_value(project).map_err(storage_error)?,
+        )?;
+        tx.commit().map_err(storage_error)?;
+        Ok(project.clone())
+    }
+
+    pub(crate) fn create_thread(
+        &self,
+        principal: &str,
+        command_id: &str,
+        fingerprint: &str,
+        thread: &Thread,
+    ) -> Result<Thread> {
+        let payload = serde_json::to_string(thread).map_err(storage_error)?;
+        let mut conn = self.conn()?;
+        let tx = conn
+            .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
+            .map_err(storage_error)?;
+        if let Some(result) = command_result(&tx, principal, command_id, fingerprint)? {
+            return serde_json::from_str(&result).map_err(storage_error);
+        }
+        tx.execute("INSERT INTO threads(id,project_id,provider_id,payload,revision) VALUES(?1,?2,?3,?4,?5)", rusqlite::params![thread.id, thread.project_id, thread.provider_id, payload, thread.revision]).map_err(storage_error)?;
+        record_command_and_event(
+            &tx,
+            principal,
+            command_id,
+            fingerprint,
+            "thread.created",
+            &thread.id,
+            &serde_json::to_value(thread).map_err(storage_error)?,
+        )?;
+        tx.commit().map_err(storage_error)?;
+        Ok(thread.clone())
+    }
+
+    pub(crate) fn projects(&self, principal: &str) -> Result<Vec<Project>> {
+        let conn = self.conn()?;
+        let mut stmt = conn.prepare("SELECT p.payload FROM projects p JOIN project_access a ON a.project_id=p.id WHERE a.principal_id=?1 ORDER BY p.canonical_root LIMIT 101").map_err(storage_error)?;
+        let rows: Result<Vec<Project>> = stmt
+            .query_map([principal], |row| row.get::<_, String>(0))
+            .map_err(storage_error)?
+            .map(|row| serde_json::from_str(&row.map_err(storage_error)?).map_err(storage_error))
+            .collect();
+        bounded_catalog(rows?)
+    }
+
+    pub(crate) fn projects_local(&self) -> Result<Vec<Project>> {
+        let conn = self.conn()?;
+        let mut stmt = conn
+            .prepare("SELECT payload FROM projects ORDER BY canonical_root LIMIT 101")
+            .map_err(storage_error)?;
+        let rows: Result<Vec<Project>> = stmt
+            .query_map([], |row| row.get::<_, String>(0))
+            .map_err(storage_error)?
+            .map(|row| serde_json::from_str(&row.map_err(storage_error)?).map_err(storage_error))
+            .collect();
+        bounded_catalog(rows?)
+    }
+
+    pub(crate) fn threads(&self, project_id: &str) -> Result<Vec<Thread>> {
+        let conn = self.conn()?;
+        let mut stmt = conn.prepare("SELECT payload FROM threads WHERE project_id=?1 ORDER BY json_extract(payload,'$.updated_at') DESC, id LIMIT 101").map_err(storage_error)?;
+        let rows: Result<Vec<Thread>> = stmt
+            .query_map([project_id], |row| row.get::<_, String>(0))
+            .map_err(storage_error)?
+            .map(|row| serde_json::from_str(&row.map_err(storage_error)?).map_err(storage_error))
+            .collect();
+        bounded_catalog(rows?)
+    }
+
+    pub(crate) fn thread(&self, id: &str) -> Result<Option<Thread>> {
+        let conn = self.conn()?;
+        conn.query_row("SELECT payload FROM threads WHERE id=?1", [id], |row| {
+            row.get::<_, String>(0)
+        })
+        .optional()
+        .map_err(storage_error)?
+        .map(|payload| serde_json::from_str(&payload).map_err(storage_error))
+        .transpose()
+    }
+
+    pub(crate) fn check_provider_switch(
+        &self,
+        thread_id: &str,
+        revision: Option<u64>,
+    ) -> Result<()> {
+        let thread = self
+            .thread(thread_id)?
+            .ok_or_else(|| BridgeError::new("not_found", "Thread not found."))?;
+        let active: bool = self.conn()?.query_row("SELECT EXISTS(SELECT 1 FROM runs WHERE thread_id=?1 AND status IN ('queued','starting','running','waiting_approval','outcome_unknown'))", [thread_id], |r| r.get(0)).map_err(storage_error)?;
+        if thread.status != "idle" || active {
+            return Err(BridgeError::new(
+                "thread_busy",
+                "Agent selection can only change while the thread is idle.",
+            ));
+        }
+        if revision.is_some_and(|v| v != thread.revision) {
+            return Err(BridgeError::new(
+                "conflict",
+                "Thread revision changed; refresh before switching Agent.",
+            ));
+        }
+        Ok(())
+    }
+
+    pub(crate) fn update_thread_provider(
+        &self,
+        principal: &str,
+        command_id: &str,
+        fingerprint: &str,
+        thread_id: &str,
+        provider: &str,
+        model: Option<String>,
+        revision: Option<u64>,
+    ) -> Result<Thread> {
+        if let Some(value) = self.command_receipt(principal, command_id, fingerprint)? {
+            return serde_json::from_value(value).map_err(storage_error);
+        }
+        self.check_provider_switch(thread_id, revision)?;
+        let mut conn = self.conn()?;
+        let tx = conn
+            .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
+            .map_err(storage_error)?;
+        if let Some(result) = command_result(&tx, principal, command_id, fingerprint)? {
+            return serde_json::from_str(&result).map_err(storage_error);
+        }
+        let payload: String = tx
+            .query_row(
+                "SELECT payload FROM threads WHERE id=?1",
+                [thread_id],
+                |r| r.get(0),
+            )
+            .map_err(storage_error)?;
+        let mut thread: Thread = serde_json::from_str(&payload).map_err(storage_error)?;
+        let previous = thread.provider_id.clone();
+        thread.provider_id = provider.into();
+        thread.model = model.clone();
+        thread.revision = thread
+            .revision
+            .checked_add(1)
+            .filter(|v| *v <= i64::MAX as u64)
+            .ok_or_else(|| storage_error("Thread revision exhausted"))?;
+        thread.updated_at = now();
+        tx.execute(
+            "UPDATE threads SET payload=?2,revision=?3 WHERE id=?1",
+            params![
+                thread_id,
+                serde_json::to_string(&thread).map_err(storage_error)?,
+                thread.revision
+            ],
+        )
+        .map_err(storage_error)?;
+        if previous != provider {
+            // A native ID is meaningful only to its original provider. A -> B -> A also starts fresh.
+            tx.execute("INSERT INTO provider_sessions(id,thread_id,provider_thread_id,payload) VALUES(?1,?1,NULL,'{\"handoff_pending\":true}') ON CONFLICT(thread_id) DO UPDATE SET provider_thread_id=NULL,payload=excluded.payload", [thread_id]).map_err(storage_error)?;
+            let marker = crate::domain::Message {
+                id: uuid::Uuid::new_v4().to_string(),
+                thread_id: thread_id.into(),
+                run_id: None,
+                client_message_id: None,
+                role: "system".into(),
+                content: serde_json::json!({"type":"provider_switch","from_provider_id":previous,"to_provider_id":provider,"model":model}),
+                revision: 0,
+            };
+            let payload = serde_json::to_string(&marker).map_err(storage_error)?;
+            tx.execute(
+                "INSERT INTO messages(id,thread_id,payload,revision) VALUES(?1,?2,?3,0)",
+                params![marker.id, thread_id, payload],
+            )
+            .map_err(storage_error)?;
+            tx.execute("INSERT INTO domain_events(aggregate_id,thread_id,event_type,payload,created_at) VALUES(?1,?2,'message.created',?3,?4)",params![marker.id,thread_id,payload,now()]).map_err(storage_error)?;
+        }
+        record_command_and_event(
+            &tx,
+            principal,
+            command_id,
+            fingerprint,
+            "thread.updated",
+            thread_id,
+            &serde_json::to_value(&thread).map_err(storage_error)?,
+        )?;
+        tx.commit().map_err(storage_error)?;
+        Ok(thread)
+    }
+
+    pub(crate) fn update_thread_model(
+        &self,
+        principal: &str,
+        command_id: &str,
+        fingerprint: &str,
+        thread_id: &str,
+        model: Option<String>,
+        expected_revision: Option<u64>,
+        default_model: Option<String>,
+    ) -> Result<Thread> {
+        let mut conn = self.conn()?;
+        let tx = conn
+            .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
+            .map_err(storage_error)?;
+        if let Some(result) = command_result(&tx, principal, command_id, fingerprint)? {
+            return serde_json::from_str(&result).map_err(storage_error);
+        }
+        let payload: String = tx
+            .query_row(
+                "SELECT payload FROM threads WHERE id=?1",
+                [thread_id],
+                |r| r.get(0),
+            )
+            .map_err(storage_error)?;
+        let mut thread: Thread = serde_json::from_str(&payload).map_err(storage_error)?;
+        let active: bool = tx.query_row("SELECT EXISTS(SELECT 1 FROM runs WHERE thread_id=?1 AND status IN ('queued','starting','running','waiting_approval','outcome_unknown'))", [thread_id], |r| r.get(0)).map_err(storage_error)?;
+        if thread.status != "idle" || active {
+            return Err(BridgeError::new(
+                "thread_busy",
+                "Model selection can only change while the thread is idle.",
+            ));
+        }
+        if expected_revision.is_some_and(|revision| revision != thread.revision) {
+            return Err(BridgeError::new(
+                "conflict",
+                "Thread revision changed; refresh before updating the model.",
+            ));
+        }
+        thread.model = model;
+        thread.revision = thread
+            .revision
+            .checked_add(1)
+            .filter(|v| *v <= i64::MAX as u64)
+            .ok_or_else(|| storage_error("Thread revision exhausted"))?;
+        thread.updated_at = now();
+        let serialized = serde_json::to_string(&thread).map_err(storage_error)?;
+        tx.execute(
+            "UPDATE threads SET payload=?2, revision=?3 WHERE id=?1",
+            params![thread.id, serialized, thread.revision],
+        )
+        .map_err(storage_error)?;
+        // Codex resume otherwise inherits its previous native model. Preserve
+        // the host default resolved at an explicit reset, separate from the UI
+        // selection (`model: null`), including across daemon restarts.
+        tx.execute("INSERT INTO provider_sessions(id,thread_id,provider_thread_id,payload) VALUES(?1,?1,NULL,?2) ON CONFLICT(thread_id) DO UPDATE SET payload=json_set(provider_sessions.payload,'$.default_model',json_extract(excluded.payload,'$.default_model'))", params![thread.id, serde_json::json!({"default_model":default_model}).to_string()]).map_err(storage_error)?;
+        record_command_and_event(
+            &tx,
+            principal,
+            command_id,
+            fingerprint,
+            "thread.updated",
+            &thread.id,
+            &serde_json::to_value(&thread).map_err(storage_error)?,
+        )?;
+        tx.commit().map_err(storage_error)?;
+        Ok(thread)
+    }
+}
+
+fn bounded_catalog<T>(rows: Vec<T>) -> Result<Vec<T>> {
+    if rows.len() > 100 {
+        return Err(BridgeError::new(
+            "resource_limit",
+            "This catalog requires pagination; no partial result was returned.",
+        ));
+    }
+    Ok(rows)
+}
+
+fn command_result(
+    tx: &rusqlite::Transaction<'_>,
+    principal: &str,
+    command_id: &str,
+    fingerprint: &str,
+) -> Result<Option<String>> {
+    let prior: Option<(String, String)> = tx.query_row("SELECT fingerprint,result FROM command_receipts WHERE principal_id=?1 AND command_id=?2", rusqlite::params![principal, command_id], |row| Ok((row.get(0)?, row.get(1)?))).optional().map_err(storage_error)?;
+    match prior {
+        None => Ok(None),
+        Some((old, result)) if old == fingerprint => Ok(Some(result)),
+        Some(_) => Err(BridgeError::new(
+            "conflict",
+            "Command ID was already used for a different request.",
+        )),
+    }
+}
+
+fn record_command_and_event(
+    tx: &rusqlite::Transaction<'_>,
+    principal: &str,
+    command_id: &str,
+    fingerprint: &str,
+    event_type: &str,
+    aggregate_id: &str,
+    payload: &serde_json::Value,
+) -> Result<()> {
+    let result = serde_json::to_string(payload).map_err(storage_error)?;
+    tx.execute("INSERT INTO command_receipts(principal_id,command_id,fingerprint,result,created_at) VALUES(?1,?2,?3,?4,?5)", rusqlite::params![principal, command_id, fingerprint, result, now()]).map_err(storage_error)?;
+    tx.execute("INSERT INTO domain_events(aggregate_id,thread_id,event_type,payload,created_at) VALUES(?1,?2,?3,?4,?5)", rusqlite::params![aggregate_id, event_type.starts_with("thread.").then_some(aggregate_id), event_type, payload.to_string(), now()]).map_err(storage_error)?;
+    Ok(())
+}
 pub(crate) enum Reservation {
     New,
     Finished(ProcessInfo),
 }
 impl Store {
     pub fn open(path: &Path) -> Result<Self> {
-        let conn = Connection::open(path).map_err(storage_error)?;
+        let mut conn = Connection::open(path).map_err(storage_error)?;
         conn.busy_timeout(std::time::Duration::from_secs(2))
             .map_err(storage_error)?;
-        conn.execute_batch("PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON;
-            CREATE TABLE IF NOT EXISTS metadata(key TEXT PRIMARY KEY, value TEXT NOT NULL);
-            CREATE TABLE IF NOT EXISTS devices(id TEXT PRIMARY KEY, name TEXT NOT NULL, paired_at TEXT NOT NULL, last_seen TEXT, permissions TEXT NOT NULL, revoked INTEGER NOT NULL DEFAULT 0);
-            CREATE TABLE IF NOT EXISTS operations(peer TEXT NOT NULL, id TEXT NOT NULL, fingerprint TEXT NOT NULL, state TEXT NOT NULL, result TEXT, created_at TEXT NOT NULL, PRIMARY KEY(peer,id));
-            CREATE TABLE IF NOT EXISTS processes(id TEXT PRIMARY KEY, info TEXT NOT NULL);
-            CREATE INDEX IF NOT EXISTS processes_started ON processes(json_extract(info,'$.started_at'));
-            CREATE INDEX IF NOT EXISTS processes_state ON processes(json_extract(info,'$.state'));
-            CREATE TABLE IF NOT EXISTS discovery(id TEXT PRIMARY KEY, info TEXT NOT NULL, expires_at INTEGER NOT NULL);").map_err(storage_error)?;
-        let version: Option<String> = conn
-            .query_row(
-                "SELECT value FROM metadata WHERE key='schema_version'",
-                [],
-                |r| r.get(0),
-            )
-            .optional()
+        migrations::migrate(&mut conn)?;
+        conn.execute_batch("PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON;")
             .map_err(storage_error)?;
-        if version.as_deref().is_some_and(|v| v != "1") {
-            return Err(BridgeError::new(
-                "unsupported",
-                "The local database was created by an incompatible application version.",
-            ));
-        }
-        conn.execute(
-            "INSERT OR IGNORE INTO metadata(key,value) VALUES('schema_version','1')",
-            [],
-        )
-        .map_err(storage_error)?;
         conn.execute(
             "UPDATE operations SET state='unknown' WHERE state='reserved'",
             [],
@@ -52,6 +444,7 @@ impl Store {
         let store = Self {
             conn: Mutex::new(conn),
         };
+        store.reconcile_effects()?;
         for mut info in store.recoverable_processes()? {
             if matches!(info.state.as_str(), "starting" | "running" | "stopping") {
                 info.state = "lost".into();
@@ -167,14 +560,20 @@ impl Store {
         Ok(device)
     }
     pub fn revoke(&self, peer: &str) -> Result<()> {
-        if self
-            .conn()?
+        let mut conn = self.conn()?;
+        let tx = conn
+            .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
+            .map_err(storage_error)?;
+        if tx
             .execute("UPDATE devices SET revoked=1 WHERE id=?1", [peer])
             .map_err(storage_error)?
             == 0
         {
             return Err(BridgeError::new("not_found", "Device is not paired."));
         }
+        tx.execute("DELETE FROM project_access WHERE principal_id=?1", [peer])
+            .map_err(storage_error)?;
+        tx.commit().map_err(storage_error)?;
         Ok(())
     }
     pub fn seen(&self, peer: &str) -> Result<()> {
@@ -356,6 +755,248 @@ impl Store {
             .map_err(storage_error)?;
         }
         tx.commit().map_err(storage_error)
+    }
+}
+
+#[cfg(test)]
+mod domain_tests {
+    use super::*;
+
+    fn project() -> Project {
+        Project {
+            id: "project".into(),
+            canonical_root: "/project".into(),
+            name: "Project".into(),
+            created_at: now(),
+            updated_at: now(),
+        }
+    }
+
+    #[test]
+    fn revoke_then_regrant_does_not_restore_project_access() {
+        let directory = tempfile::tempdir().unwrap();
+        let store = Store::open(&directory.path().join("host.sqlite3")).unwrap();
+        store.grant("phone", "Phone", vec!["view".into()]).unwrap();
+        store
+            .create_project("phone", "command", "fingerprint", &project())
+            .unwrap();
+        assert!(store.project_access("project", "phone").unwrap());
+        store.revoke("phone").unwrap();
+        assert!(!store.project_access("project", "phone").unwrap());
+        store.grant("phone", "Phone", vec!["view".into()]).unwrap();
+        assert!(!store.project_access("project", "phone").unwrap());
+        assert!(store.projects("phone").unwrap().is_empty());
+    }
+
+    #[test]
+    fn revoke_access_failure_preserves_device_authorization() {
+        let directory = tempfile::tempdir().unwrap();
+        let store = Store::open(&directory.path().join("host.sqlite3")).unwrap();
+        store.grant("phone", "Phone", vec!["view".into()]).unwrap();
+        store
+            .create_project("phone", "command", "fingerprint", &project())
+            .unwrap();
+        store.conn().unwrap().execute_batch("CREATE TRIGGER fail_revoke BEFORE DELETE ON project_access BEGIN SELECT RAISE(ABORT,'test failure'); END;").unwrap();
+        assert!(store.revoke("phone").is_err());
+        assert!(store.authorize("phone", &["view"]).is_ok());
+        assert!(store.project_access("project", "phone").unwrap());
+    }
+
+    #[test]
+    fn committed_command_retries_do_not_duplicate_events_and_survive_reopen() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("host.sqlite3");
+        let store = Store::open(&path).unwrap();
+        let value = project();
+        let created = store
+            .create_project("phone", "command", "fingerprint", &value)
+            .unwrap();
+        assert_eq!(
+            created,
+            store
+                .create_project(
+                    "phone",
+                    "command",
+                    "fingerprint",
+                    &Project {
+                        id: "different-generated-id".into(),
+                        ..value.clone()
+                    }
+                )
+                .unwrap()
+        );
+        assert_eq!(
+            store
+                .create_project("phone", "command", "changed", &value)
+                .unwrap_err()
+                .code,
+            "conflict"
+        );
+        assert_eq!(
+            1,
+            store
+                .conn()
+                .unwrap()
+                .query_row::<i64, _, _>("SELECT COUNT(*) FROM domain_events", [], |row| row.get(0))
+                .unwrap()
+        );
+        assert!(store.projects("other").unwrap().is_empty());
+        assert!(store.project_access("project", "phone").unwrap());
+        store.grant_project_access("project", "other").unwrap();
+        assert_eq!(store.projects("other").unwrap(), vec![value.clone()]);
+        let environment = store.environment_id().unwrap();
+        drop(store);
+        let store = Store::open(&path).unwrap();
+        assert_eq!(store.environment_id().unwrap(), environment);
+        assert_eq!(
+            store
+                .command_receipt("phone", "command", "fingerprint")
+                .unwrap(),
+            Some(serde_json::to_value(value).unwrap())
+        );
+    }
+
+    #[test]
+    fn event_failure_rolls_back_project_and_receipt() {
+        let directory = tempfile::tempdir().unwrap();
+        let store = Store::open(&directory.path().join("host.sqlite3")).unwrap();
+        store.conn().unwrap().execute_batch("CREATE TRIGGER fail_event BEFORE INSERT ON domain_events BEGIN SELECT RAISE(ABORT,'test failure'); END;").unwrap();
+        assert!(store
+            .create_project("phone", "command", "fp", &project())
+            .is_err());
+        assert!(store.projects_local().unwrap().is_empty());
+        assert!(store
+            .command_receipt("phone", "command", "fp")
+            .unwrap()
+            .is_none());
+        assert!(!store.project_access("project", "phone").unwrap());
+    }
+
+    #[test]
+    fn thread_creation_is_durable_and_events_have_valid_thread_reference() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("host.sqlite3");
+        let store = Store::open(&path).unwrap();
+        store
+            .create_project("phone", "project-command", "project-fp", &project())
+            .unwrap();
+        let thread = Thread {
+            id: "thread".into(),
+            project_id: "project".into(),
+            provider_id: "codex".into(),
+            model: None,
+            title: "Work".into(),
+            cwd: "/project".into(),
+            status: "idle".into(),
+            revision: 0,
+            created_at: now(),
+            updated_at: now(),
+        };
+        store
+            .create_thread("phone", "thread-command", "thread-fp", &thread)
+            .unwrap();
+        drop(store);
+        let store = Store::open(&path).unwrap();
+        assert_eq!(store.thread("thread").unwrap(), Some(thread.clone()));
+        assert_eq!(store.threads("project").unwrap(), vec![thread.clone()]);
+        let chosen = store
+            .update_thread_model(
+                "phone",
+                "choose",
+                "choose-fp",
+                "thread",
+                Some("model-one".into()),
+                Some(0),
+                None,
+            )
+            .unwrap();
+        assert_eq!(chosen.model.as_deref(), Some("model-one"));
+        assert_eq!(chosen.revision, 1);
+        // Receipt check precedes revision validation, so a timed-out model
+        // selection can be checked with the same command safely.
+        assert_eq!(
+            store
+                .update_thread_model(
+                    "phone",
+                    "choose",
+                    "choose-fp",
+                    "thread",
+                    Some("model-one".into()),
+                    Some(0),
+                    None
+                )
+                .unwrap(),
+            chosen
+        );
+        assert_eq!(
+            store
+                .update_thread_model("phone", "choose", "changed", "thread", None, None, None)
+                .unwrap_err()
+                .code,
+            "conflict"
+        );
+        assert_eq!(
+            store
+                .update_thread_model("phone", "stale", "stale", "thread", None, Some(0), None)
+                .unwrap_err()
+                .code,
+            "conflict"
+        );
+        let reset = store
+            .update_thread_model(
+                "phone",
+                "reset",
+                "reset",
+                "thread",
+                None,
+                Some(1),
+                Some("host-default".into()),
+            )
+            .unwrap();
+        assert_eq!(reset.model, None);
+        assert_eq!(
+            store.provider_default_model("thread").unwrap().as_deref(),
+            Some("host-default")
+        );
+        store
+            .conn()
+            .unwrap()
+            .execute(
+                "INSERT INTO runs VALUES('busy','thread','outcome_unknown','{}',0)",
+                [],
+            )
+            .unwrap();
+        assert_eq!(
+            store
+                .update_thread_model(
+                    "phone",
+                    "busy",
+                    "busy",
+                    "thread",
+                    Some("model-two".into()),
+                    None,
+                    None
+                )
+                .unwrap_err()
+                .code,
+            "thread_busy"
+        );
+        drop(store);
+        let store = Store::open(&path).unwrap();
+        assert_eq!(store.thread("thread").unwrap().unwrap().model, None);
+        assert_eq!(
+            store.provider_default_model("thread").unwrap().as_deref(),
+            Some("host-default")
+        );
+        assert_eq!(
+            4,
+            store
+                .conn()
+                .unwrap()
+                .query_row::<i64, _, _>("SELECT MAX(sequence) FROM domain_events", [], |row| row
+                    .get(0))
+                .unwrap()
+        );
     }
 }
 

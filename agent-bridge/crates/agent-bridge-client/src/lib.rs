@@ -3,8 +3,10 @@
 mod connection;
 mod endpoint;
 pub use connection::{
-    AgentInfo, AgentIoCallback, BridgeConnection, BridgeError, ConnectionState, IoHandle,
-    MacMessage, MacModel, MacProject, ProcessInfo, SystemInfo,
+    AgentInfo, AgentIoCallback, BridgeConnection, BridgeError, ConnectionState,
+    EnvironmentDescriptor, IoHandle, MacMessage, MacModel, MacProject, ManagedApproval,
+    ManagedMessage, ManagedProject, ManagedRun, ManagedThread, ManagedThreadEvent,
+    ManagedThreadHistory, ManagedThreadReplay, ManagedThreadSnapshot, ProcessInfo, SystemInfo,
 };
 
 use iroh::{endpoint::Connection, EndpointId, SecretKey};
