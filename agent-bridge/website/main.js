@@ -1,3 +1,7 @@
+import { refreshDownloads } from "./release-downloads.js";
+
+void refreshDownloads();
+
 // Native details elements work without JavaScript. Keep the FAQ concise when enhanced.
 const questions = document.querySelectorAll(".faq details");
 for (const question of questions) {

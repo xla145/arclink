@@ -3,6 +3,11 @@ name: ArcLink macOS release
 on:
   workflow_dispatch:
     inputs:
+      configure_website_cors:
+        description: "Configure R2 CORS for website downloads only (no build or upload)"
+        required: false
+        type: boolean
+        default: false
       mirror_tag:
         description: "Mirror an existing published tag to R2 only (leave empty to build artifacts)"
         required: false
@@ -24,7 +29,7 @@ concurrency:
 jobs:
   build:
     name: Build ${{ matrix.arch }}
-    if: github.event_name != 'workflow_dispatch' || inputs.mirror_tag == ''
+    if: github.event_name != 'workflow_dispatch' || (inputs.mirror_tag == '' && !inputs.configure_website_cors)
     strategy:
       fail-fast: false
       matrix:
@@ -182,7 +187,7 @@ jobs:
     needs: publish
     if: >-
       always() && (needs.publish.result == 'success' ||
-      (github.event_name == 'workflow_dispatch' && inputs.mirror_tag != ''))
+      (github.event_name == 'workflow_dispatch' && inputs.mirror_tag != '' && !inputs.configure_website_cors))
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
@@ -234,3 +239,32 @@ jobs:
       - name: Mirror and publicly verify complete release before promotion
         run: |
           python3 agent-bridge/scripts/r2-release.py --directory mirror-source --version "${TAG#arclink-v}" --repository "$GH_REPO"
+
+  website-cors:
+    name: Configure website manifest CORS
+    if: github.event_name == 'workflow_dispatch' && inputs.configure_website_cors
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      R2_ACCOUNT_ID: ${{ vars.R2_ACCOUNT_ID }}
+      R2_BUCKET: ${{ vars.R2_BUCKET }}
+      R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python3 -m pip install boto3==1.40.76
+      - run: python3 agent-bridge/scripts/test-r2-cors.py
+      - run: python3 agent-bridge/scripts/r2-cors.py
+      - name: Verify public cross-origin manifest
+        run: |
+          python3 - <<'PY'
+          from urllib.request import Request, urlopen
+          origin = 'https://arclink.classktv.com'
+          request = Request('https://download.classktv.com/latest.json', headers={'Origin': origin})
+          with urlopen(request, timeout=30) as response:
+              assert response.status == 200
+              assert response.headers.get('Access-Control-Allow-Origin') in (origin, '*'), 'Public manifest CORS is not active'
+          PY

@@ -59,7 +59,7 @@
           </div>
           <!-- prettier-ignore -->
           <p class="release-note">
-            macOS 13+ · Apple Silicon / Intel <span>／</span> v0.1.5
+            macOS 13+ · Apple Silicon / Intel <span>／</span> <span data-release-version="0.1.6">v0.1.6</span>
             测试版
           </p>
           <div class="hero-principles">
@@ -222,7 +222,7 @@
               <p class="eyebrow">A SIMPLE START</p>
               <h2 id="start-title">三步，连接你的工作流。</h2>
             </div>
-            <span class="guide-note">iOS 客户端即将开放下载</span>
+            <span class="guide-note">iOS 客户端已开放 TestFlight 公测</span>
           </div>
           <ol class="steps">
             <li>
@@ -283,17 +283,19 @@
             <div class="mac-download-options">
               <a
                 class="button primary download-button"
-                href="https://download.classktv.com/releases/arclink-v0.1.5/ArcLink-macos-arm64.dmg"
-                >下载 Apple 芯片版 <span aria-hidden="true">↓</span></a
+                data-download-arch="arm64"
+                href="https://download.classktv.com/releases/arclink-v0.1.6/ArcLink-macos-arm64.dmg"
+                ><span data-download-label>下载 Apple 芯片版</span> <span aria-hidden="true">↓</span></a
               >
               <a
                 class="button primary download-button"
-                href="https://download.classktv.com/releases/arclink-v0.1.5/ArcLink-macos-x64.dmg"
-                >下载 Intel 版 <span aria-hidden="true">↓</span></a
+                data-download-arch="x64"
+                href="https://download.classktv.com/releases/arclink-v0.1.6/ArcLink-macos-x64.dmg"
+                ><span data-download-label>下载 Intel 版</span> <span aria-hidden="true">↓</span></a
               >
             </div>
             <div class="download-meta">
-              <span>v0.1.5</span><span>DMG 安装包</span>
+              <span data-release-version="0.1.6">v0.1.6</span><span>DMG 安装包</span>
             </div>
             <p class="package-note">
               macOS 测试版，已完成签名完整性校验，尚未经过 Apple 公证。
@@ -307,10 +309,10 @@
             <div class="platform-heading">
               <span class="platform-icon" aria-hidden="true">▯</span>
               <h3>iOS<small>掌心里的项目与对话</small></h3>
-              <span class="coming-tag">即将开放</span>
+              <span class="coming-tag">公测中</span>
             </div>
-            <p>iPhone 客户端正在准备中，敬请期待。</p>
-            <div class="unavailable">即将开放下载</div>
+            <p>iPhone 客户端已开放 TestFlight 公测。</p>
+            <a class="button secondary" href="https://testflight.apple.com/join/9kUf13QF" target="_blank" rel="noreferrer">加入 iOS 公测 <span aria-hidden="true">↗</span></a>
           </article>
         </div>
       </section>
@@ -341,8 +343,8 @@
             现在可以下载哪些版本？<span aria-hidden="true">+</span>
           </summary>
           <p>
-            目前提供 Apple Silicon Mac 测试版。iOS 尚未开放下载，Intel
-            Mac、Windows 和 Linux 暂未提供安装包。
+            目前提供 Apple Silicon 和 Intel Mac 测试版，以及 iOS TestFlight 公测。
+            Windows 和 Linux 暂未提供安装包。
           </p>
         </details>
       </section>

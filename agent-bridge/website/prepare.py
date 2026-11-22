@@ -75,8 +75,9 @@ def prepare(root=ROOT, manifest=None, write_config=False):
         raise ValueError("--write-config requires --release-manifest.")
     root = Path(root).resolve()
     config = json.loads((root / "downloads.json").read_text(encoding="utf-8"))
-    if config["ios"]["url"] is not None:
-        raise ValueError("iOS distribution is not available yet; update the page before configuring its URL.")
+    ios_url = config["ios"].get("url")
+    if not isinstance(ios_url, str) or not re.fullmatch(r"https://testflight\.apple\.com/join/[A-Za-z0-9]+", ios_url):
+        raise ValueError("iOS URL must be a valid TestFlight public beta link.")
     if manifest is not None:
         config = apply_release_manifest(config, manifest)
     mac = config["mac"]
@@ -124,9 +125,9 @@ def prepare(root=ROOT, manifest=None, write_config=False):
         size_label = f" · {size / 1024 / 1024:.1f} MB" if size is not None else ""
         download = "" if external else " download"
         buttons.append(
-            '<a\n                class="button primary download-button"\n                href="'
+            '<a\n                class="button primary download-button"\n                data-download-arch="' + arch + '"\n                href="'
             + html.escape(url, quote=True) + '"' + download + "\n                >"
-            + html.escape(label + size_label) + ' <span aria-hidden="true">↓</span></a\n              >'
+            + '<span data-download-label>' + html.escape(label + size_label) + '</span>' + ' <span aria-hidden="true">↓</span></a\n              >'
         )
         prepared.append({"arch": arch, "url": url, "size": size})
 
@@ -136,6 +137,7 @@ def prepare(root=ROOT, manifest=None, write_config=False):
         "MAC_VERSION": version,
         "MAC_MIN_OS": mac["minimumOS"],
         "MAC_ARCH": arch_label,
+        "IOS_URL": ios_url,
     }
     page = (root / "index.template.html").read_text(encoding="utf-8")
     for key, value in values.items():

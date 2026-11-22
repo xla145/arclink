@@ -11,7 +11,7 @@ python3 agent-bridge/website/prepare.py
 python3 -m http.server 8767 --bind 127.0.0.1 --directory agent-bridge/website
 ```
 
-Open <http://127.0.0.1:8767>. Preparation uses the committed versioned R2 links in `downloads.json` and does not make network requests. Legacy local-package configuration still requires the indicated DMG and fails clearly if it is absent. The page and download work without JavaScript. The small JS module only enhances native FAQ accordions.
+Open <http://127.0.0.1:8767>. Preparation uses the committed versioned R2 links in `downloads.json` and does not make network requests. Legacy local-package configuration still requires the indicated DMG and fails clearly if it is absent. The page and download work without JavaScript. JavaScript also refreshes the displayed version and architecture links from public R2 `latest.json`, preserving static links if fetching or validation fails.
 
 ## Editing and downloads
 
@@ -28,12 +28,12 @@ Open <http://127.0.0.1:8767>. Preparation uses the committed versioned R2 links 
 - Legacy `mac.source`, `mac.url` and `mac.architecture` remain supported for a single same-site package under `downloads/`. Preparation copies the actual file, verifies SHA-256 and computes its size. Local destination traversal, escaped paths and symlink escapes are rejected. An optional local `sha256` also verifies the configured digest.
 - The hero button opens architecture selection when both packages are present. The arm64 and x64 anchors work without JavaScript. R2 files must carry an appropriate `Content-Disposition` header because browsers do not honor the `download` attribute for arbitrary cross-origin files.
 - The current Mac build is a test release with a verified ad-hoc app signature, not Apple notarization. The page explains the macOS Privacy & Security override without guaranteeing its availability. Use a new download filename when rebuilding the same app version so caches cannot serve an older installer.
-- iOS has no distribution URL and displays a non-interactive coming-soon status. Introducing an iOS release also requires updating the page and preparation validation.
+- iOS links to the configured public TestFlight beta. Preparation accepts only HTTPS `testflight.apple.com/join/<code>` URLs.
 - The original brand SVG is copied from `../desktop/src/assets/arclink-icon.svg`; keep the copy synchronized if branding changes.
 
 ## Static deployment
 
-Run preparation first. Publish **only** `index.html`, `styles.css`, `main.js`, `assets/`, and any prepared local `downloads/` directory to the static web root. The R2 configuration requires no binary in the website deployment. Before switching the active website, verify both generated DMG URLs are public and their SHA-256 matches the released artifacts. The committed 0.1.3 R2 links describe the intended mirror; their presence in generated HTML does not prove that seeding/deployment is complete.
+Run preparation first. Publish **only** `index.html`, `styles.css`, `main.js`, `release-downloads.js`, `assets/`, and any prepared local `downloads/` directory to the static web root. The R2 configuration requires no binary in the website deployment. Before switching the active website, verify both generated DMG URLs are public and their SHA-256 matches the released artifacts. The committed 0.1.3 R2 links describe the intended mirror; their presence in generated HTML does not prove that seeding/deployment is complete.
 
 For legacy local downloads, the ignored binary must be deployed separately and `.dmg` should be served as `application/octet-stream` or `application/x-apple-diskimage`, with `Content-Disposition: attachment`. Page resources are relative and release downloads use absolute HTTPS URLs, so a subdirectory deployment is supported.
 
@@ -64,6 +64,14 @@ Keep the host's Certbot renewal timer enabled. Webroot renewal must retain `/var
 2. Run `node --check agent-bridge/website/main.js`.
 3. Serve the site and check `/`, `/styles.css`, `/main.js` and `/assets/arclink-icon.svg` return HTTP 200; verify both architecture links/version without JavaScript.
 4. Download both DMGs from their actual public links and compare SHA-256 with the released source artifacts.
-5. Check desktop (1440 px) and mobile (390 px) layouts, keyboard focus, navigation anchors, FAQ and the unavailable iOS status.
+5. Check desktop (1440 px) and mobile (390 px) layouts, keyboard focus, navigation anchors, FAQ and the iOS TestFlight link.
 
-The device UI is an explicitly labelled illustration, not a screenshot or an interactive remote client. This page does not collect personal data or use external fonts, analytics or network dependencies.
+The device UI is an explicitly labelled illustration, not a screenshot or an interactive remote client. This page does not collect personal data or use external fonts or analytics. Its optional runtime dependency is the public R2 release manifest.
+
+## Automatic release links
+
+Deploy the updated HTML and both JavaScript modules once. Later releases update the website through R2 `latest.json` without uploading the website again. The manifest must have a stable version no older than the generated fallback, notes, signatures and both exact versioned R2 archive URLs. Validation completes before any buttons change; stale package sizes are removed.
+
+R2 must allow GET/HEAD CORS from `https://arclink.classktv.com`. Run the release workflow manually with `configure_website_cors=true` once. It preserves existing bucket rules, does not upload artifacts, and verifies the public response header. Missing CORS administration permission is a visible failure and requires configuration by the bucket owner. Release triggers are unchanged.
+
+Run `node --test agent-bridge/website/test-release-downloads.mjs` for runtime success and failure cases.
