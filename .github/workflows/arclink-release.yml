@@ -10,17 +10,7 @@ on:
         default: ""
   push:
     branches:
-      - "**"
-    paths:
-      - ".github/workflows/arclink-release.yml"
-      - "agent-bridge/desktop/**"
-      - "agent-bridge/crates/**"
-      - "agent-bridge/third_party/**"
-      - "agent-bridge/Cargo.*"
-      - "agent-bridge/scripts/release-assets.py"
-      - "agent-bridge/scripts/test-release-assets.py"
-      - "agent-bridge/scripts/r2-release.py"
-      - "agent-bridge/scripts/test-r2-release.py"
+      - main
     tags:
       - "arclink-v*"
 
