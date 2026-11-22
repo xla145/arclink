@@ -59,7 +59,7 @@
           </div>
           <!-- prettier-ignore -->
           <p class="release-note">
-            {{MAC_MIN_OS}} · {{MAC_ARCH}} <span>／</span> v{{MAC_VERSION}}
+            {{MAC_MIN_OS}} · {{MAC_ARCH}} <span>／</span> <span data-release-version="{{MAC_VERSION}}">v{{MAC_VERSION}}</span>
             测试版
           </p>
           <div class="hero-principles">
@@ -282,7 +282,7 @@
             <p>{{MAC_MIN_OS}} · {{MAC_ARCH}}</p>
             <div class="mac-download-options">{{MAC_DOWNLOADS}}</div>
             <div class="download-meta">
-              <span>v{{MAC_VERSION}}</span><span>DMG 安装包</span>
+              <span data-release-version="{{MAC_VERSION}}">v{{MAC_VERSION}}</span><span>DMG 安装包</span>
             </div>
             <p class="package-note">
               macOS 测试版，已完成签名完整性校验，尚未经过 Apple 公证。

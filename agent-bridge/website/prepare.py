@@ -124,9 +124,9 @@ def prepare(root=ROOT, manifest=None, write_config=False):
         size_label = f" · {size / 1024 / 1024:.1f} MB" if size is not None else ""
         download = "" if external else " download"
         buttons.append(
-            '<a\n                class="button primary download-button"\n                href="'
+            '<a\n                class="button primary download-button"\n                data-download-arch="' + arch + '"\n                href="'
             + html.escape(url, quote=True) + '"' + download + "\n                >"
-            + html.escape(label + size_label) + ' <span aria-hidden="true">↓</span></a\n              >'
+            + '<span data-download-label>' + html.escape(label + size_label) + '</span>' + ' <span aria-hidden="true">↓</span></a\n              >'
         )
         prepared.append({"arch": arch, "url": url, "size": size})
 

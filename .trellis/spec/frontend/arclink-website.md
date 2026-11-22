@@ -27,3 +27,7 @@ Wrong: edit only generated index.html or set a fake iOS download URL. Correct: e
 
 ## Production
 Domain arclink.classktv.com uses an isolated Nginx vhost, `/var/www/arclink/current` symlink to a timestamped release, and `/var/www/arclink/acme` for Certbot webroot challenges. Use bootstrap HTTP config before certificate issuance, then validated HTTPS config. Keep other vhosts unchanged. Publish only HTML/CSS/JS/assets/downloads; deploy configs belong outside the web root. Run nginx -t before reload. Keep prior releases for rollback. Verify public HTTPS, HTTP redirect and downloaded checksum after deployment. Certificate renewal uses a successful-renewal Nginx reload hook.
+
+## Runtime release refresh
+
+`release-downloads.js` fetches the public R2 latest.json with no-store, omitted credentials and a five-second abort timeout. Validate stable version (no downgrade), notes, signatures and both exact archive URLs before atomically deriving DMG links and updating version spans with textContent. Failures preserve static links; remove previous sizes after refresh. Deploy HTML, main.js and release-downloads.js together once. Subsequent releases need only promote R2 latest. R2 CORS must permit the production website origin; the manual configure_website_cors workflow preserves existing rules and verifies public headers.
