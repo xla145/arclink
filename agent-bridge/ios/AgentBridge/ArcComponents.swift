@@ -1,4 +1,48 @@
 import SwiftUI
+import UIKit
+
+extension UINavigationController: @retroactive UIGestureRecognizerDelegate {
+    override open func viewDidLoad() {
+        super.viewDidLoad()
+        interactivePopGestureRecognizer?.delegate = self
+    }
+
+    public func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+        viewControllers.count > 1
+    }
+}
+
+private struct ArcBackButtonModifier: ViewModifier {
+    @Environment(\.dismiss) private var dismiss
+    var label: String
+
+    func body(content: Content) -> some View {
+        content
+            .navigationBarBackButtonHidden(true)
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button { dismiss() } label: {
+                        HStack(spacing: 3) {
+                            Image(systemName: "chevron.left")
+                                .font(.body.weight(.medium))
+                            Text(label)
+                                .font(.body)
+                        }
+                        .foregroundStyle(ArcTheme.ink)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("返回\(label)")
+                }
+            }
+    }
+}
+
+extension View {
+    func arcBackButton(_ label: String) -> some View {
+        modifier(ArcBackButtonModifier(label: label))
+    }
+}
 
 // Shared building blocks from the ArcLink iOS design system. Screens compose
 // these instead of styling rows, tags and buttons individually.
@@ -30,16 +74,16 @@ struct ArcButtonStyle: ButtonStyle {
 
     private var foreground: Color {
         switch kind {
-        case .primary: ArcTheme.onPrimary
+        case .primary: ArcTheme.surface
         case .secondary: ArcTheme.ink
         case .danger: ArcTheme.danger
-        case .ghost: ArcTheme.primary
+        case .ghost: ArcTheme.ink
         }
     }
 
     private var background: Color {
         switch kind {
-        case .primary: ArcTheme.primary
+        case .primary: ArcTheme.ink
         case .secondary: ArcTheme.surfaceSunken
         case .danger: ArcTheme.dangerSoft
         case .ghost: .clear
@@ -63,9 +107,9 @@ struct IconTile: View {
     var body: some View {
         Image(systemName: symbol)
             .font(.subheadline.weight(.medium))
-            .foregroundStyle(tint ?? (accent ? ArcTheme.primary : ArcTheme.inkMuted))
+            .foregroundStyle(tint ?? (accent ? ArcTheme.ink : ArcTheme.inkMuted))
             .frame(width: ArcTheme.iconTile, height: ArcTheme.iconTile)
-            .arcBackground(accent ? ArcTheme.primarySoft : ArcTheme.surfaceSunken, radius: ArcTheme.Radius.md)
+            .arcBackground(ArcTheme.surfaceSunken, radius: ArcTheme.Radius.md)
             .accessibilityHidden(true)
     }
 }
@@ -103,7 +147,7 @@ struct ArcListGroup<Data: RandomAccessCollection, Row: View>: View where Data.El
             }
         }
         .frame(maxWidth: .infinity)
-        .arcBackground(ArcTheme.surface, radius: ArcTheme.Radius.lg)
+        .arcBackground(ArcTheme.surface, radius: ArcTheme.Radius.md)
     }
 }
 
@@ -112,7 +156,7 @@ struct ArcDivider: View {
     var inset: CGFloat = ArcTheme.Space.s4 + ArcTheme.iconTile + ArcTheme.Space.s3
 
     var body: some View {
-        Rectangle().fill(ArcTheme.line).frame(height: 0.5).padding(.leading, inset)
+        Rectangle().fill(ArcTheme.line.opacity(0.7)).frame(height: 0.5).padding(.leading, inset)
     }
 }
 
@@ -323,7 +367,7 @@ struct AgentIcon: View {
     var tint: Color? = nil
 
     var body: some View {
-        let color = tint ?? agent.tint
+        let color = tint ?? ArcTheme.ink
         Group {
             switch agent {
             case .codex:

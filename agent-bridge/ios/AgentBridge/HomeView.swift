@@ -11,6 +11,7 @@ struct HomeView: View {
     @State private var choosingConversation = false
     @State private var choosingDevice = false
     @State private var chosenProjectID = ""
+    @State private var visibleProjectLimit = 12
 
     private var pendingApprovals: [ApprovalItem] { store.approvals.filter(\.pending) }
     private var headerState: WorkspaceHeader.State {
@@ -43,8 +44,8 @@ struct HomeView: View {
                                 Text("\(pendingApprovals.count) 项待审批")
                                     .font(.callout.weight(.semibold)).foregroundStyle(ArcTheme.ink)
                                 Spacer(minLength: 4)
-                                Text("查看全部").font(.footnote.weight(.medium)).foregroundStyle(ArcTheme.primary)
-                                Image(systemName: "chevron.right").font(.caption.weight(.semibold)).foregroundStyle(ArcTheme.primary)
+                                Text("查看全部").font(.footnote.weight(.medium)).foregroundStyle(ArcTheme.ink)
+                                Image(systemName: "chevron.right").font(.caption.weight(.semibold)).foregroundStyle(ArcTheme.inkMuted)
                             }
                             .padding(ArcTheme.Space.s4)
                             .arcBackground(ArcTheme.warningSoft, radius: ArcTheme.Radius.lg)
@@ -102,17 +103,17 @@ struct HomeView: View {
                     chosenProjectID = store.allProjects(query: "").first?.id ?? ""
                     choosingConversation = true
                 } label: {
-                    HStack(spacing: 8) {
+                    HStack(spacing: 7) {
                         Image(systemName: "plus")
-                            .font(.system(size: 16, weight: .bold))
+                            .font(.system(size: 15, weight: .semibold))
                         Text("新对话")
-                            .font(.system(size: 16, weight: .semibold))
+                            .font(.system(size: 15, weight: .semibold))
                     }
-                    .foregroundStyle(ArcTheme.onPrimary)
-                    .padding(.horizontal, 26)
-                    .frame(height: 50)
-                    .background(ArcTheme.primary, in: Capsule())
-                    .shadow(color: ArcTheme.primary.opacity(0.28), radius: 14, y: 6)
+                    .foregroundStyle(ArcTheme.surface)
+                    .padding(.horizontal, 24)
+                    .frame(height: 46)
+                    .background(ArcTheme.ink, in: Capsule())
+                    .shadow(color: .black.opacity(0.14), radius: 10, y: 4)
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("新对话")
@@ -124,7 +125,7 @@ struct HomeView: View {
         }
         // The header is drawn in the page so it looks the same on every iOS version;
         // the hidden title still names the page for VoiceOver, back buttons and tests.
-        .navigationTitle("工作台")
+        .navigationTitle("首页")
         .toolbar(.hidden, for: .navigationBar)
         .safeAreaInset(edge: .top, spacing: 0) {
             WorkspaceHeader(
@@ -140,7 +141,10 @@ struct HomeView: View {
         }
         .sheet(isPresented: $choosingConversation) {
             if store.devices.contains(where: { $0.endpointID != nil }) {
-                NewManagedTaskSheet(initialDeviceID: store.selectedDeviceID) { device, thread in
+                NewManagedTaskSheet(
+                    initialDeviceID: store.selectedDeviceID,
+                    initialProjectPath: store.unifiedProjects().first?.path ?? ""
+                ) { device, thread in
                     choosingConversation = false
                     path.append(Route.deviceThread(deviceID: device, threadID: thread))
                 }
@@ -161,17 +165,16 @@ struct HomeView: View {
     private var offlineBar: some View {
         HStack(spacing: 12) {
             Image(systemName: "wifi.exclamationmark")
-                .font(.system(size: 15, weight: .semibold))
+                .font(.system(size: 16, weight: .regular))
                 .foregroundStyle(ArcTheme.warning)
-                .frame(width: 34, height: 34)
-                .background(ArcTheme.warningSoft, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .frame(width: 24)
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 2) {
                 Text("\(store.hostName) \(store.connectionStateLabel)")
-                    .font(.subheadline.weight(.semibold))
+                    .font(.subheadline.weight(.medium))
                     .foregroundStyle(ArcTheme.ink)
                     .lineLimit(1)
-                Text("当前显示的是上次同步的内容")
+                Text("当前显示上次同步的内容")
                     .font(.caption)
                     .foregroundStyle(ArcTheme.inkMuted)
                     .lineLimit(1)
@@ -179,21 +182,17 @@ struct HomeView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             Button { store.reconnectIfNeeded() } label: {
                 Text("重连")
-                    .font(.footnote.weight(.semibold))
-                    .foregroundStyle(ArcTheme.primary)
-                    .padding(.horizontal, 14)
-                    .frame(height: 34)
-                    .background(ArcTheme.primarySoft, in: Capsule())
+                    .font(.footnote.weight(.medium))
+                    .foregroundStyle(ArcTheme.ink)
+                    .padding(.horizontal, 12)
+                    .frame(height: 30)
+                    .background(ArcTheme.surfaceSunken, in: Capsule())
             }
             .buttonStyle(.plain)
         }
-        .padding(.horizontal, 14)
+        .padding(.horizontal, 16)
         .padding(.vertical, 12)
-        .background(ArcTheme.surface, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .stroke(ArcTheme.line.opacity(0.8), lineWidth: 0.75)
-        )
+        .background(ArcTheme.surface, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
         .accessibilityIdentifier("offline-bar")
     }
 
@@ -276,22 +275,19 @@ struct HomeView: View {
 
     private var projectsHeader: some View {
         let total = store.unifiedProjects().count
-        return HStack(spacing: 8) {
+        return HStack(spacing: 6) {
             Text("项目")
-                .font(.system(size: 16, weight: .semibold))
-                .foregroundStyle(ArcTheme.ink)
+                .font(.footnote)
+                .foregroundStyle(ArcTheme.inkMuted)
                 .accessibilityAddTraits(.isHeader)
             if total > 0 {
                 Text("\(total)")
-                    .font(.caption.weight(.semibold))
+                    .font(.footnote)
                     .monospacedDigit()
-                    .foregroundStyle(ArcTheme.inkMuted)
-                    .padding(.horizontal, 7)
-                    .padding(.vertical, 2)
-                    .background(ArcTheme.surfaceSunken, in: Capsule())
+                    .foregroundStyle(ArcTheme.inkFaint)
             }
             Spacer(minLength: 0)
-            HStack(spacing: 8) {
+            HStack(spacing: 4) {
                 Button {
                     withAnimation(.easeInOut(duration: 0.18)) {
                         if showSearch {
@@ -305,11 +301,9 @@ struct HomeView: View {
                     }
                 } label: {
                     Image(systemName: showSearch ? "xmark" : "magnifyingglass")
-                        .font(.system(size: 15, weight: .medium))
-                        .foregroundStyle(ArcTheme.ink)
-                        .frame(width: 36, height: 36)
-                        .background(ArcTheme.surface, in: Circle())
-                        .overlay(Circle().stroke(ArcTheme.line.opacity(0.75), lineWidth: 0.75))
+                        .font(.system(size: 15, weight: .regular))
+                        .foregroundStyle(ArcTheme.inkMuted)
+                        .frame(width: 34, height: 34)
                         .contentShape(Circle())
                 }
                 .buttonStyle(.plain)
@@ -317,19 +311,17 @@ struct HomeView: View {
 
                 Button { path.append(Route.addProject(editing: nil)) } label: {
                     Image(systemName: "plus")
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundStyle(ArcTheme.ink)
-                        .frame(width: 36, height: 36)
-                        .background(ArcTheme.surface, in: Circle())
-                        .overlay(Circle().stroke(ArcTheme.line.opacity(0.75), lineWidth: 0.75))
+                        .font(.system(size: 16, weight: .regular))
+                        .foregroundStyle(ArcTheme.inkMuted)
+                        .frame(width: 34, height: 34)
                         .contentShape(Circle())
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("添加项目")
             }
         }
-        .padding(.leading, 2)
-        .padding(.top, 4)
+        .padding(.horizontal, 10)
+        .padding(.top, 2)
     }
 
     private var searchField: some View {
@@ -357,12 +349,8 @@ struct HomeView: View {
             }
         }
         .padding(.horizontal, 12)
-        .frame(height: 40)
-        .background(ArcTheme.surface, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .stroke(ArcTheme.line, lineWidth: 0.75)
-        )
+        .frame(height: 38)
+        .background(ArcTheme.surface, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
     }
 
     @ViewBuilder
@@ -383,71 +371,101 @@ struct HomeView: View {
             .multilineTextAlignment(.center)
             .frame(maxWidth: .infinity).padding(.vertical, ArcTheme.Space.s8)
         } else {
-            ArcListGroup(items, dividerInset: 64) { project in
-                let sessions = store.sessions.filter { project.legacyIDs.contains($0.projectId) }
-                let sessionIDs = Set(sessions.map(\.id))
-                let pending = store.approvals.filter { sessionIDs.contains($0.sessionId) && $0.pending }.count
-                let conversations = store.unifiedConversations(project: project)
-                let running = conversations.contains { $0.isRunning }
-                let totalCount = conversations.count
-                Button { openProject(project) } label: {
-                    HStack(spacing: 12) {
-                        Image(systemName: "folder.fill")
-                            .font(.system(size: 16))
-                            .foregroundStyle(running ? ArcTheme.live : ArcTheme.primary)
-                            .frame(width: 38, height: 38)
-                            .background(running ? ArcTheme.liveSoft : ArcTheme.primarySoft.opacity(0.75),
-                                        in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-                            .accessibilityHidden(true)
+            let displayed = query.isEmpty ? Array(items.prefix(visibleProjectLimit)) : items
+            let remaining = max(0, items.count - displayed.count)
+            VStack(spacing: 2) {
+                ForEach(displayed) { project in
+                    let sessions = store.sessions.filter { project.legacyIDs.contains($0.projectId) }
+                    let sessionIDs = Set(sessions.map(\.id))
+                    let pending = store.approvals.filter { sessionIDs.contains($0.sessionId) && $0.pending }.count
+                    let conversations = store.unifiedConversations(project: project)
+                    let running = conversations.contains { $0.isRunning }
+                    let totalCount = conversations.count
 
-                        VStack(alignment: .leading, spacing: 3) {
+                    Button { openProject(project) } label: {
+                        HStack(spacing: 11) {
+                            Text(Self.projectMonogram(project.name))
+                                .font(.system(size: 9.5, weight: .bold, design: .rounded))
+                                .foregroundStyle(running ? ArcTheme.live : ArcTheme.inkMuted)
+                                .frame(width: 24, height: 24)
+                                .background(
+                                    running ? ArcTheme.liveSoft : ArcTheme.surfaceSunken,
+                                    in: RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                )
+                                .accessibilityHidden(true)
+
                             Text(project.name)
-                                .font(.body.weight(.semibold))
-                                .foregroundStyle(ArcTheme.ink)
-                                .lineLimit(1)
-                            Text(project.path)
-                                .font(.caption.monospaced())
-                                .foregroundStyle(ArcTheme.inkMuted)
+                                .font(.system(size: 15.5, weight: running ? .medium : .regular))
+                                .foregroundStyle(running ? ArcTheme.ink : ArcTheme.ink.opacity(0.85))
                                 .lineLimit(1)
                                 .truncationMode(.middle)
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                                .frame(maxWidth: .infinity, alignment: .leading)
 
-                        HStack(spacing: 6) {
-                            if running {
-                                Circle()
-                                    .fill(ArcTheme.live)
-                                    .frame(width: 7, height: 7)
-                            }
                             if pending > 0 {
                                 Text("\(pending) 待审批")
-                                    .font(.caption2.weight(.semibold))
+                                    .font(.caption)
                                     .foregroundStyle(ArcTheme.warning)
-                                    .padding(.horizontal, 7)
-                                    .padding(.vertical, 3)
-                                    .background(ArcTheme.warningSoft, in: Capsule())
+                            } else if running {
+                                Circle()
+                                    .fill(ArcTheme.live)
+                                    .frame(width: 6, height: 6)
                             }
+
                             if totalCount > 0 {
                                 Text("\(totalCount)")
-                                    .font(.footnote.weight(.medium))
+                                    .font(.subheadline)
                                     .monospacedDigit()
-                                    .foregroundStyle(ArcTheme.inkMuted)
+                                    .foregroundStyle(ArcTheme.inkFaint)
                             }
-                            Image(systemName: "chevron.right")
-                                .font(.caption.weight(.semibold))
-                                .foregroundStyle(ArcTheme.inkFaint)
-                                .accessibilityHidden(true)
                         }
+                        .padding(.horizontal, 10)
+                        .frame(minHeight: 44)
+                        .background(
+                            running ? ArcTheme.surface : Color.clear,
+                            in: RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        )
+                        .contentShape(Rectangle())
                     }
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 12)
-                    .frame(minHeight: 64)
-                    .contentShape(Rectangle())
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("project-\(project.id)")
                 }
-                .buttonStyle(.plain)
-                .accessibilityIdentifier("project-\(project.id)")
+
+                if remaining > 0 {
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            visibleProjectLimit += 25
+                        }
+                    } label: {
+                        HStack(spacing: 8) {
+                            Image(systemName: "chevron.down")
+                                .font(.system(size: 11, weight: .medium))
+                            Text("再显示 \(min(25, remaining)) 个")
+                                .font(.subheadline)
+                            Spacer()
+                        }
+                        .foregroundStyle(ArcTheme.inkMuted)
+                        .padding(.horizontal, 12)
+                        .frame(minHeight: 42)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                }
             }
         }
+    }
+
+    private static func projectMonogram(_ name: String) -> String {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return "PR" }
+        let parts = trimmed.split { $0 == "-" || $0 == "_" || $0 == " " || $0 == "." }.filter { !$0.isEmpty }
+        if parts.count >= 2, let a = parts[0].first, let b = parts[1].first, a.isASCII && b.isASCII {
+            return String([a, b]).uppercased()
+        }
+        let chars = Array(trimmed)
+        if let first = chars.first, !first.isASCII {
+            return String(first)
+        }
+        return String(chars.prefix(2)).uppercased()
     }
 
     @ViewBuilder

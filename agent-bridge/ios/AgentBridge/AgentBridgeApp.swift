@@ -1,9 +1,67 @@
 import SwiftUI
+import UserNotifications
+
+@MainActor
+final class LocalNotificationCenter: NSObject, UNUserNotificationCenterDelegate {
+    static let shared = LocalNotificationCenter()
+    private var deliveredIDs: Set<String> = []
+    private var requestedAuth = false
+
+    func configure() {
+        UNUserNotificationCenter.current().delegate = self
+    }
+
+    func requestAuthorizationIfNeeded() {
+        guard !requestedAuth else { return }
+        requestedAuth = true
+        Task {
+            let center = UNUserNotificationCenter.current()
+            let settings = await center.notificationSettings()
+            if settings.authorizationStatus == .notDetermined {
+                _ = try? await center.requestAuthorization(options: [.alert, .sound, .badge])
+            }
+        }
+    }
+
+    func post(id: String, title: String, body: String) {
+        guard !deliveredIDs.contains(id) else { return }
+        deliveredIDs.insert(id)
+        if deliveredIDs.count > 200 { deliveredIDs.removeFirst() }
+        let content = UNMutableNotificationContent()
+        content.title = title
+        content.body = body
+        content.sound = .default
+        let request = UNNotificationRequest(identifier: id, content: content, trigger: nil)
+        UNUserNotificationCenter.current().add(request)
+    }
+
+    nonisolated func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        willPresent notification: UNNotification
+    ) async -> UNNotificationPresentationOptions {
+        [.banner, .sound, .list]
+    }
+}
 
 @main
 struct AgentBridgeApp: App {
     @State private var store = AppStore()
     @Environment(\.scenePhase) private var scenePhase
+
+    init() {
+        LocalNotificationCenter.shared.configure()
+        let scrollEdge = UINavigationBarAppearance()
+        scrollEdge.configureWithTransparentBackground()
+        scrollEdge.shadowColor = .clear
+
+        let standard = UINavigationBarAppearance()
+        standard.configureWithDefaultBackground()
+        standard.shadowColor = .clear
+
+        UINavigationBar.appearance().scrollEdgeAppearance = scrollEdge
+        UINavigationBar.appearance().standardAppearance = standard
+        UINavigationBar.appearance().compactAppearance = standard
+    }
 
     var body: some Scene {
         WindowGroup {
@@ -35,13 +93,19 @@ struct RootView: View {
                         .id(store.selectedDeviceID)
                         .routeDestinations(path: $path)
                 }
-                .tint(ArcTheme.primary)
+                .tint(ArcTheme.ink)
             } else {
                 NavigationStack { UnpairedView() }
+                    .tint(ArcTheme.ink)
             }
         }
         .onChange(of: store.selectedDeviceID) { _, _ in path = NavigationPath() }
         .onChange(of: store.pairingSuccessID) { _, _ in path = NavigationPath() }
+        .onAppear {
+            if store.notifyApproval || store.notifyDone || store.notifyOnMac || store.notifyFailed {
+                LocalNotificationCenter.shared.requestAuthorizationIfNeeded()
+            }
+        }
         .alert("无法读取设备记录", isPresented: Binding(get: { store.storageError != nil }, set: { if !$0 { store.storageError = nil } })) {
             Button("知道了", role: .cancel) {}
         } message: { Text(store.storageError ?? "") }
@@ -162,9 +226,9 @@ private struct UsageStepsCard: View {
         ArcListGroup(steps) { step in
             HStack(spacing: ArcTheme.Space.s3) {
                 Text(step.id)
-                    .font(.subheadline.weight(.semibold)).foregroundStyle(ArcTheme.primary)
+                    .font(.subheadline.weight(.semibold)).foregroundStyle(ArcTheme.ink)
                     .frame(width: ArcTheme.iconTile, height: ArcTheme.iconTile)
-                    .arcBackground(ArcTheme.primarySoft, radius: ArcTheme.Radius.md)
+                    .arcBackground(ArcTheme.surfaceSunken, radius: ArcTheme.Radius.md)
                     .accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(step.title).font(.callout.weight(.medium)).foregroundStyle(ArcTheme.ink)

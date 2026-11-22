@@ -155,8 +155,9 @@ struct ChatView: View {
             }
             composer
         }
-        .navigationTitle(sessionRow?.title ?? "新对话")
+        .navigationTitle("对话")
         .navigationBarTitleDisplayMode(.inline)
+        .arcBackButton("项目")
         .tint(ArcTheme.ink)
         .toolbarBackground(ArcTheme.chatBg, for: .navigationBar)
         .toolbarBackground(.visible, for: .navigationBar)
@@ -294,7 +295,7 @@ struct ChatView: View {
         HStack {
             Text(title).foregroundStyle(ArcTheme.ink)
             Spacer()
-            picker().pickerStyle(.menu).tint(ArcTheme.primary)
+            picker().pickerStyle(.menu).tint(ArcTheme.ink)
         }
         .padding(.leading, ArcTheme.Space.s4).padding(.trailing, ArcTheme.Space.s2).frame(minHeight: 52)
     }
@@ -789,13 +790,12 @@ struct ChatView: View {
                 }
             }
             .font(.footnote.weight(.semibold))
-            .foregroundStyle(ArcTheme.primary)
+            .foregroundStyle(ArcTheme.ink)
         }
-        .padding(.horizontal, ArcTheme.Space.s4).padding(.vertical, 10)
-        .background(ArcTheme.surface, in: RoundedRectangle(cornerRadius: ArcTheme.Radius.md, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: ArcTheme.Radius.md, style: .continuous).stroke(ArcTheme.line))
-        .padding(.horizontal, ArcTheme.Space.s3).padding(.vertical, ArcTheme.Space.s1)
-        .background(ArcTheme.bg)
+        .padding(.horizontal, 16).padding(.vertical, 11)
+        .background(ArcTheme.surfaceSunken, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+        .padding(.horizontal, 14).padding(.vertical, 8)
+        .background(ArcTheme.chatBg)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("readonly-composer")
     }

@@ -331,6 +331,7 @@ final class AppStore {
     var managedProjects: [String: [ManagedProject]] = [:]
     var managedThreads: [String: [String: [ManagedThread]]] = [:]
     var managedCatalogError: [String: String] = [:]
+    private var previousManagedThreadStatus: [String: String] = [:]
     func refreshManagedCatalog(deviceID: String) async {
         guard let bridge = bridge(for: deviceID) else { return }
         do {
@@ -340,6 +341,27 @@ final class AppStore {
             var threads: [String: [ManagedThread]] = [:]
             for project in projects { threads[project.id] = try await bridge.listManagedThreads(projectId: project.id) }
             guard !Task.isCancelled, self.bridge(for: deviceID) === bridge else { return }
+            for list in threads.values {
+                for thread in list {
+                    let key = "\(deviceID)/\(thread.id)"
+                    let previous = previousManagedThreadStatus[key]
+                    previousManagedThreadStatus[key] = thread.status
+                    guard previous == "active" else { continue }
+                    if thread.status == "idle", (notifyDone || notifyOnMac) {
+                        LocalNotificationCenter.shared.post(
+                            id: "thread-done-\(thread.id)-\(thread.revision)",
+                            title: "任务已完成",
+                            body: "\(managedProvider(thread.providerId)) · \(thread.title)"
+                        )
+                    } else if thread.status == "attention", notifyFailed {
+                        LocalNotificationCenter.shared.post(
+                            id: "thread-attention-\(thread.id)-\(thread.revision)",
+                            title: "任务需要处理",
+                            body: "\(managedProvider(thread.providerId)) · \(thread.title)"
+                        )
+                    }
+                }
+            }
             managedProjects[deviceID] = projects
             managedThreads[deviceID] = threads
             managedCatalogError[deviceID] = nil

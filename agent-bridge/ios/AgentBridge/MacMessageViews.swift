@@ -64,38 +64,45 @@ struct MacMessageText: View {
         switch block {
         case .text(let text):
             inline(text)
-                .font(.subheadline)
+                .font(Self.bodyFont)
                 .foregroundStyle(ArcTheme.ink)
                 .lineSpacing(5)
+                .fixedSize(horizontal: false, vertical: true)
         case .heading(let level, let text):
             inline(text)
-                .font(level < 3 ? .callout.weight(.semibold) : .subheadline.weight(.semibold))
+                .font(level < 2 ? .system(size: 19, weight: .semibold) : (level < 3 ? .system(size: 17, weight: .semibold) : .system(size: 16, weight: .semibold)))
                 .foregroundStyle(ArcTheme.ink)
-                .padding(.top, 4)
+                .padding(.top, 6)
                 .accessibilityAddTraits(.isHeader)
         case .quote(let text):
             HStack(alignment: .top, spacing: 10) {
-                RoundedRectangle(cornerRadius: 2).fill(ArcTheme.line).frame(width: 2.5)
-                inline(text).font(.subheadline).foregroundStyle(ArcTheme.inkMuted).lineSpacing(4)
+                RoundedRectangle(cornerRadius: 2).fill(ArcTheme.primary.opacity(0.35)).frame(width: 3)
+                inline(text).font(Self.bodyFont).foregroundStyle(ArcTheme.inkMuted).lineSpacing(4)
             }
             .fixedSize(horizontal: false, vertical: true)
             .padding(.vertical, 2)
         case .list(let marker, let text, let depth, let checked):
-            HStack(alignment: .firstTextBaseline, spacing: 8) {
+            HStack(alignment: .firstTextBaseline, spacing: 10) {
                 if let checked {
                     Image(systemName: checked ? "checkmark.square.fill" : "square")
                         .font(.footnote)
                         .foregroundStyle(checked ? ArcTheme.success : ArcTheme.inkMuted)
                         .accessibilityLabel(checked ? "已完成" : "未完成")
+                } else if marker.first?.isNumber == true {
+                    Text(marker)
+                        .font(Self.bodyFont.monospacedDigit())
+                        .foregroundStyle(ArcTheme.inkFaint)
                 } else {
-                    Text(marker.first?.isNumber == true ? marker : "•")
-                        .font(.subheadline)
-                        .foregroundStyle(ArcTheme.inkMuted)
+                    Circle()
+                        .fill(depth > 0 ? ArcTheme.inkFaint.opacity(0.6) : ArcTheme.inkFaint)
+                        .frame(width: 5, height: 5)
+                        .alignmentGuide(.firstTextBaseline) { d in d[.bottom] + 1 }
+                        .frame(width: 10)
                 }
-                inline(text).font(.subheadline).foregroundStyle(ArcTheme.ink).lineSpacing(4)
+                inline(text).font(Self.bodyFont).foregroundStyle(ArcTheme.ink).lineSpacing(4)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .padding(.leading, CGFloat(depth) * 12)
+            .padding(.leading, CGFloat(depth) * 14)
         case .code(let language, let code):
             MessageCodeBlock(language: language, code: code)
         case .table(let headers, let rows):
@@ -107,6 +114,9 @@ struct MacMessageText: View {
         }
     }
 
+    static let bodyFont: Font = .system(size: 16)
+    private static let linkDetector = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue)
+
     private func inline(_ text: String) -> some View {
         var options = AttributedString.MarkdownParsingOptions()
         options.interpretedSyntax = .inlineOnlyPreservingWhitespace
@@ -115,6 +125,28 @@ struct MacMessageText: View {
         // from attributed runs before SwiftUI makes them interactive.
         for run in result.runs {
             if let url = run.link, !MessageMarkdown.safeLink(url) { result[run.range].link = nil }
+            // Inline `code`: monospaced pill-ish tint instead of plain body text.
+            if run.inlinePresentationIntent?.contains(.code) == true {
+                result[run.range].font = .system(size: 14.5, design: .monospaced)
+                result[run.range].foregroundColor = ArcTheme.inlineCode
+                result[run.range].backgroundColor = ArcTheme.surfaceSunken
+            }
+        }
+        // Auto-link bare http(s) URLs that Markdown left as plain text.
+        let plain = String(result.characters)
+        if let detector = Self.linkDetector, plain.contains("http") {
+            let ns = plain as NSString
+            for match in detector.matches(in: plain, range: NSRange(location: 0, length: ns.length)) {
+                guard let url = match.url, MessageMarkdown.safeLink(url),
+                      let range = Range(match.range, in: plain),
+                      let lower = AttributedString.Index(range.lowerBound, within: result),
+                      let upper = AttributedString.Index(range.upperBound, within: result) else { continue }
+                if result[lower..<upper].runs.contains(where: { $0.link != nil }) { continue }
+                result[lower..<upper].link = url
+            }
+        }
+        for run in result.runs where run.link != nil {
+            result[run.range].foregroundColor = ArcTheme.primary
         }
         return Text(result).textSelection(.enabled)
     }
@@ -258,6 +290,7 @@ struct MessageStep: Identifiable {
             let index = offset + localIndex
             let id = "history-step-\(index)"
             if ["summary", "reasoning_summary"].contains(message.role) {
+                guard !message.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { continue }
                 result[index] = MessageStep(id: id, title: "思考摘要", summary: preview(message.text), output: message.text, isSummary: true)
             } else if ["tool", "tool_result"].contains(message.role) {
                 if message.toolPhase == "output", let call = message.toolCallId, inputs.contains(call) { continue }
@@ -368,7 +401,7 @@ struct InlineStepsGroup: View {
             // Try parsing JSON tool arguments (e.g. Codex `exec` / Claude tool input)
             if unfenced.hasPrefix("{"), let data = unfenced.data(using: .utf8),
                let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
-                let priorityKeys = ["cmd", "command", "file_path", "filePath", "path", "pattern", "query", "url", "target"]
+                let priorityKeys = ["cmd", "command", "file_path", "filePath", "path", "pattern", "query", "queries", "url", "target"]
                 for key in priorityKeys {
                     if let val = obj[key] as? String, !val.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                         return cleanLine(val)
@@ -422,22 +455,24 @@ struct InlineStepsGroup: View {
                             .frame(width: 18, height: 18)
                     } else {
                         Image(systemName: groupIcon)
-                            .font(.system(size: 11.5, weight: .medium))
-                            .foregroundStyle(ArcTheme.inkMuted)
-                            .frame(width: 18, height: 18)
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(failedCount > 0 ? ArcTheme.danger : ArcTheme.inkMuted)
+                            .frame(width: 22, height: 22)
+                            .background(ArcTheme.surface, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
                     }
                     Text(headerTitle)
                         .font(.footnote.weight(.medium))
                         .foregroundStyle(ArcTheme.inkMuted)
                         .lineLimit(1)
                     Spacer(minLength: 8)
-                    Image(systemName: expanded ? "chevron.up" : "chevron.down")
+                    Image(systemName: "chevron.down")
                         .font(.system(size: 10, weight: .semibold))
                         .foregroundStyle(ArcTheme.inkFaint)
+                        .rotationEffect(.degrees(expanded ? 180 : 0))
                         .accessibilityHidden(true)
                 }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 9)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 8)
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
@@ -470,11 +505,12 @@ struct InlineStepsGroup: View {
                 }
             }
         }
-        .background(ArcTheme.surfaceSunken.opacity(0.55), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .background(ArcTheme.surfaceSunken.opacity(expanded ? 0.55 : 0.4), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .stroke(ArcTheme.line.opacity(0.6), lineWidth: 0.75)
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(ArcTheme.line.opacity(expanded ? 0.55 : 0), lineWidth: 0.75)
         )
+        .padding(.vertical, 2)
     }
 }
 
@@ -695,19 +731,20 @@ struct MessageStepDetail: View {
             .background(ArcTheme.bg)
             .navigationTitle(step?.title ?? "步骤详情").navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("完成", action: dismiss) } }
-            .tint(ArcTheme.primary)
+            .tint(ArcTheme.ink)
         }
         .presentationDragIndicator(.visible)
     }
 
     private func detailSection(_ title: String, text: String?, missing: String, code: Bool) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
+        let nonEmpty = text.flatMap { $0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : $0 }
+        return VStack(alignment: .leading, spacing: 8) {
             HStack {
                 Text(title).font(.footnote.weight(.semibold)).foregroundStyle(ArcTheme.inkMuted)
                 Spacer()
-                if let text {
+                if let nonEmpty {
                     Button {
-                        UIPasteboard.general.string = text
+                        UIPasteboard.general.string = nonEmpty
                         copiedSection = title
                     } label: {
                         Label(copiedSection == title ? "已复制" : "复制", systemImage: copiedSection == title ? "checkmark" : "doc.on.doc")
@@ -717,12 +754,12 @@ struct MessageStepDetail: View {
                 }
             }
             Group {
-                if let text {
+                if let nonEmpty {
                     if code {
-                        Text(text.isEmpty ? "（空内容）" : text)
+                        Text(nonEmpty)
                             .font(.system(.footnote, design: .monospaced)).foregroundStyle(ArcTheme.codeInk)
                             .textSelection(.enabled)
-                    } else { MacMessageText(text: text).font(.subheadline).textSelection(.enabled) }
+                    } else { MacMessageText(text: nonEmpty).font(.subheadline).textSelection(.enabled) }
                 } else { Text(missing).font(.subheadline).foregroundStyle(code ? ArcTheme.codeMuted : ArcTheme.inkMuted) }
             }
             .frame(maxWidth: .infinity, alignment: .leading).padding(14)
