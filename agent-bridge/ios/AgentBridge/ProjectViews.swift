@@ -236,143 +236,239 @@ struct AddProjectView: View {
     @Environment(\.dismiss) private var dismiss
     var editingId: String?
 
-    @State private var showingImports = false
+    private struct DiscoveredProject: Identifiable {
+        var id: String { path }
+        var path: String
+        var name: String
+        var agents: [AgentKind]
+        var threadCount: Int
+        var lastSeen: Date?
+    }
+
     @State private var agent: AgentKind = .claude
     @State private var selectedPath = ""
     @State private var name = ""
     @State private var confirmDelete = false
     @State private var selectedPaths: Set<String> = []
     @State private var browsingFolders = false
-    /// Real, on-disk paths the Agent itself already tracked on the Mac
-    /// (`ListAgentProjects`) — nil while unknown/loading, `[]` once loaded
-    /// with nothing found, so the section can tell "haven't checked yet"
-    /// from "checked, there's nothing".
-    @State private var macProjects: [MacProject]?
+    @State private var discovered: [DiscoveredProject]?
+    @State private var saving = false
 
     private var editing: Bool { editingId != nil }
-    private var canSave: Bool { editing ? !selectedPath.isEmpty : (!selectedPaths.isEmpty || !selectedPath.isEmpty) }
+    private var canSave: Bool { !saving && (editing ? !selectedPath.isEmpty : (!selectedPaths.isEmpty || !selectedPath.isEmpty)) }
+
+    private var existingPaths: Set<String> {
+        Set(store.unifiedProjects().map(\.path))
+    }
 
     var body: some View {
-        Form {
-            Section {
-                Button { browsingFolders = true } label: {
-                    HStack(spacing: ArcTheme.Space.s3) {
-                        IconTile(symbol: "folder", accent: true)
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(selectedPath.isEmpty ? "选择项目文件夹" : (selectedPath as NSString).lastPathComponent)
-                                .font(.body.weight(.medium)).foregroundStyle(ArcTheme.ink)
-                            Text(selectedPath.isEmpty ? "浏览电脑上的文件夹，也可以新建" : selectedPath)
-                                .font(.caption).foregroundStyle(ArcTheme.inkMuted)
-                                .lineLimit(2).truncationMode(.middle)
-                        }
-                        Spacer(minLength: 8)
-                        Image(systemName: "chevron.right").font(.caption).foregroundStyle(ArcTheme.inkMuted)
-                    }
-                    .padding(.vertical, ArcTheme.Space.s2)
-                    .contentShape(Rectangle())
-                }
-                .accessibilityIdentifier("browse-mac-folders")
-                if !selectedPath.isEmpty || editing {
-                    TextField("名称", text: $name, prompt: Text("默认使用文件夹名"))
-                        .accessibilityLabel("项目名称")
-                }
-            } header: {
-                Text("项目文件夹")
-            }
-            .listRowBackground(ArcTheme.surface)
-            Section {
-                Picker("助手", selection: $agent) {
-                    ForEach(AgentKind.allCases.filter(\.installed)) { kind in
-                        Text(kind.shortName).tag(kind)
-                    }
-                }
-            }
-            .listRowBackground(ArcTheme.surface)
+        ScrollView {
+            VStack(alignment: .leading, spacing: 22) {
+                // 1. Manual Mac folder picker
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("从 Mac 选择文件夹")
+                        .font(.footnote)
+                        .foregroundStyle(ArcTheme.inkMuted)
+                        .padding(.horizontal, 14)
 
-            if !editing {
-                Section {
-                    DisclosureGroup(isExpanded: $showingImports) {
-                    if let macProjects {
-                        if macProjects.isEmpty {
-                            Text("没有可导入的项目").foregroundStyle(ArcTheme.inkMuted)
-                        }
-                        ForEach(macProjects, id: \.path) { project in
-                            let selected = selectedPaths.contains(project.path)
-                            Button {
-                                if selected { selectedPaths.remove(project.path) } else { selectedPaths.insert(project.path) }
-                            } label: {
-                                HStack(spacing: ArcTheme.Space.s3) {
-                                    IconTile(symbol: "folder")
-                                    VStack(alignment: .leading, spacing: 2) {
-                                        Text(AppStore.projectTitle(project)).font(.callout.weight(.medium)).foregroundStyle(ArcTheme.ink)
-                                        Text(project.path).font(.footnote.monospaced()).foregroundStyle(ArcTheme.inkMuted)
-                                            .lineLimit(1).truncationMode(.middle)
-                                    }
-                                    Spacer(minLength: 0)
-                                    Image(systemName: selected ? "checkmark.circle.fill" : "circle")
-                                        .font(.title3)
-                                        .foregroundStyle(selected ? ArcTheme.ink : ArcTheme.inkFaint)
+                    VStack(spacing: 0) {
+                        Button { browsingFolders = true } label: {
+                            HStack(spacing: 12) {
+                                Image(systemName: "folder")
+                                    .font(.system(size: 17, weight: .regular))
+                                    .foregroundStyle(ArcTheme.ink)
+                                    .frame(width: 24)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(selectedPath.isEmpty ? "浏览 Mac 文件夹" : (selectedPath as NSString).lastPathComponent)
+                                        .font(.body.weight(.medium))
+                                        .foregroundStyle(ArcTheme.ink)
+                                        .lineLimit(1)
+                                    Text(selectedPath.isEmpty ? "选择或新建目录，自动关联该路径下的对话" : Self.shortPath(selectedPath))
+                                        .font(.caption)
+                                        .foregroundStyle(ArcTheme.inkMuted)
+                                        .lineLimit(1)
+                                        .truncationMode(.middle)
                                 }
-                                .contentShape(Rectangle())
+                                Spacer(minLength: 8)
+                                Image(systemName: "chevron.right")
+                                    .font(.caption.weight(.medium))
+                                    .foregroundStyle(ArcTheme.inkFaint)
                             }
-                            .buttonStyle(.plain)
-                            .accessibilityAddTraits(selected ? [.isSelected] : [])
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 13)
+                            .contentShape(Rectangle())
                         }
-                        if macProjects.count > 1 {
-                            Button(selectedPaths.count == macProjects.count ? "取消全选" : "全选（\(macProjects.count) 个）") {
-                                selectedPaths = selectedPaths.count == macProjects.count ? [] : Set(macProjects.map(\.path))
-                            }
-                            .font(.subheadline.weight(.medium))
+                        .buttonStyle(.plain)
+                        .accessibilityIdentifier("browse-mac-folders")
+
+                        if !selectedPath.isEmpty || editing {
+                            Rectangle()
+                                .fill(ArcTheme.line.opacity(0.7))
+                                .frame(height: 0.5)
+                                .padding(.leading, 16)
+                            TextField("项目名称（默认使用文件夹名）", text: $name)
+                                .font(.body)
+                                .foregroundStyle(ArcTheme.ink)
+                                .padding(.horizontal, 16)
+                                .frame(minHeight: 46)
+                                .accessibilityLabel("项目名称")
                         }
-                    } else {
-                        HStack { ProgressView(); Text("正在读取 \(store.hostName) 上的项目…").foregroundStyle(ArcTheme.inkMuted) }
                     }
-                    } label: {
+                    .background(ArcTheme.surface, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                }
+
+                // 2. Unified Codex + Claude discovered projects
+                if !editing {
+                    VStack(alignment: .leading, spacing: 6) {
                         HStack {
-                            Text("导入已有项目").foregroundStyle(ArcTheme.ink)
+                            Text("Codex 与 Claude 已有项目")
+                                .font(.footnote)
+                                .foregroundStyle(ArcTheme.inkMuted)
                             Spacer()
                             if !selectedPaths.isEmpty {
-                                Text("已选 \(selectedPaths.count) 个").font(.subheadline).foregroundStyle(ArcTheme.ink)
+                                Text("已选 \(selectedPaths.count) 个")
+                                    .font(.footnote)
+                                    .foregroundStyle(ArcTheme.ink)
                             }
                         }
-                        .frame(minHeight: ArcTheme.tapMin)
+                        .padding(.horizontal, 14)
+
+                        VStack(spacing: 0) {
+                            if let discovered {
+                                let available = discovered.filter { !existingPaths.contains($0.path) }
+                                if available.isEmpty {
+                                    Text(discovered.isEmpty ? "未在 Mac 上发现 Codex 或 Claude 项目" : "发现的项目均已添加到首页")
+                                        .font(.subheadline)
+                                        .foregroundStyle(ArcTheme.inkMuted)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                        .padding(.horizontal, 16)
+                                        .padding(.vertical, 16)
+                                } else {
+                                    ForEach(available) { item in
+                                        if item.id != available.first?.id {
+                                            Rectangle()
+                                                .fill(ArcTheme.line.opacity(0.7))
+                                                .frame(height: 0.5)
+                                                .padding(.leading, 16)
+                                        }
+                                        let selected = selectedPaths.contains(item.path)
+                                        Button {
+                                            if selected { selectedPaths.remove(item.path) } else { selectedPaths.insert(item.path) }
+                                        } label: {
+                                            HStack(spacing: 12) {
+                                                VStack(alignment: .leading, spacing: 3) {
+                                                    HStack(spacing: 6) {
+                                                        Text(item.name)
+                                                            .font(.body.weight(.medium))
+                                                            .foregroundStyle(ArcTheme.ink)
+                                                            .lineLimit(1)
+                                                        ForEach(item.agents) { kind in
+                                                            AgentIcon(agent: kind, size: 12, tint: ArcTheme.inkMuted)
+                                                        }
+                                                    }
+                                                    HStack(spacing: 6) {
+                                                        Text(Self.shortPath(item.path))
+                                                            .font(.caption.monospaced())
+                                                            .foregroundStyle(ArcTheme.inkMuted)
+                                                            .lineLimit(1)
+                                                            .truncationMode(.middle)
+                                                        if item.threadCount > 0 {
+                                                            Text("· \(item.threadCount) 条对话")
+                                                                .font(.caption)
+                                                                .foregroundStyle(ArcTheme.inkFaint)
+                                                        }
+                                                    }
+                                                }
+                                                Spacer(minLength: 8)
+                                                Image(systemName: selected ? "checkmark.circle.fill" : "circle")
+                                                    .font(.system(size: 20))
+                                                    .foregroundStyle(selected ? ArcTheme.ink : ArcTheme.inkFaint)
+                                            }
+                                            .padding(.horizontal, 16)
+                                            .padding(.vertical, 12)
+                                            .contentShape(Rectangle())
+                                        }
+                                        .buttonStyle(.plain)
+                                        .accessibilityAddTraits(selected ? [.isSelected] : [])
+                                    }
+                                }
+                            } else {
+                                HStack(spacing: 10) {
+                                    ProgressView().controlSize(.small)
+                                    Text("正在读取 \(store.hostName) 上的 Codex 与 Claude 项目…")
+                                        .font(.subheadline)
+                                        .foregroundStyle(ArcTheme.inkMuted)
+                                }
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 16)
+                            }
+                        }
+                        .background(ArcTheme.surface, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                        .accessibilityIdentifier("project-import-options")
+
+                        Text("添加后将自动读取该项目路径下 Codex 与 Claude 的历史对话。")
+                            .font(.caption)
+                            .foregroundStyle(ArcTheme.inkFaint)
+                            .padding(.horizontal, 14)
+                            .padding(.top, 2)
                     }
-                    .accessibilityIdentifier("project-import-options")
                 }
-                .listRowBackground(ArcTheme.surface)
-            }
-            if editing {
-                Section {
-                    Button("移除项目", role: .destructive) { confirmDelete = true }
-                } footer: {
-                    Text("只从 ArcLink 中移除，不会删除 Mac 上的文件。")
+
+                if editing {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Button(role: .destructive) { confirmDelete = true } label: {
+                            HStack {
+                                Text("移除项目")
+                                    .font(.body)
+                                    .foregroundStyle(ArcTheme.danger)
+                                Spacer()
+                            }
+                            .padding(.horizontal, 16)
+                            .frame(minHeight: 48)
+                            .background(ArcTheme.surface, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                        }
+                        .buttonStyle(.plain)
+                        Text("只从 ArcLink 中移除，不会删除 Mac 上的文件。")
+                            .font(.caption)
+                            .foregroundStyle(ArcTheme.inkFaint)
+                            .padding(.horizontal, 14)
+                    }
                 }
             }
+            .padding(.horizontal, 16)
+            .padding(.top, 12)
+            .padding(.bottom, 24)
         }
-        .scrollContentBackground(.hidden)
-        .background(ArcTheme.bg)
+        .background(ArcTheme.bg.ignoresSafeArea())
         .navigationTitle(editing ? "项目设置" : "添加项目")
         .navigationBarTitleDisplayMode(.inline)
+        .arcBackButton("首页")
         .scrollDismissesKeyboard(.interactively)
         .safeAreaInset(edge: .bottom, spacing: 0) {
-            Button(editing ? "保存修改" : "添加项目", action: save)
-                .buttonStyle(.arc(block: true))
-                .disabled(!canSave)
-                .accessibilityIdentifier("save-project")
-                .padding(.horizontal, ArcTheme.Space.s4)
-                .padding(.vertical, ArcTheme.Space.s2)
-                .background(ArcTheme.bg)
+            Button {
+                Task { await save() }
+            } label: {
+                if saving {
+                    ProgressView().tint(ArcTheme.surface)
+                } else {
+                    Text(editing ? "保存修改" : (selectedPaths.count > 1 ? "添加 \(selectedPaths.count) 个项目" : "添加项目"))
+                }
+            }
+            .buttonStyle(.arc(block: true))
+            .disabled(!canSave)
+            .accessibilityIdentifier("save-project")
+            .padding(.horizontal, 16)
+            .padding(.vertical, 10)
+            .background(ArcTheme.bg)
         }
         .onAppear {
             if let editingId, let project = store.project(editingId) {
                 agent = project.agent
                 selectedPath = project.path
                 name = project.name
-            } else {
-                agent = store.selectedAgent.installed ? store.selectedAgent : .claude
             }
         }
-        .onChange(of: agent) { _, _ in selectedPaths = [] }
         .sheet(isPresented: $browsingFolders) {
             MacFolderPicker { chosen in
                 selectedPath = chosen
@@ -381,8 +477,8 @@ struct AddProjectView: View {
                 }
             }
         }
-        .task(id: "\(store.selectedDeviceID ?? "")/\(agent.agentId)") { await loadMacProjects() }
-        .refreshable { await loadMacProjects(force: true) }
+        .task(id: store.selectedDeviceID ?? "") { await loadAllMacProjects() }
+        .refreshable { await loadAllMacProjects(force: true) }
         .confirmationDialog("移除这个项目？会话记录会一起去掉。", isPresented: $confirmDelete, titleVisibility: .visible) {
             Button("移除项目", role: .destructive) {
                 if let editingId {
@@ -393,7 +489,9 @@ struct AddProjectView: View {
         }
     }
 
-    private func save() {
+    private func save() async {
+        saving = true
+        defer { saving = false }
         let manualName = name.trimmingCharacters(in: .whitespaces)
         let fallbackName = (selectedPath as NSString).lastPathComponent
         if let editingId {
@@ -401,27 +499,90 @@ struct AddProjectView: View {
             dismiss()
             return
         }
-        for project in macProjects ?? [] where selectedPaths.contains(project.path) {
-            store.importMacProject(
-                name: AppStore.projectTitle(project), path: project.path, agent: agent,
-                createdAt: project.lastSeen.flatMap { AppStore.parseRFC3339($0) }
-            )
+
+        var pathsToRegister: [(name: String, path: String, createdAt: Date?)] = []
+        for item in discovered ?? [] where selectedPaths.contains(item.path) {
+            pathsToRegister.append((item.name, item.path, item.lastSeen))
         }
-        if !selectedPath.isEmpty {
-            store.addProject(name: manualName.isEmpty ? fallbackName : manualName, path: selectedPath, agent: agent)
+        if !selectedPath.isEmpty && !selectedPaths.contains(selectedPath) {
+            pathsToRegister.append((manualName.isEmpty ? fallbackName : manualName, selectedPath, Date()))
+        }
+
+        let deviceID = store.selectedDeviceID
+        let bridge = deviceID.flatMap { store.bridge(for: $0) }
+        for entry in pathsToRegister {
+            // Register as a managed project on Mac if online, and register local Codex + Claude
+            // records so existing histories under this path sync immediately.
+            if let bridge {
+                _ = try? await bridge.createManagedProject(
+                    commandId: UUID().uuidString,
+                    path: entry.path,
+                    name: entry.name
+                )
+            }
+            for kind in AgentKind.allCases where kind.installed {
+                store.importMacProject(name: entry.name, path: entry.path, agent: kind, createdAt: entry.createdAt)
+            }
+        }
+        if let deviceID {
+            await store.refreshManagedCatalog(deviceID: deviceID)
+            for kind in AgentKind.allCases where kind.installed {
+                await store.refreshConversationList(agent: kind, force: true)
+            }
         }
         dismiss()
     }
 
-    /// Quiet on any failure (not connected, Mac doesn't know this Agent,
-    /// protocol error): the list just shows nothing to import, rather than
-    /// interrupting someone mid-form with an error they didn't ask for.
-    private func loadMacProjects(force: Bool = false) async {
-        guard !editing, let deviceID = store.selectedDeviceID else { macProjects = nil; return }
-        let requestedAgent = agent
-        macProjects = store.cachedMacProjects(deviceID: deviceID, agent: requestedAgent)
-        let result = await store.loadMacProjects(deviceID: deviceID, agent: requestedAgent, force: force)
-        guard !Task.isCancelled, store.selectedDeviceID == deviceID, agent == requestedAgent else { return }
-        macProjects = result ?? []
+    private func loadAllMacProjects(force: Bool = false) async {
+        guard !editing, let deviceID = store.selectedDeviceID else { discovered = nil; return }
+        // Show cached projects immediately, then refresh both Codex and Claude in parallel.
+        let cachedCodex = store.cachedMacProjects(deviceID: deviceID, agent: .codex) ?? []
+        let cachedClaude = store.cachedMacProjects(deviceID: deviceID, agent: .claude) ?? []
+        if !cachedCodex.isEmpty || !cachedClaude.isEmpty {
+            discovered = Self.mergeDiscovered(codex: cachedCodex, claude: cachedClaude)
+        }
+        async let codexTask = store.loadMacProjects(deviceID: deviceID, agent: .codex, force: force)
+        async let claudeTask = store.loadMacProjects(deviceID: deviceID, agent: .claude, force: force)
+        let (codex, claude) = await (codexTask ?? [], claudeTask ?? [])
+        guard !Task.isCancelled, store.selectedDeviceID == deviceID else { return }
+        discovered = Self.mergeDiscovered(codex: codex, claude: claude)
+    }
+
+    private static func mergeDiscovered(codex: [MacProject], claude: [MacProject]) -> [DiscoveredProject] {
+        var map: [String: DiscoveredProject] = [:]
+        func ingest(_ list: [MacProject], kind: AgentKind) {
+            for item in list {
+                let seen = item.lastSeen.flatMap { AppStore.parseRFC3339($0) }
+                if var existing = map[item.path] {
+                    if !existing.agents.contains(kind) { existing.agents.append(kind) }
+                    existing.threadCount += item.threads.count
+                    if let seen, (existing.lastSeen == nil || seen > existing.lastSeen!) { existing.lastSeen = seen }
+                    map[item.path] = existing
+                } else {
+                    map[item.path] = DiscoveredProject(
+                        path: item.path,
+                        name: AppStore.projectTitle(item),
+                        agents: [kind],
+                        threadCount: item.threads.count,
+                        lastSeen: seen
+                    )
+                }
+            }
+        }
+        ingest(codex, kind: .codex)
+        ingest(claude, kind: .claude)
+        return map.values.sorted {
+            let l = $0.lastSeen ?? .distantPast, r = $1.lastSeen ?? .distantPast
+            return l == r ? $0.name.localizedStandardCompare($1.name) == .orderedAscending : l > r
+        }
+    }
+
+    private static func shortPath(_ path: String) -> String {
+        let components = path.split(separator: "/")
+        if components.count >= 2 && components[0] == "Users" {
+            let rest = components.dropFirst(2).joined(separator: "/")
+            return rest.isEmpty ? "~" : "~/\(rest)"
+        }
+        return path
     }
 }

@@ -365,6 +365,20 @@ final class AppStore {
             managedProjects[deviceID] = projects
             managedThreads[deviceID] = threads
             managedCatalogError[deviceID] = nil
+            // One-time cleanup: remove legacy auto-imported projects that were never
+            // explicitly created in ArcLink, keeping all managed projects.
+            let migrationKey = "arclink.explicitProjectsOnlyV1.\(deviceID)"
+            if !UserDefaults.standard.bool(forKey: migrationKey),
+               let index = devices.firstIndex(where: { $0.id == deviceID }) {
+                let managedRoots = Set(projects.map(\.canonicalRoot))
+                let removedIDs = Set(devices[index].workspace.projects.filter { !managedRoots.contains($0.path) }.map(\.id))
+                if !removedIDs.isEmpty {
+                    devices[index].workspace.projects.removeAll { removedIDs.contains($0.id) }
+                    devices[index].workspace.sessions.removeAll { removedIDs.contains($0.projectId) }
+                    _ = persist()
+                }
+                UserDefaults.standard.set(true, forKey: migrationKey)
+            }
         } catch {
             if self.bridge(for: deviceID) === bridge { managedCatalogError[deviceID] = "项目同步失败，保留上次内容。请重试。" }
         }
@@ -1401,10 +1415,14 @@ final class AppStore {
         }
     }
 
-    /// Called only after a successful, generation-checked response. The caller persists
-    /// this projection and the source catalog together, or rolls the workspace back.
+    /// Called only after a successful, generation-checked response. Only syncs
+    /// native Codex/Claude conversation history for project paths explicitly
+    /// created in ArcLink — never auto-imports unrelated Mac directories.
     private func applyMacProjects(_ projects: [MacProject], agent kind: AgentKind, deviceIndex index: Int) {
         let marker = kind == .codex ? "Codex 对话" : "Claude 对话"
+        let deviceID = devices[index].id
+        let registeredPaths = Set(devices[index].workspace.projects.map(\.path))
+            .union((managedProjects[deviceID] ?? []).map(\.canonicalRoot))
         let knownProjectIDs = Set(devices[index].workspace.projects.filter { $0.agent == kind }.map(\.id))
         // A bounded/native catalog may omit projects or threads. Keep the last
         // known rows and body cache; only explicit user deletion removes them.
@@ -1414,7 +1432,7 @@ final class AppStore {
                 devices[index].workspace.sessions[sessionIndex].sourceUnavailable = true
             }
         }
-        for project in projects {
+        for project in projects where registeredPaths.contains(project.path) {
             let createdAt = project.lastSeen.flatMap { Self.parseRFC3339($0) } ?? Date()
             let title = Self.projectTitle(project)
             let projectId: String
@@ -1437,7 +1455,6 @@ final class AppStore {
             }
             _ = syncThreads(project.threads, projectId: projectId, deviceIndex: index, marker: marker)
         }
-
     }
 
     /// Updates rediscovered histories without deleting omitted records.
