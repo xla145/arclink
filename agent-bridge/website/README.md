@@ -72,6 +72,8 @@ The device UI is an explicitly labelled illustration, not a screenshot or an int
 
 Deploy the updated HTML and both JavaScript modules once. Later releases update the website through R2 `latest.json` without uploading the website again. The manifest must have a stable version no older than the generated fallback, notes, signatures and both exact versioned R2 archive URLs. Validation completes before any buttons change; stale package sizes are removed.
 
-R2 must allow GET/HEAD CORS from `https://arclink.classktv.com`. Run the release workflow manually with `configure_website_cors=true` once. It preserves existing bucket rules, does not upload artifacts, and verifies the public response header. Missing CORS administration permission is a visible failure and requires configuration by the bucket owner. Release triggers are unchanged.
+Production uses the same-origin Nginx manifest proxy described below, so R2 CORS administration is unnecessary. If another deployment uses direct R2 instead, GET/HEAD CORS must allow that website origin; the optional `configure_website_cors` manual workflow preserves existing rules. Release triggers are unchanged.
 
 Run `node --test agent-bridge/website/test-release-downloads.mjs` for runtime success and failure cases.
+
+The production Nginx site proxies `/latest.json` to the fixed HTTPS R2 manifest with TLS verification and no caching. The template selects this same-origin endpoint, avoiding browser CORS requirements. Hosts without that proxy can remove `data-release-manifest` to use direct R2 CORS. Deploy the scoped proxy before switching the updated page. Browser credentials are not forwarded.

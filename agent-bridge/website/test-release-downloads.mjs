@@ -37,3 +37,7 @@ test('missing signature, malformed version and missing platform fail validation'
     const candidate=structuredClone(manifest);change(candidate);assert.throws(()=>releaseDownloads(candidate,'0.1.5'));
   }
 });
+test('production page selects the same-origin manifest proxy', async()=>{
+  const root=page();root.documentElement={dataset:{releaseManifest:'/latest.json'}};
+  assert.equal(await refreshDownloads(root,async(url)=>{assert.equal(url,'/latest.json');return {ok:true,json:async()=>manifest};}),true);
+});

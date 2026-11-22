@@ -45,7 +45,8 @@ export async function refreshDownloads(root = document, fetcher = fetch, timeout
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const response = await fetcher(`${origin}/latest.json`, {
+    const manifestUrl = root.documentElement?.dataset.releaseManifest || `${origin}/latest.json`;
+    const response = await fetcher(manifestUrl, {
       mode: "cors", credentials: "omit", cache: "no-store", signal: controller.signal,
     });
     if (!response.ok) throw new Error("Release manifest unavailable");
