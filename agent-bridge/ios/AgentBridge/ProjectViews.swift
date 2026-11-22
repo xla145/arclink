@@ -311,7 +311,7 @@ struct AddProjectView: View {
                                     Spacer(minLength: 0)
                                     Image(systemName: selected ? "checkmark.circle.fill" : "circle")
                                         .font(.title3)
-                                        .foregroundStyle(selected ? ArcTheme.primary : ArcTheme.inkFaint)
+                                        .foregroundStyle(selected ? ArcTheme.ink : ArcTheme.inkFaint)
                                 }
                                 .contentShape(Rectangle())
                             }
@@ -332,7 +332,7 @@ struct AddProjectView: View {
                             Text("导入已有项目").foregroundStyle(ArcTheme.ink)
                             Spacer()
                             if !selectedPaths.isEmpty {
-                                Text("已选 \(selectedPaths.count) 个").font(.subheadline).foregroundStyle(ArcTheme.primary)
+                                Text("已选 \(selectedPaths.count) 个").font(.subheadline).foregroundStyle(ArcTheme.ink)
                             }
                         }
                         .frame(minHeight: ArcTheme.tapMin)

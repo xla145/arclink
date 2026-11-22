@@ -44,6 +44,7 @@ enum ArcTheme {
 
     // Code, commands and terminal: dark in both themes
     static let codeBg = adaptive(0x141932, 0x0A0D1C)
+    static let inlineCode = adaptive(0xB4245F, 0xF59AC0)
     static let codeInk = rgb(0xE3E7F5)
     static let codeMuted = rgb(0x8E95B3)
     /// Error lines and Stop on `codeBg` (the dark-theme `danger`, 7:1 there).

@@ -105,84 +105,21 @@ struct UnifiedProjectDetailView: View {
         return store.unifiedConversations(project: project, query: query)
     }
 
+    private var displayPath: String {
+        let components = projectPath.split(separator: "/")
+        if components.count >= 2 && components[0] == "Users" {
+            let rest = components.dropFirst(2).joined(separator: "/")
+            return rest.isEmpty ? "~" : "~/\(rest)"
+        }
+        return projectPath
+    }
+
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 14) {
-                // Compact tappable path strip (tap to copy)
-                Button {
-                    UIPasteboard.general.string = projectPath
-                    store.show("已复制路径")
-                } label: {
-                    HStack(spacing: 8) {
-                        Image(systemName: "folder.fill")
-                            .font(.system(size: 13))
-                            .foregroundStyle(ArcTheme.primary)
-                        Text(projectPath)
-                            .font(.caption.monospaced())
-                            .foregroundStyle(ArcTheme.inkMuted)
-                            .lineLimit(1)
-                            .truncationMode(.middle)
-                        Spacer(minLength: 4)
-                        Image(systemName: "doc.on.doc")
-                            .font(.system(size: 11))
-                            .foregroundStyle(ArcTheme.inkFaint)
-                    }
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 10)
-                    .background(ArcTheme.surface, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 12, style: .continuous)
-                            .stroke(ArcTheme.line.opacity(0.75), lineWidth: 0.75)
-                    )
-                    .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                }
-                .buttonStyle(.plain)
-
+            VStack(alignment: .leading, spacing: 12) {
                 if let error = store.selectedDeviceID.flatMap({ store.managedCatalogError[$0] }) {
                     ArcBanner(text: error)
                 }
-
-                // Conversations header + on-demand search toggle (matches HomeView)
-                HStack(spacing: 8) {
-                    Text("对话")
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundStyle(ArcTheme.ink)
-                        .accessibilityAddTraits(.isHeader)
-                    if !allConversations.isEmpty {
-                        Text("\(allConversations.count)")
-                            .font(.caption.weight(.semibold))
-                            .monospacedDigit()
-                            .foregroundStyle(ArcTheme.inkMuted)
-                            .padding(.horizontal, 7)
-                            .padding(.vertical, 2)
-                            .background(ArcTheme.surfaceSunken, in: Capsule())
-                    }
-                    Spacer(minLength: 0)
-                    Button {
-                        withAnimation(.easeInOut(duration: 0.18)) {
-                            if showSearch {
-                                query = ""
-                                searchFocused = false
-                                showSearch = false
-                            } else {
-                                showSearch = true
-                                searchFocused = true
-                            }
-                        }
-                    } label: {
-                        Image(systemName: showSearch ? "xmark" : "magnifyingglass")
-                            .font(.system(size: 15, weight: .medium))
-                            .foregroundStyle(ArcTheme.ink)
-                            .frame(width: 36, height: 36)
-                            .background(ArcTheme.surface, in: Circle())
-                            .overlay(Circle().stroke(ArcTheme.line.opacity(0.75), lineWidth: 0.75))
-                            .contentShape(Circle())
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel(showSearch ? "关闭搜索" : "搜索对话")
-                }
-                .padding(.leading, 2)
-                .padding(.top, 2)
 
                 if showSearch || !query.isEmpty {
                     HStack(spacing: 8) {
@@ -208,62 +145,103 @@ struct UnifiedProjectDetailView: View {
                         }
                     }
                     .padding(.horizontal, 12)
-                    .frame(height: 40)
-                    .background(ArcTheme.surface, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-                    .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).stroke(ArcTheme.line, lineWidth: 0.75))
+                    .frame(height: 38)
+                    .background(ArcTheme.surface, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
                     .transition(.opacity.combined(with: .move(edge: .top)))
                 }
 
-                // Conversations list
-                if conversations.isEmpty {
-                    VStack(spacing: 10) {
-                        Image(systemName: "bubble.left.and.bubble.right")
-                            .font(.title2)
-                            .foregroundStyle(ArcTheme.inkFaint)
-                        Text(query.isEmpty ? "还没有对话" : "没有匹配的对话")
-                            .font(.subheadline.weight(.medium))
-                            .foregroundStyle(ArcTheme.ink)
-                        if !query.isEmpty {
-                            Button("清除搜索") { query = "" }
-                                .font(.footnote.weight(.semibold))
-                                .foregroundStyle(ArcTheme.primary)
+                // Conversations section
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack(spacing: 5) {
+                        Text("对话")
+                            .font(.footnote)
+                            .foregroundStyle(ArcTheme.inkMuted)
+                            .accessibilityAddTraits(.isHeader)
+                        if !allConversations.isEmpty {
+                            Text("\(allConversations.count)")
+                                .font(.footnote)
+                                .monospacedDigit()
+                                .foregroundStyle(ArcTheme.inkFaint)
                         }
                     }
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 40)
-                    .background(ArcTheme.surface, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-                    .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(ArcTheme.line.opacity(0.7), lineWidth: 0.75))
-                } else {
-                    ArcListGroup(conversations, dividerInset: 62) { conversation in
-                        conversationRow(conversation)
+                    .padding(.horizontal, 10)
+
+                    if conversations.isEmpty {
+                        VStack(spacing: 10) {
+                            Image(systemName: "bubble.left.and.bubble.right")
+                                .font(.title2)
+                                .foregroundStyle(ArcTheme.inkFaint)
+                            Text(query.isEmpty ? "还没有对话" : "没有匹配的对话")
+                                .font(.subheadline.weight(.medium))
+                                .foregroundStyle(ArcTheme.ink)
+                            if !query.isEmpty {
+                                Button("清除搜索") { query = "" }
+                                    .font(.footnote.weight(.medium))
+                                    .foregroundStyle(ArcTheme.ink)
+                            }
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 40)
+                        .background(ArcTheme.surface, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    } else {
+                        ArcListGroup(conversations, dividerInset: 52) { conversation in
+                            conversationRow(conversation)
+                        }
                     }
                 }
             }
             .padding(.horizontal, 16)
-            .padding(.top, 10)
+            .padding(.top, 8)
             .padding(.bottom, 24)
         }
         .scrollDismissesKeyboard(.interactively)
-        .background(ArcTheme.bg)
-        .navigationTitle(project?.name ?? "项目")
+        .background(ArcTheme.bg.ignoresSafeArea())
+        .navigationTitle("项目")
         .navigationBarTitleDisplayMode(.inline)
+        .arcBackButton("首页")
+        .toolbarBackground(ArcTheme.bg, for: .navigationBar)
         .tint(ArcTheme.ink)
         .toolbar {
             ToolbarItem(placement: .principal) {
-                VStack(spacing: 1) {
-                    Text(project?.name ?? "项目")
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(ArcTheme.ink)
-                        .lineLimit(1)
-                    if !store.hostName.isEmpty {
-                        Text(store.hostName)
-                            .font(.caption2)
-                            .foregroundStyle(ArcTheme.inkMuted)
+                Button {
+                    UIPasteboard.general.string = projectPath
+                    store.show("已复制路径")
+                } label: {
+                    VStack(spacing: 1) {
+                        Text(project?.name ?? "项目")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(ArcTheme.ink)
                             .lineLimit(1)
+                        Text(displayPath)
+                            .font(.system(size: 11, design: .monospaced))
+                            .foregroundStyle(ArcTheme.inkFaint)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
                     }
+                    .contentShape(Rectangle())
                 }
+                .buttonStyle(.plain)
+                .accessibilityLabel("复制项目路径 \(projectPath)")
             }
-            ToolbarItem(placement: .topBarTrailing) {
+            ToolbarItemGroup(placement: .topBarTrailing) {
+                Button {
+                    withAnimation(.easeInOut(duration: 0.18)) {
+                        if showSearch {
+                            query = ""
+                            searchFocused = false
+                            showSearch = false
+                        } else {
+                            showSearch = true
+                            searchFocused = true
+                        }
+                    }
+                } label: {
+                    Image(systemName: showSearch ? "xmark" : "magnifyingglass")
+                        .font(.system(size: 15, weight: .regular))
+                        .foregroundStyle(ArcTheme.ink)
+                }
+                .accessibilityLabel(showSearch ? "关闭搜索" : "搜索对话")
+
                 Menu {
                     if let legacyID = project?.legacyIDs.sorted().first {
                         Button { path.append(Route.addProject(editing: legacyID)) } label: {
@@ -308,17 +286,17 @@ struct UnifiedProjectDetailView: View {
                     }
                     creating = true
                 } label: {
-                    HStack(spacing: 8) {
+                    HStack(spacing: 7) {
                         Image(systemName: "plus")
-                            .font(.system(size: 16, weight: .bold))
+                            .font(.system(size: 15, weight: .semibold))
                         Text("新对话")
-                            .font(.system(size: 16, weight: .semibold))
+                            .font(.system(size: 15, weight: .semibold))
                     }
-                    .foregroundStyle(ArcTheme.onPrimary)
-                    .padding(.horizontal, 26)
-                    .frame(height: 50)
-                    .background(ArcTheme.primary, in: Capsule())
-                    .shadow(color: ArcTheme.primary.opacity(0.28), radius: 14, y: 6)
+                    .foregroundStyle(ArcTheme.surface)
+                    .padding(.horizontal, 24)
+                    .frame(height: 46)
+                    .background(ArcTheme.ink, in: Capsule())
+                    .shadow(color: .black.opacity(0.14), radius: 10, y: 4)
                 }
                 .buttonStyle(.plain)
                 .accessibilityIdentifier("project-new-chat")
@@ -371,12 +349,11 @@ struct UnifiedProjectDetailView: View {
             }
         } label: {
             HStack(spacing: 12) {
-                AgentIcon(agent: agent, size: 17)
-                    .frame(width: 36, height: 36)
-                    .background(agent.tint.opacity(0.11), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                AgentIcon(agent: agent, size: 17, tint: ArcTheme.ink)
+                    .frame(width: 24)
                     .accessibilityHidden(true)
 
-                VStack(alignment: .leading, spacing: 3) {
+                VStack(alignment: .leading, spacing: 2) {
                     Text(conversation.title)
                         .font(.body.weight(.medium))
                         .foregroundStyle(ArcTheme.ink)
@@ -401,13 +378,13 @@ struct UnifiedProjectDetailView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
 
                 Image(systemName: "chevron.right")
-                    .font(.caption.weight(.semibold))
+                    .font(.caption.weight(.medium))
                     .foregroundStyle(ArcTheme.inkFaint)
                     .accessibilityHidden(true)
             }
-            .padding(.horizontal, 14)
+            .padding(.horizontal, 16)
             .padding(.vertical, 12)
-            .frame(minHeight: 62)
+            .frame(minHeight: 58)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)

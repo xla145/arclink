@@ -7,96 +7,309 @@ struct SettingsView: View {
     @State private var choosingDevice = false
     @AppStorage("appearance") private var appearance = "自动"
     @AppStorage("retention") private var retention = "7 天"
-    @AppStorage("language") private var language = "简体中文"
+    @AppStorage("autoApproveManagedTools") private var autoApproveManagedTools = false
 
     var body: some View {
         @Bindable var store = store
-        List {
-            Section("Mac") {
-                Button {
-                    choosingDevice = true
-                } label: {
-                    HStack(spacing: ArcTheme.Space.s3) {
-                        IconTile(symbol: "desktopcomputer", accent: true)
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(store.hostName).font(.callout.weight(.medium)).foregroundStyle(ArcTheme.ink)
-                            HStack(spacing: 6) {
-                                Circle().fill(store.online ? ArcTheme.live : ArcTheme.inkFaint).frame(width: 7, height: 7)
-                                Text("\(store.connectionStateLabel) · \(store.devices.count) 台已配对")
+        ScrollView {
+            VStack(alignment: .leading, spacing: 24) {
+                // Host
+                sectionGroup {
+                    Button { choosingDevice = true } label: {
+                        HStack(spacing: 12) {
+                            Image(systemName: "desktopcomputer")
+                                .font(.system(size: 18, weight: .regular))
+                                .foregroundStyle(ArcTheme.ink)
+                                .frame(width: 28)
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(store.hostName)
+                                    .font(.body.weight(.medium))
+                                    .foregroundStyle(ArcTheme.ink)
+                                    .lineLimit(1)
+                                HStack(spacing: 6) {
+                                    Circle()
+                                        .fill(store.online ? ArcTheme.live : ArcTheme.inkFaint)
+                                        .frame(width: 6, height: 6)
+                                    Text(hostSubtitle)
+                                        .font(.footnote)
+                                        .foregroundStyle(ArcTheme.inkMuted)
+                                        .lineLimit(1)
+                                }
                             }
-                            .font(.footnote).foregroundStyle(ArcTheme.inkMuted)
+                            Spacer(minLength: 8)
+                            Image(systemName: "chevron.right")
+                                .font(.caption.weight(.medium))
+                                .foregroundStyle(ArcTheme.inkFaint)
                         }
-                        Spacer()
-                        Image(systemName: "chevron.right").font(.caption.weight(.semibold)).foregroundStyle(ArcTheme.inkFaint)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 14)
+                        .contentShape(Rectangle())
                     }
-                    .contentShape(Rectangle())
+                    .buttonStyle(.plain)
                 }
-                if store.connectionState != nil {
-                    LabeledContent("连接状态", value: store.connectionStateLabel)
+
+                // Agent
+                sectionGroup("智能体", footer: "开启「自动批准」后，对话中工具与命令请求将自动放行。") {
+                    HStack {
+                        Text("自动批准工具调用")
+                            .font(.body)
+                            .foregroundStyle(ArcTheme.ink)
+                        Spacer()
+                        Toggle("", isOn: $autoApproveManagedTools)
+                            .labelsHidden()
+                            .tint(ArcTheme.ink)
+                            .accessibilityLabel("自动批准工具调用")
+                    }
+                    .padding(.horizontal, 16)
+                    .frame(minHeight: 48)
+
+                    rowDivider
+
+                    menuRow("本机权限", value: store.permission) {
+                        ForEach(["完全访问", "查看和审批", "仅查看"], id: \.self) { option in
+                            Button { store.permission = option } label: {
+                                HStack {
+                                    Text(option)
+                                    if store.permission == option { Image(systemName: "checkmark") }
+                                }
+                            }
+                        }
+                    }
+
+                    rowDivider
+
+                    NavigationLink(value: Route.approvals) {
+                        HStack {
+                            Text("审批记录")
+                                .font(.body)
+                                .foregroundStyle(ArcTheme.ink)
+                            Spacer()
+                            Image(systemName: "chevron.right")
+                                .font(.caption.weight(.medium))
+                                .foregroundStyle(ArcTheme.inkFaint)
+                        }
+                        .padding(.horizontal, 16)
+                        .frame(minHeight: 48)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
                 }
-                if !store.macAgents.isEmpty {
-                    LabeledContent("Mac 上的 Agent", value: "\(store.macAgents.count) 个")
+
+                // General
+                sectionGroup("通用") {
+                    HStack {
+                        Text("外观")
+                            .font(.body)
+                            .foregroundStyle(ArcTheme.ink)
+                        Spacer()
+                        HStack(spacing: 2) {
+                            ForEach(["自动", "浅色", "深色"], id: \.self) { mode in
+                                let selected = appearance == mode
+                                Button {
+                                    withAnimation(.easeInOut(duration: 0.15)) { appearance = mode }
+                                } label: {
+                                    Text(mode)
+                                        .font(.caption.weight(selected ? .semibold : .regular))
+                                        .foregroundStyle(selected ? ArcTheme.ink : ArcTheme.inkMuted)
+                                        .padding(.horizontal, 12)
+                                        .frame(height: 28)
+                                        .background {
+                                            if selected {
+                                                RoundedRectangle(cornerRadius: 7, style: .continuous)
+                                                    .fill(ArcTheme.surface)
+                                                    .shadow(color: .black.opacity(0.06), radius: 1.5, y: 1)
+                                            }
+                                        }
+                                        .contentShape(Rectangle())
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                        .padding(2)
+                        .background(ArcTheme.surfaceSunken, in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+                        .accessibilityIdentifier("appearance-picker")
+                    }
+                    .padding(.horizontal, 16)
+                    .frame(minHeight: 48)
+
+                    rowDivider
+
+                    menuRow("会话保留", value: retention) {
+                        ForEach(["3 天", "7 天", "30 天", "永久"], id: \.self) { option in
+                            Button { retention = option } label: {
+                                HStack {
+                                    Text(option)
+                                    if retention == option { Image(systemName: "checkmark") }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Notifications
+                sectionGroup("通知", footer: "已接入本机系统通知，应用活跃期间实时提醒。") {
+                    toggleRow("需要批准", isOn: $store.notifyApproval)
+                    rowDivider
+                    toggleRow("已完成", isOn: $store.notifyDone)
+                    rowDivider
+                    toggleRow("在 Mac 上完成", isOn: $store.notifyOnMac)
+                    rowDivider
+                    toggleRow("执行失败", isOn: $store.notifyFailed)
+                }
+
+                // About & Reset
+                sectionGroup {
+                    HStack {
+                        Text("版本")
+                            .font(.body)
+                            .foregroundStyle(ArcTheme.ink)
+                        Spacer()
+                        Text("0.1.0")
+                            .font(.subheadline.monospacedDigit())
+                            .foregroundStyle(ArcTheme.inkFaint)
+                    }
+                    .padding(.horizontal, 16)
+                    .frame(minHeight: 48)
+
+                    rowDivider
+
+                    Button(role: .destructive) { clearHistory = true } label: {
+                        HStack {
+                            Text("清除会话历史")
+                                .font(.body)
+                                .foregroundStyle(ArcTheme.danger)
+                            Spacer()
+                        }
+                        .padding(.horizontal, 16)
+                        .frame(minHeight: 48)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
                 }
             }
-            .listRowBackground(ArcTheme.surface)
-            Section("智能体") {
-                Picker("权限", selection: $store.permission) {
-                    Text("完全访问").tag("完全访问")
-                    Text("查看和审批").tag("查看和审批")
-                    Text("仅查看").tag("仅查看")
-                }
-            }
-            .listRowBackground(ArcTheme.surface)
-            Section {
-                Toggle("需要批准", isOn: $store.notifyApproval)
-                Toggle("已完成", isOn: $store.notifyDone)
-                Toggle("在 Mac 上完成", isOn: $store.notifyOnMac)
-                Toggle("执行失败", isOn: $store.notifyFailed)
-            } header: { Text("通知") } footer: {
-                Text("通知偏好保存在本机；暂未接入系统推送。")
-            }
-            .listRowBackground(ArcTheme.surface)
-            Section("ArcLink") {
-                Picker("外观", selection: $appearance) {
-                    ForEach(["自动", "浅色", "深色"], id: \.self) { Text($0).tag($0) }
-                }
-                .accessibilityIdentifier("appearance-picker")
-                Picker("会话保留", selection: $retention) {
-                    ForEach(["3 天", "7 天", "30 天", "永久"], id: \.self) { Text($0).tag($0) }
-                }
-                Picker("语言", selection: $language) {
-                    Text("简体中文").tag("简体中文")
-                }
-                Button("清除会话历史", role: .destructive) { clearHistory = true }
-            }
-            .listRowBackground(ArcTheme.surface)
-            Section("记录") {
-                NavigationLink(value: Route.approvals) {
-                    Label("审批记录", systemImage: "bell.badge")
-                }
-            }
-            .listRowBackground(ArcTheme.surface)
-            Section("关于") {
-                LabeledContent("版本", value: "0.1.0")
-            }
-            .listRowBackground(ArcTheme.surface)
+            .padding(.horizontal, 16)
+            .padding(.top, 14)
+            .padding(.bottom, 32)
         }
-        .arcGroupedList()
+        .background(ArcTheme.bg.ignoresSafeArea())
         .navigationTitle("设置")
         .navigationBarTitleDisplayMode(.inline)
+        .arcBackButton("首页")
+        .toolbar {
+            ToolbarItem(placement: .principal) {
+                Text("设置")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(ArcTheme.ink)
+            }
+        }
         .sheet(isPresented: $choosingDevice) { DevicePickerSheet() }
         .onAppear { store.prune(retention: retention) }
         .onChange(of: retention) { _, value in store.prune(retention: value) }
         .onChange(of: store.permission) { _, _ in store.save() }
-        .onChange(of: store.notifyApproval) { _, _ in store.save() }
-        .onChange(of: store.notifyDone) { _, _ in store.save() }
-        .onChange(of: store.notifyOnMac) { _, _ in store.save() }
-        .onChange(of: store.notifyFailed) { _, _ in store.save() }
+        .onChange(of: store.notifyApproval) { _, value in
+            UserDefaults.standard.set(value, forKey: "arclink.notifyApproval")
+            if value { LocalNotificationCenter.shared.requestAuthorizationIfNeeded() }
+            store.save()
+        }
+        .onChange(of: store.notifyDone) { _, value in
+            UserDefaults.standard.set(value, forKey: "arclink.notifyDone")
+            if value { LocalNotificationCenter.shared.requestAuthorizationIfNeeded() }
+            store.save()
+        }
+        .onChange(of: store.notifyOnMac) { _, value in
+            UserDefaults.standard.set(value, forKey: "arclink.notifyOnMac")
+            if value { LocalNotificationCenter.shared.requestAuthorizationIfNeeded() }
+            store.save()
+        }
+        .onChange(of: store.notifyFailed) { _, value in
+            UserDefaults.standard.set(value, forKey: "arclink.notifyFailed")
+            if value { LocalNotificationCenter.shared.requestAuthorizationIfNeeded() }
+            store.save()
+        }
         .confirmationDialog("清除当前设备的会话历史？此操作不能撤销。", isPresented: $clearHistory, titleVisibility: .visible) {
             Button("清除会话历史", role: .destructive) {
                 store.clearHistory()
             }
         }
+    }
+
+    private var hostSubtitle: String {
+        var parts = [store.connectionStateLabel, "\(store.devices.count) 台设备"]
+        if !store.macAgents.isEmpty { parts.append("\(store.macAgents.count) 个 Agent") }
+        return parts.joined(separator: " · ")
+    }
+
+    private var rowDivider: some View {
+        Rectangle()
+            .fill(ArcTheme.line.opacity(0.7))
+            .frame(height: 0.5)
+            .padding(.leading, 16)
+    }
+
+    private func sectionGroup<Content: View>(
+        _ title: String? = nil,
+        footer: String? = nil,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            if let title {
+                Text(title)
+                    .font(.footnote)
+                    .foregroundStyle(ArcTheme.inkMuted)
+                    .padding(.horizontal, 14)
+            }
+            VStack(spacing: 0) {
+                content()
+            }
+            .background(ArcTheme.surface, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            if let footer {
+                Text(footer)
+                    .font(.caption)
+                    .foregroundStyle(ArcTheme.inkFaint)
+                    .padding(.horizontal, 14)
+                    .padding(.top, 2)
+            }
+        }
+    }
+
+    private func toggleRow(_ title: String, isOn: Binding<Bool>) -> some View {
+        HStack {
+            Text(title)
+                .font(.body)
+                .foregroundStyle(ArcTheme.ink)
+            Spacer()
+            Toggle("", isOn: isOn)
+                .labelsHidden()
+                .tint(ArcTheme.ink)
+                .accessibilityLabel(title)
+        }
+        .padding(.horizontal, 16)
+        .frame(minHeight: 48)
+    }
+
+    private func menuRow<MenuContent: View>(_ title: String, value: String, @ViewBuilder menu: () -> MenuContent) -> some View {
+        HStack {
+            Text(title)
+                .font(.body)
+                .foregroundStyle(ArcTheme.ink)
+            Spacer()
+            Menu {
+                menu()
+            } label: {
+                HStack(spacing: 5) {
+                    Text(value)
+                        .font(.subheadline)
+                        .foregroundStyle(ArcTheme.inkMuted)
+                    Image(systemName: "chevron.up.chevron.down")
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundStyle(ArcTheme.inkFaint)
+                }
+                .frame(minHeight: 44)
+                .contentShape(Rectangle())
+            }
+        }
+        .padding(.horizontal, 16)
+        .frame(minHeight: 48)
     }
 }
 
@@ -134,24 +347,21 @@ struct DeviceListView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
                 // Paired devices section
-                VStack(alignment: .leading, spacing: 8) {
+                VStack(alignment: .leading, spacing: 6) {
                     HStack(spacing: 6) {
                         Text("已配对设备")
-                            .font(.footnote.weight(.semibold))
+                            .font(.footnote)
                             .foregroundStyle(ArcTheme.inkMuted)
                             .accessibilityAddTraits(.isHeader)
                         if !store.devices.isEmpty {
                             Text("\(store.devices.count)")
-                                .font(.caption2.weight(.semibold))
+                                .font(.footnote)
                                 .monospacedDigit()
                                 .foregroundStyle(ArcTheme.inkFaint)
-                                .padding(.horizontal, 6)
-                                .padding(.vertical, 2)
-                                .background(ArcTheme.surfaceSunken, in: Capsule())
                         }
                         Spacer()
                     }
-                    .padding(.horizontal, 4)
+                    .padding(.horizontal, 14)
 
                     if store.devices.isEmpty {
                         VStack(spacing: 8) {
@@ -167,78 +377,64 @@ struct DeviceListView: View {
                         }
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 28)
-                        .background(ArcTheme.surface, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                                .stroke(ArcTheme.line.opacity(0.7), lineWidth: 0.75)
-                        )
+                        .background(ArcTheme.surface, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
                     } else {
                         VStack(spacing: 0) {
                             ForEach(store.devices) { device in
                                 if device.id != store.devices.first?.id {
-                                    ArcDivider(inset: 64)
+                                    ArcDivider(inset: 52)
                                 }
                                 deviceRow(device)
                             }
                         }
-                        .background(ArcTheme.surface, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                                .stroke(ArcTheme.line.opacity(0.7), lineWidth: 0.75)
-                        )
+                        .background(ArcTheme.surface, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
                     }
                 }
 
-                // Connected Mac agents (compact card with official icons)
+                // Connected Mac agents
                 if !store.macAgents.isEmpty {
-                    VStack(alignment: .leading, spacing: 8) {
+                    VStack(alignment: .leading, spacing: 6) {
                         Text("\(store.hostName) 上的 Agent")
-                            .font(.footnote.weight(.semibold))
+                            .font(.footnote)
                             .foregroundStyle(ArcTheme.inkMuted)
-                            .padding(.horizontal, 4)
+                            .padding(.horizontal, 14)
                             .accessibilityAddTraits(.isHeader)
 
                         VStack(spacing: 0) {
                             ForEach(store.macAgents, id: \.id) { agent in
                                 if agent.id != store.macAgents.first?.id {
-                                    ArcDivider(inset: 48)
+                                    ArcDivider(inset: 52)
                                 }
                                 let kind: AgentKind? = agent.id == "claude" ? .claude : (agent.id == "codex" ? .codex : nil)
                                 let isAvailable = ["running", "installed", "available"].contains(agent.status)
                                 HStack(spacing: 12) {
                                     if let kind {
-                                        AgentIcon(agent: kind, size: 16)
-                                            .frame(width: 28, height: 28)
-                                            .background(kind.tint.opacity(0.1), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+                                        AgentIcon(agent: kind, size: 16, tint: ArcTheme.ink)
+                                            .frame(width: 24)
                                     } else {
                                         Image(systemName: "cpu")
-                                            .font(.caption)
+                                            .font(.subheadline)
                                             .foregroundStyle(ArcTheme.inkMuted)
-                                            .frame(width: 28, height: 28)
-                                            .background(ArcTheme.surfaceSunken, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+                                            .frame(width: 24)
                                     }
                                     Text(agent.name)
-                                        .font(.subheadline.weight(.medium))
+                                        .font(.body)
                                         .foregroundStyle(ArcTheme.ink)
                                     Spacer()
                                     HStack(spacing: 5) {
                                         Circle()
-                                            .fill(isAvailable ? ArcTheme.success : ArcTheme.inkFaint)
+                                            .fill(isAvailable ? ArcTheme.live : ArcTheme.inkFaint)
                                             .frame(width: 6, height: 6)
                                         Text(Self.agentStatusLabel(agent.status))
-                                            .font(.caption)
+                                            .font(.footnote)
                                             .foregroundStyle(ArcTheme.inkMuted)
                                     }
                                 }
-                                .padding(.horizontal, 14)
-                                .padding(.vertical, 10)
+                                .padding(.horizontal, 16)
+                                .frame(minHeight: 48)
                             }
                         }
-                        .background(ArcTheme.surface, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                                .stroke(ArcTheme.line.opacity(0.7), lineWidth: 0.75)
-                        )
+                        .background(ArcTheme.surface, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
                     }
                 }
             }
@@ -255,13 +451,13 @@ struct DeviceListView: View {
                 } label: {
                     HStack(spacing: 8) {
                         Image(systemName: "qrcode.viewfinder")
-                            .font(.subheadline.weight(.semibold))
+                            .font(.subheadline.weight(.medium))
                         Text("扫码添加设备")
                             .font(.subheadline.weight(.semibold))
                     }
-                    .foregroundStyle(ArcTheme.onPrimary)
-                    .frame(maxWidth: .infinity, minHeight: 48)
-                    .background(ArcTheme.primary, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .foregroundStyle(ArcTheme.surface)
+                    .frame(maxWidth: .infinity, minHeight: 46)
+                    .background(ArcTheme.ink, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
                 }
                 .buttonStyle(.plain)
                 .accessibilityIdentifier("add-device")
@@ -315,26 +511,21 @@ struct DeviceListView: View {
             } label: {
                 HStack(spacing: 12) {
                     Image(systemName: "laptopcomputer")
-                        .font(.system(size: 16, weight: .medium))
-                        .foregroundStyle(online ? ArcTheme.live : (isSelected ? ArcTheme.primary : ArcTheme.inkMuted))
-                        .frame(width: 38, height: 38)
-                        .background(online ? ArcTheme.liveSoft : (isSelected ? ArcTheme.primarySoft : ArcTheme.surfaceSunken),
-                                    in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                        .font(.system(size: 17, weight: .regular))
+                        .foregroundStyle(ArcTheme.ink)
+                        .frame(width: 24)
                         .accessibilityHidden(true)
 
-                    VStack(alignment: .leading, spacing: 3) {
+                    VStack(alignment: .leading, spacing: 2) {
                         HStack(spacing: 6) {
                             Text(device.displayName)
-                                .font(.subheadline.weight(.semibold))
+                                .font(.body.weight(.medium))
                                 .foregroundStyle(ArcTheme.ink)
                                 .lineLimit(1)
                             if isSelected {
                                 Text("当前")
-                                    .font(.system(size: 10, weight: .semibold))
-                                    .foregroundStyle(ArcTheme.primary)
-                                    .padding(.horizontal, 6)
-                                    .padding(.vertical, 2)
-                                    .background(ArcTheme.primarySoft, in: Capsule())
+                                    .font(.caption)
+                                    .foregroundStyle(ArcTheme.inkFaint)
                             }
                         }
                         HStack(spacing: 5) {
@@ -366,11 +557,11 @@ struct DeviceListView: View {
                     showQR = true
                 } label: {
                     Text("重连")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(ArcTheme.primary)
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(ArcTheme.ink)
                         .padding(.horizontal, 10)
                         .frame(height: 28)
-                        .background(ArcTheme.primarySoft, in: Capsule())
+                        .background(ArcTheme.surfaceSunken, in: Capsule())
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("重新扫码连接 \(device.displayName)")
@@ -420,6 +611,6 @@ extension View {
         scrollContentBackground(.hidden)
             .background(ArcTheme.bg)
             .environment(\.defaultMinListRowHeight, ArcTheme.tapMin)
-            .tint(ArcTheme.primary)
+            .tint(ArcTheme.ink)
     }
 }

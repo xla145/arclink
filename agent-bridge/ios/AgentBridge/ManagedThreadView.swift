@@ -48,6 +48,10 @@ final class ManagedThreadModel {
     private var epoch = UUID()
     private var context = ""
     private var pending: (command: String, message: String, text: String, revision: String, images: [String])?
+    private var autoApprovedIDs: Set<String> = []
+    private var previousRunStatuses: [String: String] = [:]
+    private var notifiedApprovalIDs: Set<String> = []
+    private var seededNotificationState = false
     var hasPendingApproval: Bool { snapshot?.approvals.contains { $0.state == "pending" } ?? false }
     var active: Bool { (snapshot?.runs.contains { ["queued", "starting", "running", "waiting_approval", "outcome_unknown"].contains($0.status) } ?? false) || hasPendingApproval }
     var isThinking: Bool {
@@ -69,6 +73,7 @@ final class ManagedThreadModel {
     var canSend: Bool { connected && !busy && !active && !uncertain && !modelUncertain && !providerUncertain && !providerStorageBlocked && !switchingProvider && hasOutgoingContent }
     func stop() {
         epoch = UUID(); modelLoadID = UUID(); connected = false; bridge = nil; busy = false
+        autoApprovedIDs.removeAll()
         // A cancelled view task does not cancel a mutation already delivered to the Mac.
         if pendingProvider != nil { providerUncertain = true; providerError = "Agent 切换结果待确认，发送已暂停。" }
         if pendingModel != nil { modelUncertain = true }
@@ -89,6 +94,7 @@ final class ManagedThreadModel {
             pending = nil; uncertain = false; pendingModel = nil; modelUncertain = false
             restoreProviderSwitch(device: device, thread: thread)
             draft = ""; imageAttachments = []; fileAttachments = []; snapshot = nil; context = "\(device)/\(thread)"
+            previousRunStatuses = [:]; notifiedApprovalIDs = []; seededNotificationState = false
         }
         snapshot = ManagedThreadState.load(device: device, thread: thread)
         var needsSnapshot = true
@@ -98,8 +104,8 @@ final class ManagedThreadModel {
                 if needsSnapshot {
                     let value = try await bridge.getManagedThreadSnapshot(threadId: thread)
                     guard !Task.isCancelled, token == epoch else { return }
-                    publish(value); needsSnapshot = false
                     connected = true; error = nil; consecutiveFailures = 0
+                    publish(value); needsSnapshot = false
                 }
                 guard let value = snapshot else { return }
                 connected = true
@@ -141,9 +147,84 @@ final class ManagedThreadModel {
         do { try ManagedThreadState.save(value, device: deviceID); cacheError = nil }
         catch { cacheError = "无法保存离线缓存，当前内容仍可在线查看。" }
         snapshot = value
+        autoApprovePendingIfEnabled(value)
+        notifyTransitionsIfNeeded(value)
+    }
+
+    private func notifyTransitionsIfNeeded(_ value: ManagedThreadSnapshot) {
+        if !seededNotificationState {
+            seededNotificationState = true
+            for run in value.runs { previousRunStatuses[run.id] = run.status }
+            for approval in value.approvals where approval.state == "pending" { notifiedApprovalIDs.insert(approval.id) }
+            return
+        }
+        let defaults = UserDefaults.standard
+        let notifyApproval = defaults.object(forKey: "arclink.notifyApproval") as? Bool ?? true
+        let notifyDone = defaults.object(forKey: "arclink.notifyDone") as? Bool ?? true
+        let notifyFailed = defaults.object(forKey: "arclink.notifyFailed") as? Bool ?? true
+        let autoApprove = defaults.bool(forKey: "autoApproveManagedTools")
+
+        if notifyApproval && !autoApprove {
+            for approval in value.approvals where approval.state == "pending" && !notifiedApprovalIDs.contains(approval.id) {
+                notifiedApprovalIDs.insert(approval.id)
+                let detail = approval.target.isEmpty ? approval.kind : "\(approval.kind)：\(approval.target)"
+                LocalNotificationCenter.shared.post(
+                    id: "approval-\(approval.id)",
+                    title: "需要批准 · \(value.thread.title)",
+                    body: detail
+                )
+            }
+        }
+        for run in value.runs {
+            let prev = previousRunStatuses[run.id]
+            previousRunStatuses[run.id] = run.status
+            let wasActive = prev.map { ["queued", "starting", "running", "waiting_approval"].contains($0) } ?? false
+            guard wasActive else { continue }
+            if run.status == "completed" && notifyDone {
+                LocalNotificationCenter.shared.post(
+                    id: "run-done-\(run.id)",
+                    title: "任务已完成",
+                    body: "\(managedProvider(value.thread.providerId)) · \(value.thread.title)"
+                )
+            } else if run.status == "failed" && notifyFailed {
+                LocalNotificationCenter.shared.post(
+                    id: "run-failed-\(run.id)",
+                    title: "执行失败",
+                    body: "\(managedProvider(value.thread.providerId)) · \(value.thread.title)"
+                )
+            }
+        }
+    }
+
+    /// When the user enables「自动批准工具调用」in Settings, automatically approve
+    /// pending tool/command requests on this paired device (respecting Mac ACLs).
+    private func autoApprovePendingIfEnabled(_ value: ManagedThreadSnapshot) {
+        guard UserDefaults.standard.bool(forKey: "autoApproveManagedTools"),
+              let bridge, connected else { return }
+        let pendingApprovals = value.approvals.filter { $0.state == "pending" && !autoApprovedIDs.contains($0.id) }
+        guard !pendingApprovals.isEmpty else { return }
+        let token = epoch
+        let threadID = value.thread.id
+        for approval in pendingApprovals {
+            autoApprovedIDs.insert(approval.id)
+            Task { @MainActor in
+                do {
+                    _ = try await bridge.resolveManagedApproval(
+                        commandId: UUID().uuidString,
+                        threadId: threadID,
+                        approvalId: approval.id,
+                        approved: true
+                    )
+                } catch {
+                    if token == self.epoch {
+                        self.autoApprovedIDs.remove(approval.id)
+                    }
+                }
+            }
+        }
     }
     /// Compresses attached images to stay well within the 700 KB durable turn / 768 KB sync batch budget.
-    private static func prepareManagedImages(_ images: [Data]) throws -> [Data] {
+    static func prepareManagedImages(_ images: [Data]) throws -> [Data] {
         guard images.count <= RemoteChatImage.maximumCount else { throw RemoteChatImage.PreparationError.tooMany }
         let perImageLimit = images.count <= 1 ? 180 * 1024 : (420 * 1024 / images.count)
         let prepared: [Data] = try images.map { data in
@@ -336,6 +417,7 @@ struct ManagedThreadView: View {
     @State private var model = ManagedThreadModel()
     @State private var showModelPicker = false
     @State private var expandedImage: ManagedImagePreview?
+    @State private var showScrollToBottom = false
 
     private enum ThreadDisplayItem: Identifiable {
         case user(ManagedMessage)
@@ -366,22 +448,44 @@ struct ManagedThreadView: View {
             }
         }
 
+        var pendingSwitch: (id: String, from: String, to: String)?
+
+        func flushSwitch() {
+            if let sw = pendingSwitch {
+                if sw.from != sw.to {
+                    result.append(.switchMarker(id: sw.id, from: sw.from, to: sw.to))
+                }
+                pendingSwitch = nil
+            }
+        }
+
         for message in messages {
             if let marker = ManagedThreadState.switchMarker(message) {
                 flushSteps()
-                result.append(.switchMarker(id: message.id, from: marker.from, to: marker.to))
+                if let existing = pendingSwitch {
+                    pendingSwitch = (id: message.id, from: existing.from, to: marker.to)
+                } else {
+                    pendingSwitch = (id: message.id, from: marker.from, to: marker.to)
+                }
             } else if message.role == "user" {
                 flushSteps()
+                flushSwitch()
                 result.append(.user(message))
             } else if message.role == "tool" || message.role == "summary" {
+                flushSwitch()
                 let content = ManagedThreadState.content(message)
                 let text = ManagedThreadState.text(message)
+                let trimmedText = text.trimmingCharacters(in: .whitespacesAndNewlines)
                 let isSummary = message.role == "summary"
+                // Skip empty reasoning summaries (Codex emits rs_* items with empty public summary text).
+                if isSummary && trimmedText.isEmpty {
+                    continue
+                }
                 let rawName = (content["tool_name"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
                 let failed = content["failed"] as? Bool
                 // Skip empty generic placeholder tool rows that carry no name, text, or error.
                 if !isSummary && (rawName.isEmpty || rawName.lowercased() == "tool")
-                    && text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                    && trimmedText.isEmpty
                     && failed != true {
                     continue
                 }
@@ -400,10 +504,12 @@ struct ManagedThreadView: View {
                 pendingSteps.append(step)
             } else {
                 flushSteps()
+                flushSwitch()
                 result.append(.assistant(message))
             }
         }
         flushSteps()
+        flushSwitch()
         return result
     }
 
@@ -445,15 +551,47 @@ struct ManagedThreadView: View {
                                         .transition(.opacity.combined(with: .move(edge: .bottom)))
                                 }
 
-                                Color.clear.frame(height: 1).id("managed-bottom")
+                                Color.clear
+                                    .frame(height: 1)
+                                    .id("managed-bottom")
+                                    .onAppear {
+                                        withAnimation(.easeOut(duration: 0.16)) { showScrollToBottom = false }
+                                    }
+                                    .onDisappear {
+                                        withAnimation(.easeOut(duration: 0.16)) { showScrollToBottom = true }
+                                    }
                             }
                             .padding(.horizontal, 16)
                             .padding(.vertical, 14)
                         }
                         .scrollDismissesKeyboard(.interactively)
                         .background(ArcTheme.chatBg)
+                        .overlay(alignment: .bottom) {
+                            if showScrollToBottom {
+                                Button {
+                                    withAnimation(.easeOut(duration: 0.25)) {
+                                        proxy.scrollTo("managed-bottom", anchor: .bottom)
+                                    }
+                                } label: {
+                                    Image(systemName: "arrow.down")
+                                        .font(.system(size: 14, weight: .semibold))
+                                        .foregroundStyle(ArcTheme.ink)
+                                        .frame(width: 36, height: 36)
+                                        .background(ArcTheme.surface, in: Circle())
+                                        .overlay(Circle().stroke(ArcTheme.line.opacity(0.85), lineWidth: 0.75))
+                                        .shadow(color: .black.opacity(0.1), radius: 8, y: 3)
+                                }
+                                .buttonStyle(.plain)
+                                .padding(.bottom, 10)
+                                .transition(.opacity.combined(with: .scale(scale: 0.85)))
+                                .accessibilityLabel("返回最下方")
+                                .accessibilityIdentifier("managed-scroll-bottom")
+                            }
+                        }
                         .onChange(of: snapshot.messages.count) { _, _ in
-                            proxy.scrollTo("managed-bottom", anchor: .bottom)
+                            if !showScrollToBottom {
+                                proxy.scrollTo("managed-bottom", anchor: .bottom)
+                            }
                         }
                         .onChange(of: model.isThinking) { _, thinking in
                             if thinking {
@@ -509,26 +647,38 @@ struct ManagedThreadView: View {
                     .background(ArcTheme.chatBg)
             }
         }
-        .navigationTitle(model.snapshot?.thread.title ?? "对话")
+        .navigationTitle("对话")
         .navigationBarTitleDisplayMode(.inline)
+        .arcBackButton("返回")
         .tint(ArcTheme.ink)
         .toolbarBackground(ArcTheme.chatBg, for: .navigationBar)
         .toolbarBackground(.visible, for: .navigationBar)
         .toolbar {
             ToolbarItem(placement: .principal) {
-                VStack(spacing: 1) {
-                    Text(model.snapshot?.thread.title ?? "对话")
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(ArcTheme.ink)
-                        .lineLimit(1)
+                VStack(spacing: 2) {
+                    HStack(spacing: 6) {
+                        if let snapshot = model.snapshot {
+                            AgentIcon(agent: snapshot.thread.providerId == "claude" ? .claude : .codex, size: 13, tint: ArcTheme.ink)
+                        }
+                        Text(model.snapshot?.thread.title ?? "对话")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(ArcTheme.ink)
+                            .lineLimit(1)
+                    }
                     if let snapshot = model.snapshot {
                         HStack(spacing: 4) {
                             Circle()
-                                .fill(model.connected ? ArcTheme.live : ArcTheme.warning)
+                                .fill(model.connected ? (model.isThinking ? ArcTheme.primary : ArcTheme.live) : ArcTheme.warning)
                                 .frame(width: 5, height: 5)
-                            Text(model.connected ? managedStatus(snapshot.thread.status) : "重新连接中")
+                            Text(model.connected ? (model.isThinking ? "工作中" : managedStatus(snapshot.thread.status)) : "重新连接中")
                                 .font(.caption2)
                                 .foregroundStyle(ArcTheme.inkMuted)
+                            if let model = snapshot.thread.model, !model.isEmpty {
+                                Text("· \(model)")
+                                    .font(.caption2)
+                                    .foregroundStyle(ArcTheme.inkFaint)
+                                    .lineLimit(1)
+                            }
                         }
                     }
                 }
@@ -555,8 +705,8 @@ struct ManagedThreadView: View {
             VStack(alignment: .leading, spacing: 8) {
                 if !text.isEmpty {
                     Text(text)
-                        .font(.subheadline)
-                        .lineSpacing(3)
+                        .font(MacMessageText.bodyFont)
+                        .lineSpacing(4)
                         .foregroundStyle(ArcTheme.ink)
                         .textSelection(.enabled)
                 }
@@ -572,14 +722,20 @@ struct ManagedThreadView: View {
                     .accessibilityLabel("查看图片 \(index + 1)")
                 }
             }
-            .padding(.horizontal, 14)
+            .padding(.horizontal, 15)
             .padding(.vertical, 10)
             .background(ArcTheme.userBubble, in: UnevenRoundedRectangle(
-                topLeadingRadius: 18, bottomLeadingRadius: 18,
-                bottomTrailingRadius: 6, topTrailingRadius: 18, style: .continuous))
+                topLeadingRadius: 20, bottomLeadingRadius: 20,
+                bottomTrailingRadius: 6, topTrailingRadius: 20, style: .continuous))
+            .contextMenu {
+                if !text.isEmpty {
+                    Button { UIPasteboard.general.string = text } label: { Label("复制", systemImage: "doc.on.doc") }
+                }
+            }
         }
         .frame(maxWidth: .infinity, alignment: .trailing)
-        .padding(.leading, 48)
+        .padding(.leading, 56)
+        .padding(.top, 10)
     }
 
     private func assistantText(_ message: ManagedMessage) -> some View {
@@ -596,42 +752,49 @@ struct ManagedThreadView: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        .contentShape(Rectangle())
+        .contextMenu {
+            if !text.isEmpty {
+                Button { UIPasteboard.general.string = text } label: { Label("复制 Markdown", systemImage: "doc.on.doc") }
+            }
+        }
     }
 
     private func switchMarkerRow(from: String, to: String, id: String) -> some View {
-        HStack(spacing: 6) {
-            Image(systemName: "arrow.triangle.2.circlepath")
-                .font(.caption2)
-            Text("\(managedProvider(from)) → \(managedProvider(to))")
-                .font(.caption.weight(.medium))
+        let toAgent: AgentKind = to == "claude" ? .claude : .codex
+        return HStack(spacing: 10) {
+            Rectangle()
+                .fill(ArcTheme.line.opacity(0.65))
+                .frame(height: 0.5)
+            HStack(spacing: 5) {
+                AgentIcon(agent: toAgent, size: 12, tint: ArcTheme.inkFaint)
+                Text("已切换至 \(managedProvider(to))")
+                    .font(.caption2)
+                    .foregroundStyle(ArcTheme.inkFaint)
+                    .fixedSize()
+            }
+            Rectangle()
+                .fill(ArcTheme.line.opacity(0.65))
+                .frame(height: 0.5)
         }
-        .foregroundStyle(ArcTheme.inkMuted)
-        .padding(.horizontal, 10)
-        .padding(.vertical, 5)
-        .background(ArcTheme.surfaceSunken, in: Capsule())
-        .frame(maxWidth: .infinity, alignment: .center)
+        .padding(.vertical, 4)
         .accessibilityIdentifier("provider-switch-\(id)")
     }
 
     private func approvalCard(_ approval: ManagedApproval) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 8) {
-                Image(systemName: "shield.lefthalf.filled")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(ArcTheme.warning)
-                    .frame(width: 24, height: 24)
-                    .background(ArcTheme.warningSoft, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+                Image(systemName: "shield")
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundStyle(ArcTheme.ink)
                 Text(approval.kind)
-                    .font(.footnote.weight(.semibold))
+                    .font(.subheadline.weight(.semibold))
                     .foregroundStyle(ArcTheme.ink)
                     .lineLimit(1)
                 Spacer(minLength: 4)
                 Text("待确认")
-                    .font(.caption2.weight(.medium))
+                    .font(.caption)
                     .foregroundStyle(ArcTheme.warning)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 3)
-                    .background(ArcTheme.warningSoft, in: Capsule())
             }
 
             if !approval.target.isEmpty {
@@ -655,28 +818,27 @@ struct ManagedThreadView: View {
             HStack(spacing: 8) {
                 Button { Task { await model.resolve(approval, approved: false) } } label: {
                     Text("拒绝")
-                        .font(.footnote.weight(.semibold))
+                        .font(.footnote.weight(.medium))
                         .foregroundStyle(ArcTheme.ink)
                         .frame(maxWidth: .infinity, minHeight: 36)
-                        .background(ArcTheme.surfaceSunken, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                        .background(ArcTheme.surfaceSunken, in: RoundedRectangle(cornerRadius: 9, style: .continuous))
                 }
                 .buttonStyle(.plain)
 
                 Button { Task { await model.resolve(approval, approved: true) } } label: {
                     Text("允许")
                         .font(.footnote.weight(.semibold))
-                        .foregroundStyle(ArcTheme.onPrimary)
+                        .foregroundStyle(ArcTheme.surface)
                         .frame(maxWidth: .infinity, minHeight: 36)
-                        .background(ArcTheme.primary, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                        .background(ArcTheme.ink, in: RoundedRectangle(cornerRadius: 9, style: .continuous))
                 }
                 .buttonStyle(.plain)
             }
             .disabled(model.busy || !model.connected)
         }
-        .padding(12)
-        .background(ArcTheme.surface, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(ArcTheme.warning.opacity(0.35), lineWidth: 1))
-        .shadow(color: .black.opacity(0.05), radius: 8, y: 3)
+        .padding(14)
+        .background(ArcTheme.surface, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).stroke(ArcTheme.line, lineWidth: 0.75))
     }
 }
 
@@ -696,6 +858,13 @@ private struct ManagedThreadComposerBar: View {
 
     private var canAttach: Bool {
         model.connected && !model.busy && !model.active && !model.uncertain && !loadingAttachments
+    }
+
+    private var composerModelLabel: String {
+        if let selected = snapshot.thread.model, !selected.isEmpty {
+            return model.availableModels.first { $0.id == selected }?.name ?? selected
+        }
+        return activeAgent.shortName
     }
 
     var body: some View {
@@ -804,93 +973,104 @@ private struct ManagedThreadComposerBar: View {
                 .padding(.horizontal, 18)
             }
 
-            // Signature T3 Code floating capsule composer
-            HStack(alignment: .bottom, spacing: 8) {
-                Menu {
-                    Button {
-                        composing = false
-                        showPhotoPicker = true
-                    } label: {
-                        Label("照片图库", systemImage: "photo.on.rectangle")
-                    }
-                    .disabled(model.imageAttachments.count >= ChatAttachment.maximumCount)
-
-                    Button {
-                        composing = false
-                        showFileImporter = true
-                    } label: {
-                        Label("选择文件", systemImage: "doc")
-                    }
-                    .disabled(model.fileAttachments.count >= 4)
-                } label: {
-                    Image(systemName: "plus")
-                        .font(.system(size: 19, weight: .regular))
-                        .foregroundStyle(canAttach ? ArcTheme.ink : ArcTheme.inkFaint)
-                        .frame(width: 36, height: 36)
-                        .contentShape(Circle())
-                }
-                .disabled(!canAttach)
-                .accessibilityLabel("添加图片或文件")
-                .accessibilityIdentifier("managed-upload-button")
-
+            // Spacious 2-row composer card (full-width input + clean bottom action bar)
+            VStack(alignment: .leading, spacing: 14) {
                 TextField("给 \(managedProvider(snapshot.thread.providerId)) 发消息…", text: $model.draft, axis: .vertical)
                     .font(.body)
                     .foregroundStyle(ArcTheme.ink)
                     .focused($composing)
-                    .lineLimit(1...5)
-                    .padding(.vertical, 8)
+                    .lineLimit(1...6)
+                    .frame(minHeight: 32, alignment: .topLeading)
+                    .padding(.horizontal, 4)
+                    .padding(.top, 2)
 
-                if loadingAttachments {
-                    ProgressView().controlSize(.mini).frame(width: 22, height: 36)
-                }
-
-                Button {
-                    composing = false
-                    onOpenModelPicker()
-                } label: {
-                    HStack(spacing: 4) {
-                        if model.loadingModels || model.switchingProvider {
-                            ProgressView().controlSize(.mini).scaleEffect(0.8)
-                        } else {
-                            AgentIcon(agent: activeAgent, size: 18, tint: ArcTheme.ink)
+                HStack(spacing: 6) {
+                    Menu {
+                        Button {
+                            composing = false
+                            showPhotoPicker = true
+                        } label: {
+                            Label("照片图库", systemImage: "photo.on.rectangle")
                         }
-                        Image(systemName: "chevron.down")
-                            .font(.system(size: 10, weight: .semibold))
-                            .foregroundStyle(ArcTheme.inkMuted)
-                    }
-                    .padding(.horizontal, 6)
-                    .frame(minHeight: 36)
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityIdentifier("conversation-agent-picker")
+                        .disabled(model.imageAttachments.count >= ChatAttachment.maximumCount)
 
-                Button {
-                    if model.canInterrupt {
-                        Task { await model.interrupt() }
-                    } else {
-                        composing = false
-                        Task { await model.send() }
+                        Button {
+                            composing = false
+                            showFileImporter = true
+                        } label: {
+                            Label("选择文件", systemImage: "doc")
+                        }
+                        .disabled(model.fileAttachments.count >= 4)
+                    } label: {
+                        Image(systemName: "plus")
+                            .font(.system(size: 17, weight: .regular))
+                            .foregroundStyle(canAttach ? ArcTheme.ink : ArcTheme.inkFaint)
+                            .frame(width: 32, height: 32)
+                            .background(ArcTheme.surface, in: Circle())
+                            .contentShape(Circle())
                     }
-                } label: {
-                    let active = model.canInterrupt || model.canSend
-                    Image(systemName: model.canInterrupt ? "stop.fill" : "arrow.up")
-                        .font(.system(size: 14, weight: .bold))
-                        .foregroundStyle(active ? ArcTheme.onPrimary : ArcTheme.inkFaint)
-                        .frame(width: 34, height: 34)
-                        .background(model.canInterrupt ? ArcTheme.ink : (model.canSend ? ArcTheme.primary : ArcTheme.line), in: Circle())
-                        .frame(width: 36, height: 36)
-                        .contentShape(Circle())
+                    .disabled(!canAttach)
+                    .accessibilityLabel("添加图片或文件")
+                    .accessibilityIdentifier("managed-upload-button")
+
+                    Button {
+                        composing = false
+                        onOpenModelPicker()
+                    } label: {
+                        HStack(spacing: 5) {
+                            if model.loadingModels || model.switchingProvider {
+                                ProgressView().controlSize(.mini).scaleEffect(0.8)
+                            } else {
+                                AgentIcon(agent: activeAgent, size: 15, tint: ArcTheme.ink)
+                            }
+                            Text(composerModelLabel)
+                                .font(.footnote.weight(.medium))
+                                .foregroundStyle(ArcTheme.ink)
+                                .lineLimit(1)
+                            Image(systemName: "chevron.down")
+                                .font(.system(size: 9.5, weight: .semibold))
+                                .foregroundStyle(ArcTheme.inkMuted)
+                        }
+                        .padding(.horizontal, 10)
+                        .frame(height: 32)
+                        .background(ArcTheme.surface, in: Capsule())
+                        .contentShape(Capsule())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("conversation-agent-picker")
+
+                    if loadingAttachments {
+                        ProgressView().controlSize(.mini).frame(width: 22, height: 32)
+                    }
+
+                    Spacer(minLength: 4)
+
+                    Button {
+                        if model.canInterrupt {
+                            Task { await model.interrupt() }
+                        } else {
+                            composing = false
+                            Task { await model.send() }
+                        }
+                    } label: {
+                        let active = model.canInterrupt || model.canSend
+                        Image(systemName: model.canInterrupt ? "stop.fill" : "arrow.up")
+                            .font(.system(size: 13.5, weight: .bold))
+                            .foregroundStyle(active ? ArcTheme.surface : ArcTheme.inkFaint)
+                            .frame(width: 32, height: 32)
+                            .background(active ? ArcTheme.ink : ArcTheme.line, in: Circle())
+                            .contentShape(Circle())
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(model.canInterrupt ? (model.busy || !model.connected) : !model.canSend)
+                    .accessibilityLabel(model.canInterrupt ? "停止" : "发送消息")
                 }
-                .buttonStyle(.plain)
-                .disabled(model.canInterrupt ? (model.busy || !model.connected) : !model.canSend)
-                .accessibilityLabel(model.canInterrupt ? "停止" : "发送消息")
             }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 6)
-            .background(ArcTheme.surfaceSunken, in: RoundedRectangle(cornerRadius: 26, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 26, style: .continuous).stroke(ArcTheme.line.opacity(0.6), lineWidth: 0.75))
-            .shadow(color: .black.opacity(0.05), radius: 10, y: 2)
+            .padding(.horizontal, 14)
+            .padding(.top, 12)
+            .padding(.bottom, 10)
+            .background(ArcTheme.surfaceSunken.opacity(0.85), in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 24, style: .continuous).stroke(ArcTheme.line.opacity(0.65), lineWidth: 0.75))
             .padding(.horizontal, 14)
             .padding(.bottom, 8)
         }
@@ -996,7 +1176,7 @@ private struct ManagedThreadModelPickerSheet: View {
                             Task { await model.selectProvider(agent.agentId) }
                         } label: {
                             HStack(spacing: 6) {
-                                AgentIcon(agent: agent, size: 15)
+                                AgentIcon(agent: agent, size: 15, tint: selected ? ArcTheme.ink : ArcTheme.inkMuted)
                                 Text(agent.shortName).lineLimit(1)
                             }
                             .font(.subheadline.weight(selected ? .semibold : .medium))
@@ -1102,7 +1282,7 @@ private struct ManagedThreadModelPickerSheet: View {
                 }
                 Spacer(minLength: 8)
                 if isSelected {
-                    Image(systemName: "checkmark").font(.footnote.weight(.bold)).foregroundStyle(activeAgent.tint)
+                    Image(systemName: "checkmark").font(.footnote.weight(.semibold)).foregroundStyle(ArcTheme.ink)
                 }
             }
             .padding(.horizontal, 16).padding(.vertical, 11).frame(minHeight: 50).contentShape(Rectangle())

@@ -87,7 +87,7 @@ struct MacFolderPicker: View {
                     Button { Task { await load(entry.path) } } label: {
                         HStack(spacing: ArcTheme.Space.s3) {
                             Image(systemName: entry.isProject ? "folder.fill" : "folder")
-                                .foregroundStyle(entry.isProject ? ArcTheme.primary : ArcTheme.inkMuted)
+                                .foregroundStyle(entry.isProject ? ArcTheme.ink : ArcTheme.inkMuted)
                             Text(entry.name).foregroundStyle(ArcTheme.ink).lineLimit(1)
                             Spacer(minLength: ArcTheme.Space.s2)
                             if entry.isProject { StatusTag(kind: .neutral, text: "项目") }

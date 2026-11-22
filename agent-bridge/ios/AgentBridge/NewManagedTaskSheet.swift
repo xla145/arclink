@@ -1,4 +1,6 @@
+import PhotosUI
 import SwiftUI
+import UniformTypeIdentifiers
 
 /// One immutable intent survives uncertain replies and app termination. Retrying
 /// reuses every command ID on the same device instead of creating another task.
@@ -9,6 +11,7 @@ struct PendingManagedTask: Codable {
     var provider: String
     var model: String?
     var text: String
+    var images: [String]? = nil
     var projectCommand = UUID().uuidString
     var threadCommand = UUID().uuidString
     var modelCommand = UUID().uuidString
@@ -63,6 +66,12 @@ struct NewManagedTaskSheet: View {
     @State private var busy = false
     @State private var choosingFolder = false
     @State private var showModelPicker = false
+    @State private var showPhotoPicker = false
+    @State private var showFileImporter = false
+    @State private var pickedPhotos: [PhotosPickerItem] = []
+    @State private var imageAttachments: [ManagedDraftImage] = []
+    @State private var fileAttachments: [ManagedDraftFile] = []
+    @State private var loadingAttachments = false
     @State private var checkoutMode: CheckoutMode = .current
     @State private var selectedBranch = ""
     @State private var gitInfo: MacGitInfo?
@@ -107,14 +116,30 @@ struct NewManagedTaskSheet: View {
 
     private var outgoingText: String? {
         if let pending { return pending.text }
-        if let history { return try? history.message(request: text) }
-        return text
+        let baseText: String
+        if fileAttachments.isEmpty {
+            baseText = text
+        } else {
+            let fileBlocks = fileAttachments.map { file in
+                "[附件: \(file.name)]\n```\n\(file.text)\n```"
+            }.joined(separator: "\n\n")
+            let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            baseText = trimmed.isEmpty ? fileBlocks : "\(fileBlocks)\n\n\(text)"
+        }
+        if let history { return try? history.message(request: baseText) }
+        return baseText
+    }
+
+    private var hasOutgoingContent: Bool {
+        !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            || !imageAttachments.isEmpty
+            || !fileAttachments.isEmpty
     }
 
     private var ready: Bool {
-        !busy && !loading && !modelLoading && !storageBlocked && store.isOnline(deviceID)
+        !busy && !loading && !modelLoading && !loadingAttachments && !storageBlocked && store.isOnline(deviceID)
             && !projectPath.isEmpty && !projectName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            && !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && hasOutgoingContent
             && availableProviders.contains { $0.agentId == provider }
             && (history == nil || (deviceID == history?.deviceID && projectPath == history?.projectPath))
             && outgoingText.map { $0.utf8.count <= 262144 } == true
@@ -200,11 +225,15 @@ struct NewManagedTaskSheet: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button { dismiss() } label: {
-                        Image(systemName: "chevron.left")
-                            .font(.body.weight(.medium))
-                            .foregroundStyle(ArcTheme.primary)
+                        HStack(spacing: 3) {
+                            Image(systemName: "chevron.left")
+                                .font(.body.weight(.medium))
+                            Text("返回")
+                                .font(.body)
+                        }
+                        .foregroundStyle(ArcTheme.ink)
                     }
-                    .accessibilityLabel(pending == nil ? "取消" : "稍后继续")
+                    .accessibilityLabel(pending == nil ? "返回" : "稍后继续")
                     .disabled(busy)
                 }
                 ToolbarItem(placement: .topBarTrailing) {
@@ -263,6 +292,22 @@ struct NewManagedTaskSheet: View {
                 projectPath = value
                 projectName = URL(fileURLWithPath: value).lastPathComponent
             }
+        }
+        .photosPicker(
+            isPresented: $showPhotoPicker,
+            selection: $pickedPhotos,
+            maxSelectionCount: max(1, ChatAttachment.maximumCount - imageAttachments.count),
+            matching: .images
+        )
+        .onChange(of: pickedPhotos) { _, items in
+            loadPhotos(items)
+        }
+        .fileImporter(
+            isPresented: $showFileImporter,
+            allowedContentTypes: [.image, .plainText, .sourceCode, .json, .xml, .yaml, .data],
+            allowsMultipleSelection: true
+        ) { result in
+            handleImportedFiles(result)
         }
         .sheet(isPresented: $showModelPicker) {
             ManagedNewTaskModelSheet(
@@ -419,87 +464,162 @@ struct NewManagedTaskSheet: View {
             }
             .padding(.horizontal, 20)
 
-            HStack(alignment: .bottom, spacing: 8) {
-                Button { choosingFolder = true } label: {
-                    Image(systemName: "plus")
-                        .font(.system(size: 19, weight: .regular))
-                        .foregroundStyle(ArcTheme.ink)
-                        .frame(width: 36, height: 36)
-                        .contentShape(Circle())
+            if !imageAttachments.isEmpty || !fileAttachments.isEmpty {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 10) {
+                        ForEach(imageAttachments) { item in
+                            if let image = UIImage(data: item.data) {
+                                ZStack(alignment: .topTrailing) {
+                                    Image(uiImage: image)
+                                        .resizable()
+                                        .scaledToFill()
+                                        .frame(width: 64, height: 64)
+                                        .clipShape(RoundedRectangle(cornerRadius: ArcTheme.Radius.sm, style: .continuous))
+                                    Button {
+                                        imageAttachments.removeAll { $0.id == item.id }
+                                    } label: {
+                                        Image(systemName: "xmark.circle.fill")
+                                            .symbolRenderingMode(.palette)
+                                            .foregroundStyle(ArcTheme.bg, ArcTheme.ink)
+                                            .frame(width: 24, height: 24)
+                                    }
+                                    .accessibilityLabel("移除图片")
+                                }
+                            }
+                        }
+                        ForEach(fileAttachments) { file in
+                            HStack(spacing: 6) {
+                                Image(systemName: "doc.text")
+                                    .font(.caption)
+                                    .foregroundStyle(ArcTheme.inkMuted)
+                                Text(file.name)
+                                    .font(.caption.weight(.medium))
+                                    .foregroundStyle(ArcTheme.ink)
+                                    .lineLimit(1)
+                                    .frame(maxWidth: 140)
+                                Button {
+                                    fileAttachments.removeAll { $0.id == file.id }
+                                } label: {
+                                    Image(systemName: "xmark.circle.fill")
+                                        .font(.caption)
+                                        .foregroundStyle(ArcTheme.inkFaint)
+                                }
+                                .buttonStyle(.plain)
+                                .accessibilityLabel("移除文件 \(file.name)")
+                            }
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 7)
+                            .background(ArcTheme.surfaceSunken, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                        }
+                    }
+                    .padding(.horizontal, 16)
                 }
-                .buttonStyle(.plain)
-                .disabled(busy || pending != nil || history != nil || deviceID.isEmpty || !store.isOnline(deviceID))
-                .accessibilityLabel("选择项目文件夹")
+            }
 
+            VStack(alignment: .leading, spacing: 14) {
                 TextField("描述你想完成的任务…", text: $text, axis: .vertical)
                     .font(.body)
                     .foregroundStyle(ArcTheme.ink)
                     .focused($messageFocused)
-                    .lineLimit(1...5)
-                    .padding(.vertical, 8)
+                    .lineLimit(1...6)
+                    .frame(minHeight: 32, alignment: .topLeading)
+                    .padding(.horizontal, 4)
+                    .padding(.top, 2)
                     .disabled(busy || pending != nil)
                     .accessibilityIdentifier("new-task-message")
 
-                Button {
-                    messageFocused = false
-                    showModelPicker = true
-                } label: {
-                    HStack(spacing: 4) {
-                        if modelLoading || loading {
-                            ProgressView()
-                                .controlSize(.mini)
-                                .scaleEffect(0.8)
-                        } else {
-                            AgentIcon(agent: activeAgent, size: 18, tint: ArcTheme.ink)
+                HStack(spacing: 6) {
+                    Menu {
+                        Button {
+                            messageFocused = false
+                            showPhotoPicker = true
+                        } label: {
+                            Label("照片图库", systemImage: "photo.on.rectangle")
                         }
-                        if !selectedModel.isEmpty {
-                            Text(currentModelLabel)
-                                .font(.caption.weight(.medium))
-                                .foregroundStyle(ArcTheme.inkMuted)
-                                .lineLimit(1)
-                                .frame(maxWidth: 76)
-                        }
-                        Image(systemName: "chevron.down")
-                            .font(.system(size: 10, weight: .semibold))
-                            .foregroundStyle(ArcTheme.inkMuted)
-                    }
-                    .padding(.horizontal, 6)
-                    .frame(minHeight: 36)
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .disabled(busy || pending != nil)
-                .accessibilityIdentifier("new-task-model")
+                        .disabled(imageAttachments.count >= ChatAttachment.maximumCount)
 
-                Button { Task { await start() } } label: {
-                    Group {
-                        if busy {
-                            ProgressView()
-                                .controlSize(.small)
-                                .tint(ArcTheme.onPrimary)
-                        } else {
-                            Image(systemName: "arrow.up")
-                                .font(.system(size: 14, weight: .bold))
-                                .foregroundStyle(ready ? ArcTheme.onPrimary : ArcTheme.inkFaint)
+                        Button {
+                            messageFocused = false
+                            showFileImporter = true
+                        } label: {
+                            Label("选择文件", systemImage: "doc")
                         }
+                        .disabled(fileAttachments.count >= 4)
+                    } label: {
+                        Image(systemName: "plus")
+                            .font(.system(size: 17, weight: .regular))
+                            .foregroundStyle((busy || pending != nil || loadingAttachments) ? ArcTheme.inkFaint : ArcTheme.ink)
+                            .frame(width: 32, height: 32)
+                            .background(ArcTheme.surface, in: Circle())
+                            .contentShape(Circle())
                     }
-                    .frame(width: 34, height: 34)
-                    .background(ready || busy ? ArcTheme.primary : ArcTheme.line, in: Circle())
-                    .frame(width: 36, height: 36)
-                    .contentShape(Circle())
+                    .disabled(busy || pending != nil || loadingAttachments)
+                    .accessibilityLabel("添加图片或文件")
+
+                    Button {
+                        messageFocused = false
+                        showModelPicker = true
+                    } label: {
+                        HStack(spacing: 5) {
+                            if modelLoading || loading {
+                                ProgressView()
+                                    .controlSize(.mini)
+                                    .scaleEffect(0.8)
+                            } else {
+                                AgentIcon(agent: activeAgent, size: 15, tint: ArcTheme.ink)
+                            }
+                            Text(selectedModel.isEmpty ? activeAgent.shortName : currentModelLabel)
+                                .font(.footnote.weight(.medium))
+                                .foregroundStyle(ArcTheme.ink)
+                                .lineLimit(1)
+                            Image(systemName: "chevron.down")
+                                .font(.system(size: 9.5, weight: .semibold))
+                                .foregroundStyle(ArcTheme.inkMuted)
+                        }
+                        .padding(.horizontal, 10)
+                        .frame(height: 32)
+                        .background(ArcTheme.surface, in: Capsule())
+                        .contentShape(Capsule())
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(busy || pending != nil)
+                    .accessibilityIdentifier("new-task-model")
+
+                    if loadingAttachments {
+                        ProgressView().controlSize(.mini).frame(width: 22, height: 32)
+                    }
+
+                    Spacer(minLength: 4)
+
+                    Button { Task { await start() } } label: {
+                        Group {
+                            if busy {
+                                ProgressView()
+                                    .controlSize(.small)
+                                    .tint(ArcTheme.surface)
+                            } else {
+                                Image(systemName: "arrow.up")
+                                    .font(.system(size: 13.5, weight: .bold))
+                                    .foregroundStyle(ready ? ArcTheme.surface : ArcTheme.inkFaint)
+                            }
+                        }
+                        .frame(width: 32, height: 32)
+                        .background(ready || busy ? ArcTheme.ink : ArcTheme.line, in: Circle())
+                        .contentShape(Circle())
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(!ready)
+                    .accessibilityLabel(pending == nil ? "开始" : "核对并继续")
                 }
-                .buttonStyle(.plain)
-                .disabled(!ready)
-                .accessibilityLabel(pending == nil ? "开始" : "核对并继续")
             }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 6)
-            .background(ArcTheme.surfaceSunken, in: RoundedRectangle(cornerRadius: 26, style: .continuous))
+            .padding(.horizontal, 14)
+            .padding(.top, 12)
+            .padding(.bottom, 10)
+            .background(ArcTheme.surfaceSunken.opacity(0.85), in: RoundedRectangle(cornerRadius: 24, style: .continuous))
             .overlay(
-                RoundedRectangle(cornerRadius: 26, style: .continuous)
-                    .stroke(ArcTheme.line.opacity(0.6), lineWidth: 0.75)
+                RoundedRectangle(cornerRadius: 24, style: .continuous)
+                    .stroke(ArcTheme.line.opacity(0.65), lineWidth: 0.75)
             )
-            .shadow(color: .black.opacity(0.05), radius: 10, y: 2)
             .padding(.horizontal, 14)
             .padding(.bottom, 8)
         }
@@ -597,8 +717,16 @@ struct NewManagedTaskSheet: View {
                     }
                 }
             }
-            var intent = pending ?? PendingManagedTask(deviceID: deviceID, projectPath: resolvedPath, projectName: resolvedName, provider: provider, model: selectedModel.isEmpty ? nil : selectedModel, text: body)
-            if pending == nil { intent.draftText = text; intent.history = history }
+            let encodedImages: [String]
+            if let existingImages = pending?.images {
+                encodedImages = existingImages
+            } else if imageAttachments.isEmpty {
+                encodedImages = []
+            } else {
+                encodedImages = try ManagedThreadModel.prepareManagedImages(imageAttachments.map(\.data)).map { $0.base64EncodedString() }
+            }
+            var intent = pending ?? PendingManagedTask(deviceID: deviceID, projectPath: resolvedPath, projectName: resolvedName, provider: provider, model: selectedModel.isEmpty ? nil : selectedModel, text: body, images: encodedImages.isEmpty ? nil : encodedImages)
+            if pending == nil { intent.draftText = text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "图片对话" : text; intent.history = history }
             try intent.save(); pending = intent
             if intent.projectID == nil {
                 operationStep = "创建项目"
@@ -607,7 +735,8 @@ struct NewManagedTaskSheet: View {
             }
             if intent.threadID == nil {
                 operationStep = "创建对话"
-                let thread = try await bridge.createManagedThread(commandId: intent.threadCommand, projectId: intent.projectID!, providerId: intent.provider, title: String((intent.draftText ?? intent.text).prefix(40)))
+                let titleSource = (intent.draftText ?? intent.text).trimmingCharacters(in: .whitespacesAndNewlines)
+                let thread = try await bridge.createManagedThread(commandId: intent.threadCommand, projectId: intent.projectID!, providerId: intent.provider, title: String((titleSource.isEmpty ? "新对话" : titleSource).prefix(40)))
                 intent.threadID = thread.id; try intent.save(); pending = intent
             }
             if !intent.modelApplied {
@@ -618,7 +747,7 @@ struct NewManagedTaskSheet: View {
                 intent.modelApplied = true; try intent.save(); pending = intent
             }
             operationStep = "发送任务"
-            _ = try await bridge.sendManagedThread(commandId: intent.sendCommand, threadId: intent.threadID!, clientMessageId: intent.clientMessage, text: intent.text, expectedRevision: nil)
+            _ = try await bridge.sendManagedThreadWithImages(commandId: intent.sendCommand, threadId: intent.threadID!, clientMessageId: intent.clientMessage, text: intent.text, expectedRevision: nil, images: intent.images ?? [])
             try PendingManagedTask.clear()
             pending = nil
             await store.refreshManagedCatalog(deviceID: intent.deviceID)
@@ -653,6 +782,53 @@ struct NewManagedTaskSheet: View {
         guard canDiscard, !busy else { return }
         do { try PendingManagedTask.clear(); pending = nil; canDiscard = false; error = nil }
         catch { self.error = "无法清除任务记录，请检查存储后重试。" }
+    }
+
+    private func loadPhotos(_ items: [PhotosPickerItem]) {
+        guard !items.isEmpty else { return }
+        pickedPhotos = []
+        loadingAttachments = true
+        Task {
+            defer { loadingAttachments = false }
+            for item in items {
+                guard imageAttachments.count < ChatAttachment.maximumCount else { break }
+                guard let data = try? await item.loadTransferable(type: Data.self),
+                      let prepared = ChatAttachment.prepare(data) else {
+                    error = "无法读取所选图片，请选择 10 MB 以内的图片。"
+                    continue
+                }
+                imageAttachments.append(ManagedDraftImage(data: prepared))
+            }
+        }
+    }
+
+    private func handleImportedFiles(_ result: Result<[URL], Error>) {
+        guard case .success(let urls) = result else { return }
+        for url in urls {
+            let scoped = url.startAccessingSecurityScopedResource()
+            defer { if scoped { url.stopAccessingSecurityScopedResource() } }
+            guard let data = try? Data(contentsOf: url) else {
+                error = "无法读取文件：\(url.lastPathComponent)"
+                continue
+            }
+            if ChatAttachment.isValid(data), let prepared = ChatAttachment.prepare(data) {
+                guard imageAttachments.count < ChatAttachment.maximumCount else {
+                    error = "最多添加 \(ChatAttachment.maximumCount) 张图片。"
+                    continue
+                }
+                imageAttachments.append(ManagedDraftImage(data: prepared))
+                continue
+            }
+            guard data.count <= 64 * 1024, let content = String(data: data, encoding: .utf8) else {
+                error = "仅支持图片或 64 KB 以内的文本/代码文件：\(url.lastPathComponent)"
+                continue
+            }
+            guard fileAttachments.count < 4 else {
+                error = "最多添加 4 个文本附件。"
+                continue
+            }
+            fileAttachments.append(ManagedDraftFile(name: url.lastPathComponent, text: content))
+        }
     }
 }
 
@@ -690,7 +866,7 @@ private struct ManagedNewTaskModelSheet: View {
                             provider = agent.agentId
                         } label: {
                             HStack(spacing: 6) {
-                                AgentIcon(agent: agent, size: 15)
+                                AgentIcon(agent: agent, size: 15, tint: selected ? ArcTheme.ink : ArcTheme.inkMuted)
                                 Text(agent.shortName).lineLimit(1)
                             }
                             .font(.subheadline.weight(selected ? .semibold : .medium))
@@ -795,7 +971,7 @@ private struct ManagedNewTaskModelSheet: View {
                 }
                 Spacer(minLength: 8)
                 if isSelected {
-                    Image(systemName: "checkmark").font(.footnote.weight(.bold)).foregroundStyle(activeAgent.tint)
+                    Image(systemName: "checkmark").font(.footnote.weight(.semibold)).foregroundStyle(ArcTheme.ink)
                 }
             }
             .padding(.horizontal, 16).padding(.vertical, 11).frame(minHeight: 50).contentShape(Rectangle())
@@ -880,24 +1056,21 @@ struct RealBranchPickerSheet: View {
                                     HStack(spacing: 10) {
                                         Image(systemName: "arrow.triangle.branch")
                                             .font(.footnote)
-                                            .foregroundStyle(isSelected ? ArcTheme.primary : ArcTheme.inkMuted)
+                                            .foregroundStyle(isSelected ? ArcTheme.ink : ArcTheme.inkMuted)
                                         Text(branch)
                                             .font(.subheadline.weight(isSelected ? .semibold : .regular))
                                             .foregroundStyle(ArcTheme.ink)
                                             .lineLimit(1)
                                         if isCurrent {
                                             Text("当前")
-                                                .font(.caption2.weight(.semibold))
-                                                .foregroundStyle(ArcTheme.live)
-                                                .padding(.horizontal, 6)
-                                                .padding(.vertical, 2)
-                                                .background(ArcTheme.liveSoft, in: Capsule())
+                                                .font(.caption)
+                                                .foregroundStyle(ArcTheme.inkFaint)
                                         }
                                         Spacer(minLength: 8)
                                         if isSelected {
                                             Image(systemName: "checkmark")
-                                                .font(.footnote.weight(.bold))
-                                                .foregroundStyle(ArcTheme.primary)
+                                                .font(.footnote.weight(.semibold))
+                                                .foregroundStyle(ArcTheme.ink)
                                         }
                                     }
                                     .padding(.horizontal, 16)

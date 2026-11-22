@@ -122,11 +122,15 @@ struct NewConversationSheet: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button { dismiss() } label: {
-                        Image(systemName: "chevron.left")
-                            .font(.body.weight(.medium))
-                            .foregroundStyle(ArcTheme.primary)
+                        HStack(spacing: 3) {
+                            Image(systemName: "chevron.left")
+                                .font(.body.weight(.medium))
+                            Text("返回")
+                                .font(.body)
+                        }
+                        .foregroundStyle(ArcTheme.ink)
                     }
-                    .accessibilityLabel("取消")
+                    .accessibilityLabel("返回")
                     .disabled(submitting)
                 }
                 ToolbarItem(placement: .topBarTrailing) {
@@ -800,7 +804,7 @@ struct AgentModelPickerSheet: View {
                 if isSelected {
                     Image(systemName: "checkmark")
                         .font(.footnote.weight(.bold))
-                        .foregroundStyle(browsingAgent.tint)
+                        .foregroundStyle(ArcTheme.ink)
                 }
             }
             .padding(.horizontal, 16)
