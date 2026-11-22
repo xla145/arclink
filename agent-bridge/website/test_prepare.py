@@ -18,7 +18,7 @@ class DownloadPageTests(unittest.TestCase):
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
         self.root.joinpath("index.template.html").write_text(
-            '<a href="{{MAC_PRIMARY_URL}}">下载</a><p>{{MAC_MIN_OS}} {{MAC_ARCH}} v{{MAC_VERSION}}</p>{{MAC_DOWNLOADS}}',
+            '<a href="{{IOS_URL}}">iOS</a><a href="{{MAC_PRIMARY_URL}}">下载</a><p>{{MAC_MIN_OS}} {{MAC_ARCH}} v{{MAC_VERSION}}</p>{{MAC_DOWNLOADS}}',
             encoding="utf-8",
         )
         self.config = {
@@ -50,6 +50,7 @@ class DownloadPageTests(unittest.TestCase):
         self.assertIn("下载 Apple 芯片版", page)
         self.assertIn("下载 Intel 版", page)
         self.assertIn("v0.1.3", page)
+        self.assertIn('href="https://testflight.apple.com/join/9kUf13QF"', page)
         self.assertNotIn("{{", page)
         self.assertFalse(self.root.joinpath("downloads").exists())
 
