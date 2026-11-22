@@ -130,3 +130,13 @@ export interface RecentLogs {
   text: string;
   truncated: boolean;
 }
+
+export interface ManagedProject { id: string; name: string; canonical_root: string; created_at: string; updated_at: string }
+export interface ManagedThread { id: string; project_id: string; provider_id: string; model?: string | null; title: string; cwd: string; status: string; revision: string; created_at: string; updated_at: string }
+export interface ManagedMessage { id: string; thread_id: string; run_id: string | null; client_message_id: string | null; role: string; content: { text?: string; phase?: string; tool_name?: string; completed?: boolean; failed?: boolean; provider_id?: string; type?: string; from_provider_id?: string; to_provider_id?: string; model?: string | null }; revision: string }
+export interface ManagedRun { id: string; thread_id: string; status: string; revision: string }
+export interface ManagedApproval { id: string; run_id: string; state: string; kind: string; target: string; detail: string }
+export interface ThreadSnapshot { environment_id: string; sequence: string; thread: ManagedThread; messages: ManagedMessage[]; runs: ManagedRun[]; approvals: ManagedApproval[]; has_older_messages: boolean }
+export interface ThreadEvent { sequence: string; aggregate_id: string; event_type: string; schema_version: number; payload: unknown }
+export interface ThreadReplay { environment_id: string; thread_id: string; sequence: string; events: ThreadEvent[]; has_more: boolean }
+export interface ThreadHistory { thread_id: string; messages: ManagedMessage[]; has_more: boolean; next_before_id: string | null }

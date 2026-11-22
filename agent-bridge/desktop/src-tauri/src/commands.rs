@@ -12,6 +12,32 @@ use tauri_plugin_autostart::ManagerExt;
 pub async fn get_snapshot(app: AppHandle) -> Result<Snapshot> {
     service(&app).await?.snapshot().await
 }
+/// Trusted desktop entrypoint. Remote callers cannot select the local principal.
+#[tauri::command]
+pub async fn managed_call(
+    app: AppHandle,
+    window: WebviewWindow,
+    operation: String,
+    request: Value,
+) -> Result<Value> {
+    if window.label() != "main" {
+        return Err(native_error("请在主面板中操作共享对话。"));
+    }
+    let daemon = service(&app).await?;
+    if operation == "projects.share" {
+        let project = request
+            .get("project_id")
+            .and_then(Value::as_str)
+            .ok_or_else(|| native_error("缺少项目。"))?;
+        let device = request
+            .get("device_id")
+            .and_then(Value::as_str)
+            .ok_or_else(|| native_error("缺少设备。"))?;
+        daemon.grant_managed_project(project, device).await?;
+        return Ok(Value::Null);
+    }
+    daemon.local_thread_command(&operation, request).await
+}
 #[tauri::command]
 pub async fn refresh_agents(app: AppHandle) -> Result<()> {
     service(&app).await?.list_agents(true).await?;

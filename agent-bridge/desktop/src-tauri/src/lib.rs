@@ -40,6 +40,7 @@ pub fn run() {
             commands::get_network_settings,
             commands::update_network_settings,
             commands::get_snapshot,
+            commands::managed_call,
             commands::refresh_agents,
             commands::start_pairing,
             commands::cancel_pairing,

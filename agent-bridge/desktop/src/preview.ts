@@ -1,6 +1,6 @@
 // Imported only behind import.meta.env.DEV in main.tsx. Never used as a runtime fallback.
 import type { Bridge } from "./bridge";
-import type { Snapshot } from "./types";
+import type { Snapshot, ThreadSnapshot } from "./types";
 
 export function previewBridge(state: string): Bridge {
   const snapshot: Snapshot = {
@@ -35,15 +35,6 @@ export function previewBridge(state: string): Bridge {
         status: state === "empty" ? "available" : "running",
         validation: "verified",
         capabilities: ["stdio"],
-        diagnostic: null,
-      },
-      {
-        id: "herdr",
-        name: "Herdr",
-        version: null,
-        status: "not_found",
-        validation: "unverified",
-        capabilities: [],
         diagnostic: null,
       },
     ],
@@ -94,7 +85,21 @@ export function previewBridge(state: string): Bridge {
   const unavailable = async (): Promise<never> => {
     throw { code: "preview", message: "这是界面预览，操作不会修改本机服务。" };
   };
+  const managed: ThreadSnapshot = { environment_id: "preview", sequence: "1", thread: { id: "preview-thread", project_id: "preview-project", provider_id: "codex", title: "检查项目构建", cwd: "/Users/demo/project", status: "idle", revision: "1", created_at: "now", updated_at: "now" }, messages: [{ id: "user", thread_id: "preview-thread", run_id: "run", client_message_id: "input", role: "user", content: { text: "检查构建配置，并解释需要修改的地方。" }, revision: "1" }, { id: "answer", thread_id: "preview-thread", run_id: "run", client_message_id: null, role: "assistant", content: { text: "示例回复：项目构建已完成。手机和 Mac 会显示同一份消息记录。" }, revision: "1" }], runs: [], approvals: [], has_older_messages: false };
   return {
+    managedEnvironment: async () => ({ capabilities: ["managed_execution_v1", "managed_claude_v1"] }),
+    managedProjects: async () => state === "managed" ? [{ id: "preview-project", name: "ArcLink 示例项目", canonical_root: "/Users/demo/project", created_at: "now", updated_at: "now" }] : [],
+    managedCreateProject: unavailable,
+    managedShareProject: unavailable,
+    managedThreads: async () => state === "managed" ? [managed.thread] : [],
+    managedCreateThread: async (_commandId: string, _projectId: string, _title: string, _providerId?: string) => unavailable(),
+    managedSnapshot: async () => managed,
+    managedWait: async () => { await new Promise(resolve => setTimeout(resolve, 20000)); return { environment_id: "preview", thread_id: "preview-thread", sequence: "1", events: [], has_more: false }; },
+    managedHistory: unavailable,
+    managedSend: unavailable,
+    managedInterrupt: unavailable,
+    managedApproval: unavailable,
+    managedProviderSet: unavailable,
     updateStatus: unavailable,
     checkUpdate: unavailable,
     downloadUpdate: unavailable,

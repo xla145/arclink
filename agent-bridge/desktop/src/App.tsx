@@ -17,6 +17,7 @@ import {
 import { PairingPanel, type PairingHandle } from "./components/PairingPanel";
 import { LogsPanel } from "./components/LogsPanel";
 import { SettingsPanel } from "./components/SettingsPanel";
+import { ManagedWorkspace } from "./components/ManagedWorkspace";
 
 export function App({
   api = bridge,
@@ -27,7 +28,7 @@ export function App({
   initialPairing?: boolean;
   preview?: boolean;
 }) {
-  const [tab, setTab] = useState<"devices" | "agents" | "processes">("devices");
+  const [tab, setTab] = useState<"devices" | "agents" | "processes" | "shared">("devices");
   const [settings, setSettings] = useState(false);
   const [logs, setLogs] = useState(false);
   const [pairing, setPairing] = useState(initialPairing);
@@ -200,7 +201,7 @@ export function App({
         {mainView && (
           <>
             <nav className="view-tabs" aria-label="面板视图">
-              {(["devices", "agents", "processes"] as const).map((value) => (
+              {(["devices", "agents"] as const).map((value) => (
                 <button
                   key={value}
                   className={`view-tab ${tab === value ? "active" : ""}`}
@@ -209,12 +210,7 @@ export function App({
                 >
                   {value === "devices"
                     ? "设备"
-                    : value === "agents"
-                      ? "Agent"
-                      : "进程"}
-                  {value === "processes" && processes.length > 0 && (
-                    <span className="tab-count">{processes.length}</span>
-                  )}
+                    : "Agent"}
                 </button>
               ))}
             </nav>
@@ -455,6 +451,7 @@ export function App({
                   )}
                 </section>
               )}
+              {tab === "shared" && <section className="panel"><ManagedWorkspace api={api} devices={snapshot.devices} /></section>}
             </>
           )
         )}

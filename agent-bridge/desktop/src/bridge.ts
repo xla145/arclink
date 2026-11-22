@@ -11,6 +11,7 @@ import type {
   BridgeError,
   PairSession,
   Snapshot,
+  ManagedProject, ManagedThread, ThreadSnapshot, ThreadReplay, ThreadHistory,
 } from "./types";
 
 export function normalizeError(error: unknown): BridgeError {
@@ -71,6 +72,19 @@ async function call<T>(
 }
 
 export const bridge = {
+  managedEnvironment: () => call<{ capabilities: string[] }>("managed_call", { operation: "environment.describe", request: {} }),
+  managedProjects: () => call<ManagedProject[]>("managed_call", { operation: "projects.list", request: {} }),
+  managedCreateProject: (commandId: string, path: string, name: string) => call<ManagedProject>("managed_call", { operation: "projects.create", request: { command_id: commandId, path, name } }),
+  managedShareProject: (projectId: string, deviceId: string) => call<void>("managed_call", { operation: "projects.share", request: { project_id: projectId, device_id: deviceId } }),
+  managedThreads: (projectId: string) => call<ManagedThread[]>("managed_call", { operation: "threads.list", request: { project_id: projectId } }),
+  managedCreateThread: (commandId: string, projectId: string, title: string, providerId = "codex") => call<ManagedThread>("managed_call", { operation: "threads.create", request: { command_id: commandId, project_id: projectId, provider_id: providerId, title } }),
+  managedSnapshot: (threadId: string) => call<ThreadSnapshot>("managed_call", { operation: "threads.snapshot", request: { thread_id: threadId } }),
+  managedWait: (environmentId: string, threadId: string, afterSequence: string) => call<ThreadReplay>("managed_call", { operation: "threads.wait", request: { environment_id: environmentId, thread_id: threadId, after_sequence: afterSequence } }),
+  managedHistory: (threadId: string, beforeId: string | null) => call<ThreadHistory>("managed_call", { operation: "threads.history", request: { thread_id: threadId, before_id: beforeId } }),
+  managedSend: (commandId: string, threadId: string, clientMessageId: string, text: string, expectedRevision: string) => call<unknown>("managed_call", { operation: "threads.send", request: { command_id: commandId, thread_id: threadId, client_message_id: clientMessageId, text, expected_revision: expectedRevision } }),
+  managedProviderSet: (commandId: string, threadId: string, providerId: string, model: string | null, expectedRevision: string) => call<ManagedThread>("managed_call", { operation: "threads.provider.set", request: { command_id: commandId, thread_id: threadId, provider_id: providerId, model, expected_revision: expectedRevision } }),
+  managedInterrupt: (commandId: string, threadId: string) => call<unknown>("managed_call", { operation: "threads.interrupt", request: { command_id: commandId, thread_id: threadId } }),
+  managedApproval: (commandId: string, threadId: string, approvalId: string, approved: boolean) => call<unknown>("managed_call", { operation: "threads.approval", request: { command_id: commandId, thread_id: threadId, approval_id: approvalId, approved } }),
   updateStatus: () => call<UpdateStatus>("get_update_status"),
   checkUpdate: (startup = false) =>
     call<UpdateStatus>("check_for_update", { startup }),
