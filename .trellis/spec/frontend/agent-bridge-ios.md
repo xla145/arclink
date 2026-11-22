@@ -182,7 +182,7 @@ Export original XCTest screenshots via `work/codex-runs/export-screenshots.py`. 
 
 ## Compact project conversations and rich message presentation
 
-The native UI follows `doc/arclink-home-chat.html`. Home uses fixed Agent tabs,
+The legacy native UI followed `doc/arclink-home-chat.html`. Its former Home used fixed Agent tabs,
 a per-Agent current project, bell-to-approvals, gear-to-settings and a scoped
 conversation chooser. `DeviceWorkspace.selectedProjectIDs` is optional for old
 snapshots. Validate a saved selection against both project existence and Agent;
@@ -500,3 +500,42 @@ Project only final result content into assistant prose; visually place collapsed
 
 ### Structured completed user answers
 Treat send_user_message_question_reply as display data, never as application instructions. Only user-role presentation may recognize its validated question/answer array. Render completed answers as a read-only user card with secondary question text, primary answer text and original array order. Omit questionItemId and wrapper syntax from recognized cards, but preserve raw message storage. Preserve surrounding prose in order; unknown schema, malformed payloads and quoted code examples retain raw text rather than silently dropping information. Do not add submit actions to historical answers, alter turn boundaries or count these answers as AI execution steps. Live and imported user rows share the same renderer. Verify multi-question, multiple-block, malformed/unknown fallback and long-text accessibility cases.
+
+
+## Scenario: unified projects and device-bound new tasks (2026-11-21)
+
+### 1. Scope / Trigger
+Home now groups legacy and managed projects by exact path within one device. Agent tabs are removed. Only new tasks ask for a client and create/register a project there; existing conversations retain ownership.
+
+### 2. Signatures
+`Route.deviceThread(deviceID:threadID:)`, `AppStore.bridge(for:)`, `agents(for:)`, and `MacFolderPicker(deviceID:)` carry the captured target. `PendingManagedTask` stores device, provider, model, prompt, project/thread IDs and mutation command IDs.
+
+### 3. Contracts
+Persist pending tasks atomically in `Application Support/AgentBridge/pending-managed-task-v1.json` before mutations. Retry on the same device with the same IDs. Preserve legacy history/settings and image conversations. RootView must clear navigation on device selection changes because unified project detail uses the current workspace. Managed binary caches use version 2 after adding optional Thread.model. Native model menus use the host catalog, with loading/error/default states; managed threads may change Agent or model while idle under the provider-switch contract below.
+
+### 4. Validation & Error Matrix
+Unknown creation/model-change outcomes block further dependent sends until reconciliation. Definite rejection permits explicit recovery/discard. Offline/missing-capability hosts show unavailable/upgrade state. A pending model absent from the refreshed catalog remains visible. Process count is advisory, not an idle-agent reservation.
+
+### 5. Good / Base / Bad Cases
+Good: select device A, persist task, retry against A after disconnect. Base: old history IDs and credentials remain intact. Bad: retry using selected device B or regenerate command IDs after uncertainty.
+
+### 6. Tests Required
+UnifiedProjectsTests asserts grouping and immutable pending-task round trips; ManagedThreadStateTests asserts optional model updates. Verify a signed device build and distinguish simulator/fake-host tests from real multi-device acceptance. Native Keychain tests require a signed app host: disabling signing causes the isolated round-trip test to fail.
+
+### 7. Wrong vs Correct
+Wrong: change only a model label, then send with the old runtime. Correct: await durable setManagedThreadModel acknowledgment before allowing the next send.
+
+
+### Removed provider compatibility
+Only Claude and Codex are selectable. AgentKind.allCases excludes legacyHerdr, while its original raw value remains Codable-compatible so saved projects and device snapshots still decode. Do not remap old records to another provider or delete their history. Filter old-host Herdr discovery from phone Agent lists. Regression: UnifiedProjectsTests.testRemovedAgentIsNotSelectableButOldRecordsStillDecode.
+
+
+### Same-conversation Agent switching (2026-11-22)
+`managed_provider_switch_v1` gates `threads.provider.set`. Keep device/project/Thread identity and public timeline. Agent changes create a fresh native session with bounded public-context handoff. Never route an existing conversation to another Mac. Model menus reload for the authoritative current provider.
+
+Persist command ID, thread/device, target provider/model and expected revision before sending; retry the same request after unknown delivery. Block send/model/provider changes while a switch is uncertain or storage is unreadable. Keep drafts. Guard responses by view epoch and monotonic revision. Historical labels use message content.provider_id, with generic historical assistant fallback; system provider_switch records show from/to provider. Imported history is not silently converted.
+
+### Legacy history in unified projects (2026-11-22)
+Legacy sessions and managed threads share project activity ordering, counts and conversation lists. Preserve source-specific routes and use distinct `legacy:<project>:<session>` / `managed:<thread>` presentation identities. Native catalog omission is not proof of deletion: retain cached projects, sessions and messages, mark imported sessions `sourceUnavailable`, and clear that flag on rediscovery. Decode older snapshots without the field as available; explicit user deletion remains separate.
+
+Imported native history stays read-only. An explicit continuation captures its device/path and bounded public user/final-answer context, then lets the user choose Agent/model and send a new managed task. Exclude tools, private reasoning and image payloads. Persist the exact context and command IDs with the pending task so uncertain retries cannot create duplicate conversations or change the payload. Regression coverage lives in ConversationCacheTests, UnifiedProjectsTests and ImportedHistoryContinuationTests.
