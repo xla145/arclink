@@ -28,7 +28,7 @@ Open <http://127.0.0.1:8767>. Preparation uses the committed versioned R2 links 
 - Legacy `mac.source`, `mac.url` and `mac.architecture` remain supported for a single same-site package under `downloads/`. Preparation copies the actual file, verifies SHA-256 and computes its size. Local destination traversal, escaped paths and symlink escapes are rejected. An optional local `sha256` also verifies the configured digest.
 - The hero button opens architecture selection when both packages are present. The arm64 and x64 anchors work without JavaScript. R2 files must carry an appropriate `Content-Disposition` header because browsers do not honor the `download` attribute for arbitrary cross-origin files.
 - The current Mac build is a test release with a verified ad-hoc app signature, not Apple notarization. The page explains the macOS Privacy & Security override without guaranteeing its availability. Use a new download filename when rebuilding the same app version so caches cannot serve an older installer.
-- iOS has no distribution URL and displays a non-interactive coming-soon status. Introducing an iOS release also requires updating the page and preparation validation.
+- iOS links to the configured public TestFlight beta. Preparation accepts only HTTPS `testflight.apple.com/join/<code>` URLs.
 - The original brand SVG is copied from `../desktop/src/assets/arclink-icon.svg`; keep the copy synchronized if branding changes.
 
 ## Static deployment
@@ -64,7 +64,7 @@ Keep the host's Certbot renewal timer enabled. Webroot renewal must retain `/var
 2. Run `node --check agent-bridge/website/main.js`.
 3. Serve the site and check `/`, `/styles.css`, `/main.js` and `/assets/arclink-icon.svg` return HTTP 200; verify both architecture links/version without JavaScript.
 4. Download both DMGs from their actual public links and compare SHA-256 with the released source artifacts.
-5. Check desktop (1440 px) and mobile (390 px) layouts, keyboard focus, navigation anchors, FAQ and the unavailable iOS status.
+5. Check desktop (1440 px) and mobile (390 px) layouts, keyboard focus, navigation anchors, FAQ and the iOS TestFlight link.
 
 The device UI is an explicitly labelled illustration, not a screenshot or an interactive remote client. This page does not collect personal data or use external fonts or analytics. Its optional runtime dependency is the public R2 release manifest.
 

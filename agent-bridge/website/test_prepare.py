@@ -26,7 +26,7 @@ class DownloadPageTests(unittest.TestCase):
                 "version": "0.1.3", "minimumOS": "macOS 13+",
                 "packages": {arch: {"url": prepare.release_url("0.1.3", arch), "sizeBytes": 1000} for arch in prepare.ARCHITECTURES},
             },
-            "ios": {"url": None},
+            "ios": {"url": "https://testflight.apple.com/join/9kUf13QF"},
         }
 
     def run_prepare(self, config=None, manifest=None):
@@ -110,7 +110,7 @@ class DownloadPageTests(unittest.TestCase):
     def test_local_legacy_copies_real_package_and_verifies_checksum(self):
         data = b"real local package fixture"
         self.root.joinpath("package.dmg").write_bytes(data)
-        config = {"mac": {"version": "0.1.3", "minimumOS": "macOS 13+", "architecture": "Apple Silicon", "source": "package.dmg", "url": "downloads/local.dmg"}, "ios": {"url": None}}
+        config = {"mac": {"version": "0.1.3", "minimumOS": "macOS 13+", "architecture": "Apple Silicon", "source": "package.dmg", "url": "downloads/local.dmg"}, "ios": {"url": "https://testflight.apple.com/join/9kUf13QF"}}
         page = self.run_prepare(config)
         self.assertEqual(self.root.joinpath("downloads/local.dmg").read_bytes(), data)
         self.assertIn('href="downloads/local.dmg" download', page)
@@ -121,7 +121,7 @@ class DownloadPageTests(unittest.TestCase):
 
     def test_local_path_traversal_encoded_path_and_symlink_are_rejected(self):
         self.root.joinpath("package.dmg").write_bytes(b"fixture")
-        config = {"mac": {"version": "0.1.3", "minimumOS": "macOS 13+", "source": "package.dmg", "url": "downloads/local.dmg"}, "ios": {"url": None}}
+        config = {"mac": {"version": "0.1.3", "minimumOS": "macOS 13+", "source": "package.dmg", "url": "downloads/local.dmg"}, "ios": {"url": "https://testflight.apple.com/join/9kUf13QF"}}
         for url in ["../outside.dmg", "downloads/../../outside.dmg", "downloads/%2e%2e/outside.dmg", "downloads/../outside.dmg", "downloads/file.html", "downloads/file.dmg?x=1", "downloads/..\\outside.dmg"]:
             config["mac"]["url"] = url
             with self.subTest(url=url), self.assertRaises(ValueError):
@@ -139,7 +139,7 @@ class DownloadPageTests(unittest.TestCase):
         config = copy.deepcopy(self.config)
         config["mac"]["packages"].pop("x64")
         configs.append(config)
-        configs.append({"mac": {"version": "0.1.3", "minimumOS": "macOS 13+", "url": "downloads/a.dmg", "source": "missing.dmg"}, "ios": {"url": None}})
+        configs.append({"mac": {"version": "0.1.3", "minimumOS": "macOS 13+", "url": "downloads/a.dmg", "source": "missing.dmg"}, "ios": {"url": "https://testflight.apple.com/join/9kUf13QF"}})
         for config in configs:
             with self.assertRaises(ValueError):
                 self.run_prepare(config)
@@ -147,7 +147,7 @@ class DownloadPageTests(unittest.TestCase):
     def test_unresolved_template_fails_before_copy_or_output(self):
         self.root.joinpath("index.template.html").write_text("{{UNKNOWN}}")
         self.root.joinpath("package.dmg").write_bytes(b"fixture")
-        config = {"mac": {"version": "0.1.3", "minimumOS": "macOS 13+", "url": "downloads/a.dmg", "source": "package.dmg"}, "ios": {"url": None}}
+        config = {"mac": {"version": "0.1.3", "minimumOS": "macOS 13+", "url": "downloads/a.dmg", "source": "package.dmg"}, "ios": {"url": "https://testflight.apple.com/join/9kUf13QF"}}
         with self.assertRaisesRegex(ValueError, "Unresolved"):
             self.run_prepare(config)
         self.assertFalse(self.root.joinpath("downloads").exists())
