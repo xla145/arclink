@@ -18,7 +18,7 @@ final class ConversationCacheTests: XCTestCase {
         ])
     }
 
-    func testRemovedMacProjectDisappearsAfterRefreshAndRelaunch() async throws {
+    func testMissingMacProjectRetainsHistoryAndUnavailableStateAfterRelaunch() async throws {
         let storage = try storage()
         let remote = CatalogTransport()
         remote.projects["claude"] = [project()]
@@ -26,13 +26,60 @@ final class ConversationCacheTests: XCTestCase {
         await store.refreshMacStatus()
         await store.loadMacProjects(deviceID: "a", agent: .claude)
         XCTAssertEqual(store.projects.count, 1)
+        let projectID = try XCTUnwrap(store.projects.first?.id)
+        store.messages.append(ChatMessage(id: "cached", sessionId: "thread", isUser: false, text: "cached answer", imageData: nil, time: ""))
         remote.projects["claude"] = []
         await store.loadMacProjects(deviceID: "a", agent: .claude, force: true)
-        XCTAssertTrue(store.projects.isEmpty)
-        XCTAssertTrue(store.sessions.isEmpty)
+        XCTAssertEqual(store.projects.first?.id, projectID)
+        XCTAssertEqual(store.sessions.first?.id, "thread")
+        XCTAssertEqual(store.sessions.first?.sourceUnavailable, true)
+        XCTAssertEqual(store.messages.first?.text, "cached answer")
         let restored = AppStore(storage: storage, autoConnect: false)
-        XCTAssertTrue(restored.projects.isEmpty)
+        XCTAssertEqual(restored.projects.first?.id, projectID)
+        XCTAssertEqual(restored.sessions.first?.sourceUnavailable, true)
+        XCTAssertEqual(restored.messages.first?.text, "cached answer")
         XCTAssertEqual(restored.cachedMacProjects(deviceID: "a", agent: .claude), [])
+        remote.projects["claude"] = [project("Rediscovered")]
+        await store.loadMacProjects(deviceID: "a", agent: .claude, force: true)
+        XCTAssertEqual(store.projects.first?.id, projectID)
+        XCTAssertEqual(store.sessions.count, 1)
+        XCTAssertEqual(store.sessions.first?.sourceUnavailable, false)
+        XCTAssertEqual(store.sessions.first?.title, "Rediscovered")
+    }
+
+    func testPartialThreadCatalogKeepsMissingRowsAndPhoneConversations() async throws {
+        let storage = try storage()
+        let remote = CatalogTransport()
+        var source = project()
+        source.threads.append(MacThread(id: "other", title: "Other", updatedAt: nil, source: "cli"))
+        remote.projects["claude"] = [source]
+        let store = AppStore(storage: storage, autoConnect: false, connectionFactory: { _ in remote })
+        await store.refreshMacStatus()
+        await store.loadMacProjects(deviceID: "a", agent: .claude)
+        let local = store.createSession(projectId: try XCTUnwrap(store.projects.first?.id), title: "Phone")
+        remote.projects["claude"] = [project("Updated")]
+        await store.loadMacProjects(deviceID: "a", agent: .claude, force: true)
+        XCTAssertEqual(store.sessions.first { $0.id == "other" }?.sourceUnavailable, true)
+        XCTAssertEqual(store.sessions.first { $0.id == "thread" }?.sourceUnavailable, false)
+        XCTAssertEqual(store.sessions.first { $0.id == local }?.sourceUnavailable, false)
+        XCTAssertEqual(store.sessions.count, 3)
+    }
+
+    func testSameNativeIDAcrossProvidersKeepsIndependentProjectRows() async throws {
+        let storage = try storage()
+        let remote = CatalogTransport()
+        remote.projects["claude"] = [project("Claude history")]
+        remote.projects["codex"] = [project("Codex history")]
+        let store = AppStore(storage: storage, autoConnect: false, connectionFactory: { _ in remote })
+        await store.refreshMacStatus()
+        await store.loadMacProjects(deviceID: "a", agent: .claude)
+        await store.loadMacProjects(deviceID: "a", agent: .codex)
+        XCTAssertEqual(store.projects.count, 2)
+        XCTAssertEqual(store.sessions.count, 2)
+        let grouped = try XCTUnwrap(store.unifiedProjects().first)
+        XCTAssertEqual(store.unifiedProjects().count, 1)
+        XCTAssertEqual(Set(store.unifiedConversations(project: grouped).map(\.id)).count, 2)
+        XCTAssertEqual(Set(store.sessions.map(\.title)), ["Claude history", "Codex history"])
     }
 
     func testPreviousProjectCatalogRequiresRefreshAfterCatalogSourceUpgrade() throws {
@@ -173,8 +220,9 @@ final class ConversationCacheTests: XCTestCase {
         remote.fail = true
         await store.loadMacProjects(deviceID: "a", agent: .claude, force: true)
         XCTAssertEqual(store.sessions.first?.title, "History")
+        XCTAssertEqual(store.sessions.first?.sourceUnavailable, false)
         remote.fail = false
-        remote.projects["claude"] = [project("Uncommitted")]
+        remote.projects["claude"] = []
         try FileManager.default.removeItem(at: storage.currentURL)
         try FileManager.default.createDirectory(at: storage.currentURL, withIntermediateDirectories: false)
         await store.loadMacProjects(deviceID: "a", agent: .claude, force: true)

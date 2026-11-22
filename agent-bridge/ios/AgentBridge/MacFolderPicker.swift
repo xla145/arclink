@@ -5,7 +5,12 @@ import SwiftUI
 struct MacFolderPicker: View {
     @Environment(AppStore.self) private var store
     @Environment(\.dismiss) private var dismiss
+    var deviceID: String? = nil
     var onSelect: (String) -> Void
+
+    private var targetDeviceID: String? { deviceID ?? store.selectedDeviceID }
+    private var targetBridge: BridgeConnection? { targetDeviceID.flatMap { store.bridge(for: $0) } }
+    private var targetName: String { store.devices.first { $0.id == targetDeviceID }?.displayName ?? "Mac" }
 
     @State private var listing: MacDirectoryListing?
     @State private var loading = false
@@ -22,7 +27,7 @@ struct MacFolderPicker: View {
                 } else if let failure {
                     ContentUnavailableView("无法浏览文件夹", systemImage: "folder.badge.questionmark", description: Text(failure))
                 } else {
-                    ProgressView("正在读取 \(store.hostName) 上的文件夹…").frame(maxWidth: .infinity, maxHeight: .infinity)
+                    ProgressView("正在读取 \(targetName) 上的文件夹…").frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
             }
             .background(ArcTheme.bg)
@@ -116,8 +121,8 @@ struct MacFolderPicker: View {
         #if DEBUG
         if let fixture = Self.fixture(path) { listing = fixture; homePath = homePath ?? fixture.path; return }
         #endif
-        guard let bridge = store.macBridge else {
-            failure = "\(store.hostName) 未连接。连接后再试。"
+        guard let bridge = targetBridge else {
+            failure = "\(targetName) 未连接。连接后再试。"
             return
         }
         loading = true
@@ -137,7 +142,7 @@ struct MacFolderPicker: View {
 
     private func createFolder() async {
         guard let parent = listing?.path else { return }
-        guard let bridge = store.macBridge else {
+        guard let bridge = targetBridge else {
             creationError = "Mac 未连接，请连接后重试。"
             return
         }

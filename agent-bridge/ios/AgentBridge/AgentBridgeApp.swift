@@ -80,6 +80,14 @@ private struct RouteDestinations: ViewModifier {
                 SettingsView(path: $path)
             case .devices:
                 DeviceListView(path: $path)
+            case .managedThread(let id):
+                ManagedThreadView(threadId: id)
+            case .deviceThread(let deviceID, let threadID):
+                ManagedThreadView(threadId: threadID, owningDeviceID: deviceID)
+            case .unifiedProject(let pathKey):
+                UnifiedProjectDetailView(projectPath: pathKey, path: $path)
+            case .managedWorkspace:
+                ManagedWorkspaceView(path: $path)
             }
         }
     }

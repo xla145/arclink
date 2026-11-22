@@ -3,6 +3,47 @@ import SwiftUI
 
 /// Shared by local messages and Mac history, so the same Markdown has the
 /// same appearance and link/image policy regardless of conversation source.
+struct AgentThinkingIndicator: View {
+    var agent: AgentKind
+    var label: String = "正在思考"
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        TimelineView(.animation(minimumInterval: 0.08, paused: reduceMotion)) { context in
+            let t = context.date.timeIntervalSinceReferenceDate
+            HStack(spacing: 8) {
+                AgentIcon(agent: agent, size: 15, tint: agent.tint)
+                    .scaleEffect(reduceMotion ? 1.0 : (0.94 + 0.08 * sin(t * 3.0)))
+                    .opacity(reduceMotion ? 1.0 : (0.78 + 0.22 * sin(t * 3.0)))
+
+                Text(label)
+                    .font(.footnote.weight(.medium))
+                    .foregroundStyle(ArcTheme.inkMuted)
+
+                HStack(spacing: 3.5) {
+                    ForEach(0..<3, id: \.self) { index in
+                        let phase = sin(t * 4.2 - Double(index) * 0.85)
+                        let opacity = reduceMotion ? 0.55 : (0.28 + 0.72 * max(0, phase))
+                        let offsetY = reduceMotion ? 0.0 : (-2.2 * max(0, phase))
+                        Circle()
+                            .fill(ArcTheme.inkMuted)
+                            .frame(width: 4, height: 4)
+                            .opacity(opacity)
+                            .offset(y: offsetY)
+                    }
+                }
+                .padding(.top, 1)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(ArcTheme.surfaceSunken.opacity(0.65), in: Capsule())
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(agent.shortName) \(label)")
+        .accessibilityIdentifier("agent-thinking-indicator")
+    }
+}
+
 struct MacMessageText: View {
     var text: String
 
@@ -22,29 +63,37 @@ struct MacMessageText: View {
     private func blockView(_ block: MessageBlock) -> some View {
         switch block {
         case .text(let text):
-            inline(text).lineSpacing(4)
+            inline(text)
+                .font(.subheadline)
+                .foregroundStyle(ArcTheme.ink)
+                .lineSpacing(5)
         case .heading(let level, let text):
             inline(text)
-                .font(level < 3 ? .headline : .subheadline.weight(.semibold))
+                .font(level < 3 ? .callout.weight(.semibold) : .subheadline.weight(.semibold))
+                .foregroundStyle(ArcTheme.ink)
                 .padding(.top, 4)
                 .accessibilityAddTraits(.isHeader)
         case .quote(let text):
             HStack(alignment: .top, spacing: 10) {
-                RoundedRectangle(cornerRadius: 2).fill(ArcTheme.line).frame(width: 3)
-                inline(text).foregroundStyle(ArcTheme.inkMuted).lineSpacing(4)
+                RoundedRectangle(cornerRadius: 2).fill(ArcTheme.line).frame(width: 2.5)
+                inline(text).font(.subheadline).foregroundStyle(ArcTheme.inkMuted).lineSpacing(4)
             }
             .fixedSize(horizontal: false, vertical: true)
-            .padding(.vertical, 4)
+            .padding(.vertical, 2)
         case .list(let marker, let text, let depth, let checked):
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 if let checked {
                     Image(systemName: checked ? "checkmark.square.fill" : "square")
+                        .font(.footnote)
                         .foregroundStyle(checked ? ArcTheme.success : ArcTheme.inkMuted)
                         .accessibilityLabel(checked ? "已完成" : "未完成")
                 } else {
-                    Text(marker.first?.isNumber == true ? marker : "•").foregroundStyle(ArcTheme.inkMuted)
+                    Text(marker.first?.isNumber == true ? marker : "•")
+                        .font(.subheadline)
+                        .foregroundStyle(ArcTheme.inkMuted)
                 }
-                inline(text).frame(maxWidth: .infinity, alignment: .leading)
+                inline(text).font(.subheadline).foregroundStyle(ArcTheme.ink).lineSpacing(4)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
             .padding(.leading, CGFloat(depth) * 12)
         case .code(let language, let code):
@@ -225,13 +274,324 @@ struct MessageStep: Identifiable {
     }
 }
 
+/// Refined collapsible execution trace inspired by Claude iOS & T3 Code:
+/// Whisper-light surface container separating agent work from final prose,
+/// with smart command/file/commentary extraction and bounded scroll for long runs.
+struct InlineStepsGroup: View {
+    var steps: [MessageStep]
+    @State private var expanded: Bool
+
+    init(steps: [MessageStep]) {
+        self.steps = steps
+        let hasRunning = steps.contains { $0.isExecution && $0.completed == false && $0.failed != true }
+        self._expanded = State(initialValue: hasRunning)
+    }
+
+    private var runningStep: MessageStep? {
+        steps.last { $0.isExecution && $0.completed == false && $0.failed != true }
+    }
+
+    private var failedCount: Int {
+        steps.filter { $0.failed == true }.count
+    }
+
+    private var groupIcon: String {
+        let execSteps = steps.filter(\.isExecution)
+        let kinds = Set((execSteps.isEmpty ? steps : execSteps).map { Self.toolCategory($0) })
+        if kinds.count == 1, let only = kinds.first {
+            switch only {
+            case .read: return "eye"
+            case .edit: return "pencil"
+            case .command: return "terminal"
+            case .search: return "magnifyingglass"
+            case .thinking: return "sparkles"
+            case .commentary: return "text.alignleft"
+            case .other: return "wrench.and.screwdriver"
+            }
+        }
+        return "wrench.and.screwdriver"
+    }
+
+    private var headerTitle: String {
+        if let active = runningStep, !expanded {
+            let detail = Self.extractDetail(for: active)
+            if !detail.isEmpty { return "正在执行 \(detail)" }
+            return "正在执行 \(active.title) · \(steps.count) 步"
+        }
+        var reads = 0, edits = 0, cmds = 0, searches = 0, notes = 0, others = 0
+        for step in steps {
+            switch Self.toolCategory(step) {
+            case .read: reads += 1
+            case .edit: edits += 1
+            case .command: cmds += 1
+            case .search: searches += 1
+            case .thinking, .commentary: notes += 1
+            case .other: others += 1
+            }
+        }
+        var parts: [String] = []
+        if reads > 0 { parts.append("读取 \(reads) 个文件") }
+        if edits > 0 { parts.append("编辑 \(edits) 个文件") }
+        if searches > 0 { parts.append("搜索 \(searches) 次") }
+        if cmds > 0 { parts.append("执行 \(cmds) 条命令") }
+        if others > 0 { parts.append("\(others) 项操作") }
+        if parts.isEmpty {
+            parts.append(notes > 0 ? "思考与说明 · \(notes) 条" : "执行 \(steps.count) 个步骤")
+        }
+        let summary = parts.joined(separator: "、")
+        if failedCount > 0 { return "\(summary) · \(failedCount) 失败" }
+        return summary
+    }
+
+    enum ToolCategory { case read, edit, command, search, thinking, commentary, other }
+
+    static func toolCategory(_ step: MessageStep) -> ToolCategory {
+        if step.isSummary { return .thinking }
+        if step.isCommentary { return .commentary }
+        let name = step.title.lowercased()
+        if name.contains("read") || name.contains("view") || name.contains("cat") || name.contains("读取") { return .read }
+        if name.contains("edit") || name.contains("write") || name.contains("patch") || name.contains("编辑") || name.contains("写入") { return .edit }
+        if name.contains("bash") || name.contains("shell") || name.contains("exec") || name.contains("run") || name.contains("command") || name.contains("命令") { return .command }
+        if name.contains("grep") || name.contains("find") || name.contains("search") || name.contains("glob") || name.contains("搜索") { return .search }
+        return .other
+    }
+
+    /// Extract a meaningful human-readable excerpt (command, file path, or commentary text)
+    /// rather than showing raw `exec`, `{`, or `过程说明`.
+    static func extractDetail(for step: MessageStep) -> String {
+        if step.isCommentary || step.isSummary {
+            let source = step.output ?? step.summary
+            return cleanLine(source)
+        }
+        if let raw = step.input, !raw.isEmpty {
+            let unfenced = stripFences(raw)
+            // Try parsing JSON tool arguments (e.g. Codex `exec` / Claude tool input)
+            if unfenced.hasPrefix("{"), let data = unfenced.data(using: .utf8),
+               let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                let priorityKeys = ["cmd", "command", "file_path", "filePath", "path", "pattern", "query", "url", "target"]
+                for key in priorityKeys {
+                    if let val = obj[key] as? String, !val.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        return cleanLine(val)
+                    }
+                    if let arr = obj[key] as? [String], !arr.isEmpty {
+                        return cleanLine(arr.joined(separator: " "))
+                    }
+                }
+            }
+            // Fallback: find first meaningful non-boilerplate line
+            for line in unfenced.split(whereSeparator: \.isNewline) {
+                let trimmed = line.trimmingCharacters(in: .whitespaces)
+                if trimmed.isEmpty || trimmed == "{" || trimmed == "}" || trimmed == step.title { continue }
+                return cleanLine(trimmed)
+            }
+        }
+        let fallback = cleanLine(step.summary)
+        return fallback == step.title ? "" : fallback
+    }
+
+    private static func stripFences(_ text: String) -> String {
+        let lines = text.prefix(4096).split(whereSeparator: \.isNewline).map(String.init)
+        let filtered = lines.filter { line in
+            let t = line.trimmingCharacters(in: .whitespaces)
+            return !t.hasPrefix("```") && !t.hasPrefix("~~~")
+        }
+        return filtered.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private static func cleanLine(_ text: String) -> String {
+        let single = text.prefix(240)
+            .replacingOccurrences(of: "\n", with: " ")
+            .replacingOccurrences(of: "\t", with: " ")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return String(single.prefix(90)) + (single.count > 90 ? "…" : "")
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            // Header row
+            Button {
+                withAnimation(.easeInOut(duration: 0.18)) {
+                    expanded.toggle()
+                }
+            } label: {
+                HStack(spacing: 8) {
+                    if runningStep != nil {
+                        ProgressView()
+                            .controlSize(.mini)
+                            .scaleEffect(0.8)
+                            .frame(width: 18, height: 18)
+                    } else {
+                        Image(systemName: groupIcon)
+                            .font(.system(size: 11.5, weight: .medium))
+                            .foregroundStyle(ArcTheme.inkMuted)
+                            .frame(width: 18, height: 18)
+                    }
+                    Text(headerTitle)
+                        .font(.footnote.weight(.medium))
+                        .foregroundStyle(ArcTheme.inkMuted)
+                        .lineLimit(1)
+                    Spacer(minLength: 8)
+                    Image(systemName: expanded ? "chevron.up" : "chevron.down")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(ArcTheme.inkFaint)
+                        .accessibilityHidden(true)
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 9)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(headerTitle)
+            .accessibilityValue(expanded ? "已展开" : "已收起")
+            .accessibilityHint(expanded ? "点击收起执行过程" : "点击展开执行过程")
+            .accessibilityIdentifier("steps-toggle")
+
+            if expanded {
+                Rectangle()
+                    .fill(ArcTheme.line.opacity(0.6))
+                    .frame(height: 0.5)
+                    .padding(.horizontal, 12)
+
+                let content = VStack(alignment: .leading, spacing: 2) {
+                    ForEach(steps) { step in
+                        InlineStepCard(step: step)
+                    }
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+
+                if steps.count > 8 {
+                    ScrollView {
+                        content
+                    }
+                    .frame(maxHeight: 280)
+                } else {
+                    content
+                }
+            }
+        }
+        .background(ArcTheme.surfaceSunken.opacity(0.55), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(ArcTheme.line.opacity(0.6), lineWidth: 0.75)
+        )
+    }
+}
+
+/// Compact inline step inside `InlineStepsGroup`:
+/// Semantic icon badge + extracted command / filename / commentary + trailing chevron.
+struct InlineStepCard: View {
+    var step: MessageStep
+    @State private var showDetail = false
+
+    private var isRunning: Bool {
+        step.isExecution && step.completed == false && step.failed != true
+    }
+
+    private var category: InlineStepsGroup.ToolCategory {
+        InlineStepsGroup.toolCategory(step)
+    }
+
+    private var detailText: String {
+        InlineStepsGroup.extractDetail(for: step)
+    }
+
+    private var isCodeStyle: Bool {
+        category == .command || category == .read || category == .edit || category == .search
+    }
+
+    var body: some View {
+        Button { showDetail = true } label: {
+            HStack(spacing: 8) {
+                stepIcon
+                    .frame(width: 20, height: 20, alignment: .center)
+
+                if category == .commentary || category == .thinking {
+                    Text(detailText.isEmpty ? step.title : detailText)
+                        .font(.footnote)
+                        .foregroundStyle(ArcTheme.inkMuted)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                } else if category == .command {
+                    Text(detailText.isEmpty ? step.title : detailText)
+                        .font(.system(size: 12.5, design: .monospaced))
+                        .foregroundStyle(step.failed == true ? ArcTheme.danger : ArcTheme.ink)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                } else {
+                    HStack(spacing: 5) {
+                        Text(step.title)
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(step.failed == true ? ArcTheme.danger : ArcTheme.inkMuted)
+                            .fixedSize()
+                        if !detailText.isEmpty {
+                            Text(detailText)
+                                .font(.system(size: 12.5, design: .monospaced))
+                                .foregroundStyle(ArcTheme.ink)
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                        }
+                    }
+                }
+
+                Spacer(minLength: 6)
+
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 9.5, weight: .semibold))
+                    .foregroundStyle(ArcTheme.inkFaint.opacity(0.7))
+                    .accessibilityHidden(true)
+            }
+            .padding(.horizontal, 4)
+            .padding(.vertical, 6)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("\(step.title) \(step.statusLabel)")
+        .sheet(isPresented: $showDetail) {
+            MessageStepDetail(step: step) { showDetail = false }
+        }
+    }
+
+    @ViewBuilder
+    private var stepIcon: some View {
+        if isRunning {
+            ProgressView()
+                .controlSize(.mini)
+                .scaleEffect(0.78)
+        } else if step.failed == true {
+            Image(systemName: "exclamationmark.circle.fill")
+                .font(.system(size: 12))
+                .foregroundStyle(ArcTheme.danger)
+        } else {
+            let symbol = switch category {
+            case .read: "eye"
+            case .edit: "pencil"
+            case .command: "terminal"
+            case .search: "magnifyingglass"
+            case .thinking: "sparkles"
+            case .commentary: "text.alignleft"
+            case .other: "wrench.and.screwdriver"
+            }
+            Image(systemName: symbol)
+                .font(.system(size: 11.5, weight: .medium))
+                .foregroundStyle(ArcTheme.inkMuted)
+        }
+    }
+}
+
 /// First expand to lightweight summaries, then open a single step's details.
 struct AgentStepsDisclosure: View {
     var steps: [MessageStep]
-    @State private var expanded = false
+    @State private var expanded: Bool
     @State private var selected: StepSelection?
 
     private struct StepSelection: Identifiable { let id: String }
+
+    init(steps: [MessageStep]) {
+        self.steps = steps
+        // ≤ 5 steps: default open so the agent's work process is immediately visible
+        self._expanded = State(initialValue: steps.count <= 5)
+    }
 
     var body: some View {
         DisclosureGroup(isExpanded: $expanded) {
@@ -239,9 +599,8 @@ struct AgentStepsDisclosure: View {
                 ForEach(steps) { step in
                     Button { selected = StepSelection(id: step.id) } label: {
                         HStack(spacing: 10) {
-                            Image(systemName: step.statusSymbol)
-                                .font(.caption).frame(width: 18)
-                                .foregroundStyle(step.statusColor)
+                            stepStatusIcon(step)
+                                .frame(width: 18)
                                 .accessibilityHidden(true)
                             VStack(alignment: .leading, spacing: 4) {
                                 Text(step.title).font(.footnote.weight(.semibold)).foregroundStyle(ArcTheme.ink)
@@ -274,6 +633,30 @@ struct AgentStepsDisclosure: View {
             MessageStepDetail(step: steps.first { $0.id == selection.id }) { selected = nil }
         }
     }
+
+    /// Richer status icon: in-progress steps pulse, completed use filled variants.
+    @ViewBuilder
+    private func stepStatusIcon(_ step: MessageStep) -> some View {
+        if step.completed == false && step.failed != true {
+            // In-progress: pulsing dot
+            Image(systemName: "circle.dotted")
+                .font(.caption)
+                .foregroundStyle(ArcTheme.live)
+                .symbolEffect(.pulse.wholeSymbol, options: .repeating)
+        } else if step.failed == false {
+            Image(systemName: "checkmark.circle.fill")
+                .font(.caption)
+                .foregroundStyle(ArcTheme.success)
+        } else if step.failed == true {
+            Image(systemName: "xmark.circle.fill")
+                .font(.caption)
+                .foregroundStyle(ArcTheme.danger)
+        } else {
+            Image(systemName: step.statusSymbol)
+                .font(.caption)
+                .foregroundStyle(step.statusColor)
+        }
+    }
 }
 
 struct MessageStepDetail: View {
@@ -298,8 +681,10 @@ struct MessageStepDetail: View {
                                 MessageInlineImage(source: "data:image/png;base64," + data.base64EncodedString(), caption: "过程图片")
                             }
                         } else {
-                            detailSection("输入", text: step.input, missing: "记录未提供输入", code: true)
-                            detailSection("输出", text: step.output,
+                            if let input = step.input, input != step.output {
+                                detailSection("输入", text: input, missing: "记录未提供输入", code: true)
+                            }
+                            detailSection(step.input == nil ? "详情" : "输出", text: step.output,
                                           missing: step.completed == false ? "等待输出…" : "记录未提供输出", code: true)
                         }
                     }.padding(20)

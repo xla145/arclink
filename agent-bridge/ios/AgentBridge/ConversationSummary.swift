@@ -37,34 +37,42 @@ struct ConversationSummaryView: View {
     @Environment(\.dynamicTypeSize) private var typeSize
     var summary: ConversationSummary
 
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            let layout = typeSize.isAccessibilitySize
-                ? AnyLayout(VStackLayout(alignment: .leading, spacing: 12))
-                : AnyLayout(HStackLayout(alignment: .top, spacing: 12))
-            layout {
-                metric("耗时", value: summary.durationValue, icon: "clock")
-                metric("执行步骤", value: summary.stepsValue, icon: "list.bullet.rectangle")
-                metric("失败", value: summary.failuresValue, icon: "exclamationmark.circle", failed: (summary.failureCount ?? 0) > 0)
-            }
-            if summary.unknownCount > 0 {
-                Text("\(summary.unknownCount) 项结果未知")
-                    .font(.caption).foregroundStyle(ArcTheme.inkMuted)
-            }
-        }
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(summary.metricsText)
-        .accessibilityIdentifier("turn-metrics")
+    private var hasAnyInfo: Bool {
+        summary.isRunning || summary.elapsed != nil || (summary.executionCount ?? 0) > 0 || (summary.failureCount ?? 0) > 0
     }
 
-    private func metric(_ title: String, value: String, icon: String, failed: Bool = false) -> some View {
-        HStack(spacing: 5) {
-            Image(systemName: icon).accessibilityHidden(true)
-            Text("\(title) \(value)").monospacedDigit()
+    var body: some View {
+        if hasAnyInfo {
+            HStack(spacing: 6) {
+                if summary.isRunning {
+                    Circle()
+                        .fill(ArcTheme.live)
+                        .frame(width: 5, height: 5)
+                    Text("进行中")
+                } else if let elapsed = summary.elapsed {
+                    Text(elapsed)
+                        .monospacedDigit()
+                }
+                if let count = summary.executionCount, count > 0 {
+                    if summary.isRunning || summary.elapsed != nil {
+                        Text("·")
+                    }
+                    Text("\(summary.executionIsLowerBound ? "至少 " : "")\(count) 步")
+                        .monospacedDigit()
+                }
+                if let failures = summary.failureCount, failures > 0 {
+                    Text("·")
+                    Text("\(failures) 失败")
+                        .foregroundStyle(ArcTheme.danger)
+                        .monospacedDigit()
+                }
+            }
+            .font(.caption2.weight(.medium))
+            .foregroundStyle(ArcTheme.inkFaint)
+            .padding(.top, 2)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(summary.metricsText)
+            .accessibilityIdentifier("turn-metrics")
         }
-        .font(.caption)
-        .foregroundStyle(failed ? ArcTheme.danger : ArcTheme.inkMuted)
-        .fixedSize(horizontal: false, vertical: true)
-
     }
 }

@@ -236,6 +236,7 @@ struct AddProjectView: View {
     @Environment(\.dismiss) private var dismiss
     var editingId: String?
 
+    @State private var showingImports = false
     @State private var agent: AgentKind = .claude
     @State private var selectedPath = ""
     @State private var name = ""
@@ -254,17 +255,43 @@ struct AddProjectView: View {
     var body: some View {
         Form {
             Section {
-                Picker("Agent", selection: $agent) {
+                Button { browsingFolders = true } label: {
+                    HStack(spacing: ArcTheme.Space.s3) {
+                        IconTile(symbol: "folder", accent: true)
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(selectedPath.isEmpty ? "选择项目文件夹" : (selectedPath as NSString).lastPathComponent)
+                                .font(.body.weight(.medium)).foregroundStyle(ArcTheme.ink)
+                            Text(selectedPath.isEmpty ? "浏览电脑上的文件夹，也可以新建" : selectedPath)
+                                .font(.caption).foregroundStyle(ArcTheme.inkMuted)
+                                .lineLimit(2).truncationMode(.middle)
+                        }
+                        Spacer(minLength: 8)
+                        Image(systemName: "chevron.right").font(.caption).foregroundStyle(ArcTheme.inkMuted)
+                    }
+                    .padding(.vertical, ArcTheme.Space.s2)
+                    .contentShape(Rectangle())
+                }
+                .accessibilityIdentifier("browse-mac-folders")
+                if !selectedPath.isEmpty || editing {
+                    TextField("名称", text: $name, prompt: Text("默认使用文件夹名"))
+                        .accessibilityLabel("项目名称")
+                }
+            } header: {
+                Text("项目文件夹")
+            }
+            .listRowBackground(ArcTheme.surface)
+            Section {
+                Picker("助手", selection: $agent) {
                     ForEach(AgentKind.allCases.filter(\.installed)) { kind in
                         Text(kind.shortName).tag(kind)
                     }
                 }
-                .pickerStyle(.segmented)
-                .listRowBackground(Color.clear)
-                .listRowInsets(EdgeInsets())
             }
+            .listRowBackground(ArcTheme.surface)
+
             if !editing {
                 Section {
+                    DisclosureGroup(isExpanded: $showingImports) {
                     if let macProjects {
                         if macProjects.isEmpty {
                             Text("没有可导入的项目").foregroundStyle(ArcTheme.inkMuted)
@@ -300,24 +327,19 @@ struct AddProjectView: View {
                     } else {
                         HStack { ProgressView(); Text("正在读取 \(store.hostName) 上的项目…").foregroundStyle(ArcTheme.inkMuted) }
                     }
-                } header: {
-                    Text("\(store.hostName) 上已有的 \(agent.shortName) 项目")
-                } footer: {
-                    Text("导入只是登记路径，发送第一条消息时才会在 Mac 上创建对话。")
+                    } label: {
+                        HStack {
+                            Text("导入已有项目").foregroundStyle(ArcTheme.ink)
+                            Spacer()
+                            if !selectedPaths.isEmpty {
+                                Text("已选 \(selectedPaths.count) 个").font(.subheadline).foregroundStyle(ArcTheme.primary)
+                            }
+                        }
+                        .frame(minHeight: ArcTheme.tapMin)
+                    }
+                    .accessibilityIdentifier("project-import-options")
                 }
-            }
-            Section(editing ? "项目文件夹" : "或选择 Mac 上的文件夹") {
-                Button { browsingFolders = true } label: {
-                    Label("选择或新建 Mac 上的文件夹", systemImage: "folder.badge.plus")
-                }
-                .accessibilityIdentifier("browse-mac-folders")
-                if !selectedPath.isEmpty {
-                    Text(selectedPath)
-                        .font(.body.monospaced())
-                        .foregroundStyle(ArcTheme.inkMuted)
-                        .textSelection(.enabled)
-                }
-                TextField(editing ? "名称" : "名称（可选，默认取文件夹名）", text: $name)
+                .listRowBackground(ArcTheme.surface)
             }
             if editing {
                 Section {
@@ -331,13 +353,15 @@ struct AddProjectView: View {
         .background(ArcTheme.bg)
         .navigationTitle(editing ? "项目设置" : "添加项目")
         .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItem(placement: .confirmationAction) {
-                Button(editing ? "保存" : "添加", action: save)
-                    .fontWeight(.semibold)
-                    .disabled(!canSave)
-                    .accessibilityIdentifier("save-project")
-            }
+        .scrollDismissesKeyboard(.interactively)
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            Button(editing ? "保存修改" : "添加项目", action: save)
+                .buttonStyle(.arc(block: true))
+                .disabled(!canSave)
+                .accessibilityIdentifier("save-project")
+                .padding(.horizontal, ArcTheme.Space.s4)
+                .padding(.vertical, ArcTheme.Space.s2)
+                .background(ArcTheme.bg)
         }
         .onAppear {
             if let editingId, let project = store.project(editingId) {

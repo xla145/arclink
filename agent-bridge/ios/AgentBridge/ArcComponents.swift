@@ -237,7 +237,7 @@ struct StatusTag: View {
 
     private var background: Color {
         switch kind {
-        case .running: ArcTheme.primarySoft
+        case .running: ArcTheme.liveSoft
         case .waiting: ArcTheme.warningSoft
         case .done: ArcTheme.successSoft
         case .failed: ArcTheme.dangerSoft
@@ -314,6 +314,41 @@ struct DeviceStatusPill: View {
     }
 }
 
+// MARK: - Agent Brand Icons
+
+/// Official OpenAI (Codex) & Claude SVG brand marks rendered as crisp template vectors.
+struct AgentIcon: View {
+    var agent: AgentKind
+    var size: CGFloat = 16
+    var tint: Color? = nil
+
+    var body: some View {
+        let color = tint ?? agent.tint
+        Group {
+            switch agent {
+            case .codex:
+                Image("AgentCodexIcon")
+                    .renderingMode(.template)
+                    .resizable()
+                    .scaledToFit()
+                    .foregroundStyle(color)
+            case .claude:
+                Image("AgentClaudeIcon")
+                    .renderingMode(.template)
+                    .resizable()
+                    .scaledToFit()
+                    .foregroundStyle(color)
+            case .legacyHerdr:
+                Image(systemName: "questionmark")
+                    .font(.system(size: size * 0.75, weight: .semibold))
+                    .foregroundStyle(color)
+            }
+        }
+        .frame(width: size, height: size)
+        .accessibilityHidden(true)
+    }
+}
+
 /// Segmented control choosing which agent's projects to show.
 struct AgentSwitcher: View {
     @Binding var selection: AgentKind
@@ -325,7 +360,7 @@ struct AgentSwitcher: View {
                 let selected = selection == agent
                 Button { selection = agent } label: {
                     HStack(spacing: 6) {
-                        Image(systemName: agent.symbolName).font(.subheadline).foregroundStyle(agent.tint)
+                        AgentIcon(agent: agent, size: 15)
                         Text(agent.shortName).lineLimit(1).minimumScaleFactor(0.85)
                     }
                     .font(.subheadline.weight(selected ? .semibold : .medium))

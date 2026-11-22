@@ -635,7 +635,17 @@ public protocol BridgeConnectionProtocol: AnyObject, Sendable {
 
     func createDirectory(parent: String, name: String) async throws  -> MacDirectoryListing
 
+    func createManagedProject(commandId: String, path: String, name: String) async throws  -> ManagedProject
+
+    func createManagedThread(commandId: String, projectId: String, providerId: String, title: String) async throws  -> ManagedThread
+
+    func describeEnvironment() async throws  -> EnvironmentDescriptor
+
     func disconnect() async
+
+    func getManagedThread(threadId: String) async throws  -> ManagedThread
+
+    func getManagedThreadSnapshot(threadId: String) async throws  -> ManagedThreadSnapshot
 
     func getProcessStatus(processId: String, generation: String) async throws  -> ProcessInfo
 
@@ -647,6 +657,8 @@ public protocol BridgeConnectionProtocol: AnyObject, Sendable {
      * prompts are filtered out server-side.
      */
     func getThreadMessages(agentId: String, threadId: String) async throws  -> [MacMessage]
+
+    func interruptManagedThread(commandId: String, threadId: String) async throws  -> String
 
     func listAgentModels(agentId: String) async throws  -> [MacModel]
 
@@ -667,11 +679,21 @@ public protocol BridgeConnectionProtocol: AnyObject, Sendable {
      */
     func listDirectory(path: String?) async throws  -> MacDirectoryListing
 
+    func listGitBranches(path: String) async throws  -> MacGitInfo
+
+    func listManagedProjects() async throws  -> [ManagedProject]
+
+    func listManagedThreads(projectId: String) async throws  -> [ManagedThread]
+
     func listProcesses() async throws  -> [ProcessInfo]
+
+    func managedThreadHistory(threadId: String, beforeId: String?) async throws  -> ManagedThreadHistory
 
     func pathKind() async  -> String
 
     func ping() async throws
+
+    func prepareGitWorkspace(path: String, mode: String, branch: String?) async throws  -> MacPreparedWorkspace
 
     /**
      * Drops the current `Connection` (if any) and dials again on the same
@@ -679,13 +701,37 @@ public protocol BridgeConnectionProtocol: AnyObject, Sendable {
      */
     func reconnect() async  -> ConnectionState
 
+    func replayManagedThread(environmentId: String, threadId: String, afterSequence: String) async throws  -> ManagedThreadReplay
+
+    func resolveManagedApproval(commandId: String, threadId: String, approvalId: String, approved: Bool) async throws  -> String
+
     func resumeChatIo(processId: String, generation: String, stdoutOffset: UInt64, stderrOffset: UInt64, previousLeaseId: String, callback: AgentIoCallback) async throws  -> IoHandle
+
+    /**
+     * Returns the durable command receipt. Never retry an uncertain send with a new ID.
+     */
+    func sendManagedThread(commandId: String, threadId: String, clientMessageId: String, text: String, expectedRevision: String?) async throws  -> String
+
+    /**
+     * Sends a managed thread message with optional base64-encoded JPEG images.
+     */
+    func sendManagedThreadWithImages(commandId: String, threadId: String, clientMessageId: String, text: String, expectedRevision: String?, images: [String]) async throws  -> String
+
+    func setManagedThreadModel(commandId: String, threadId: String, model: String?, expectedRevision: String?) async throws  -> ManagedThread
+
+    /**
+     * Change the executor of the same logical conversation. The host owns
+     * native-session replacement and the public-context handoff.
+     */
+    func setManagedThreadProvider(commandId: String, threadId: String, providerId: String, model: String?, expectedRevision: String?) async throws  -> ManagedThread
 
     func startProcess(operationId: String, agentId: String, cwd: String) async throws  -> ProcessInfo
 
     func state()  -> ConnectionState
 
     func stopProcess(operationId: String, processId: String, generation: String) async throws  -> ProcessInfo
+
+    func waitManagedThread(environmentId: String, threadId: String, afterSequence: String) async throws  -> ManagedThreadReplay
 
 }
 /**
@@ -845,6 +891,54 @@ open func createDirectory(parent: String, name: String)async throws  -> MacDirec
         )
 }
 
+open func createManagedProject(commandId: String, path: String, name: String)async throws  -> ManagedProject  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_agent_bridge_client_fn_method_bridgeconnection_create_managed_project(
+                        self.uniffiCloneHandle(),FfiConverterString.lower(commandId),FfiConverterString.lower(path),FfiConverterString.lower(name)
+                )
+            },
+            pollFunc: ffi_agent_bridge_client_rust_future_poll_rust_buffer,
+            completeFunc: ffi_agent_bridge_client_rust_future_complete_rust_buffer,
+            freeFunc: ffi_agent_bridge_client_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterTypeManagedProject_lift,
+            errorHandler: FfiConverterTypeBridgeError_lift
+        )
+}
+
+open func createManagedThread(commandId: String, projectId: String, providerId: String, title: String)async throws  -> ManagedThread  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_agent_bridge_client_fn_method_bridgeconnection_create_managed_thread(
+                        self.uniffiCloneHandle(),FfiConverterString.lower(commandId),FfiConverterString.lower(projectId),FfiConverterString.lower(providerId),FfiConverterString.lower(title)
+                )
+            },
+            pollFunc: ffi_agent_bridge_client_rust_future_poll_rust_buffer,
+            completeFunc: ffi_agent_bridge_client_rust_future_complete_rust_buffer,
+            freeFunc: ffi_agent_bridge_client_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterTypeManagedThread_lift,
+            errorHandler: FfiConverterTypeBridgeError_lift
+        )
+}
+
+open func describeEnvironment()async throws  -> EnvironmentDescriptor  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_agent_bridge_client_fn_method_bridgeconnection_describe_environment(
+                        self.uniffiCloneHandle()
+                )
+            },
+            pollFunc: ffi_agent_bridge_client_rust_future_poll_rust_buffer,
+            completeFunc: ffi_agent_bridge_client_rust_future_complete_rust_buffer,
+            freeFunc: ffi_agent_bridge_client_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterTypeEnvironmentDescriptor_lift,
+            errorHandler: FfiConverterTypeBridgeError_lift
+        )
+}
+
 open func disconnect()async   {
     return
         try!  await uniffiRustCallAsync(
@@ -859,6 +953,38 @@ open func disconnect()async   {
             liftFunc: { $0 },
             errorHandler: nil
 
+        )
+}
+
+open func getManagedThread(threadId: String)async throws  -> ManagedThread  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_agent_bridge_client_fn_method_bridgeconnection_get_managed_thread(
+                        self.uniffiCloneHandle(),FfiConverterString.lower(threadId)
+                )
+            },
+            pollFunc: ffi_agent_bridge_client_rust_future_poll_rust_buffer,
+            completeFunc: ffi_agent_bridge_client_rust_future_complete_rust_buffer,
+            freeFunc: ffi_agent_bridge_client_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterTypeManagedThread_lift,
+            errorHandler: FfiConverterTypeBridgeError_lift
+        )
+}
+
+open func getManagedThreadSnapshot(threadId: String)async throws  -> ManagedThreadSnapshot  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_agent_bridge_client_fn_method_bridgeconnection_get_managed_thread_snapshot(
+                        self.uniffiCloneHandle(),FfiConverterString.lower(threadId)
+                )
+            },
+            pollFunc: ffi_agent_bridge_client_rust_future_poll_rust_buffer,
+            completeFunc: ffi_agent_bridge_client_rust_future_complete_rust_buffer,
+            freeFunc: ffi_agent_bridge_client_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterTypeManagedThreadSnapshot_lift,
+            errorHandler: FfiConverterTypeBridgeError_lift
         )
 }
 
@@ -911,6 +1037,22 @@ open func getThreadMessages(agentId: String, threadId: String)async throws  -> [
             completeFunc: ffi_agent_bridge_client_rust_future_complete_rust_buffer,
             freeFunc: ffi_agent_bridge_client_rust_future_free_rust_buffer,
             liftFunc: FfiConverterSequenceTypeMacMessage.lift,
+            errorHandler: FfiConverterTypeBridgeError_lift
+        )
+}
+
+open func interruptManagedThread(commandId: String, threadId: String)async throws  -> String  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_agent_bridge_client_fn_method_bridgeconnection_interrupt_managed_thread(
+                        self.uniffiCloneHandle(),FfiConverterString.lower(commandId),FfiConverterString.lower(threadId)
+                )
+            },
+            pollFunc: ffi_agent_bridge_client_rust_future_poll_rust_buffer,
+            completeFunc: ffi_agent_bridge_client_rust_future_complete_rust_buffer,
+            freeFunc: ffi_agent_bridge_client_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterString.lift,
             errorHandler: FfiConverterTypeBridgeError_lift
         )
 }
@@ -990,6 +1132,54 @@ open func listDirectory(path: String?)async throws  -> MacDirectoryListing  {
         )
 }
 
+open func listGitBranches(path: String)async throws  -> MacGitInfo  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_agent_bridge_client_fn_method_bridgeconnection_list_git_branches(
+                        self.uniffiCloneHandle(),FfiConverterString.lower(path)
+                )
+            },
+            pollFunc: ffi_agent_bridge_client_rust_future_poll_rust_buffer,
+            completeFunc: ffi_agent_bridge_client_rust_future_complete_rust_buffer,
+            freeFunc: ffi_agent_bridge_client_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterTypeMacGitInfo_lift,
+            errorHandler: FfiConverterTypeBridgeError_lift
+        )
+}
+
+open func listManagedProjects()async throws  -> [ManagedProject]  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_agent_bridge_client_fn_method_bridgeconnection_list_managed_projects(
+                        self.uniffiCloneHandle()
+                )
+            },
+            pollFunc: ffi_agent_bridge_client_rust_future_poll_rust_buffer,
+            completeFunc: ffi_agent_bridge_client_rust_future_complete_rust_buffer,
+            freeFunc: ffi_agent_bridge_client_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterSequenceTypeManagedProject.lift,
+            errorHandler: FfiConverterTypeBridgeError_lift
+        )
+}
+
+open func listManagedThreads(projectId: String)async throws  -> [ManagedThread]  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_agent_bridge_client_fn_method_bridgeconnection_list_managed_threads(
+                        self.uniffiCloneHandle(),FfiConverterString.lower(projectId)
+                )
+            },
+            pollFunc: ffi_agent_bridge_client_rust_future_poll_rust_buffer,
+            completeFunc: ffi_agent_bridge_client_rust_future_complete_rust_buffer,
+            freeFunc: ffi_agent_bridge_client_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterSequenceTypeManagedThread.lift,
+            errorHandler: FfiConverterTypeBridgeError_lift
+        )
+}
+
 open func listProcesses()async throws  -> [ProcessInfo]  {
     return
         try  await uniffiRustCallAsync(
@@ -1002,6 +1192,22 @@ open func listProcesses()async throws  -> [ProcessInfo]  {
             completeFunc: ffi_agent_bridge_client_rust_future_complete_rust_buffer,
             freeFunc: ffi_agent_bridge_client_rust_future_free_rust_buffer,
             liftFunc: FfiConverterSequenceTypeProcessInfo.lift,
+            errorHandler: FfiConverterTypeBridgeError_lift
+        )
+}
+
+open func managedThreadHistory(threadId: String, beforeId: String?)async throws  -> ManagedThreadHistory  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_agent_bridge_client_fn_method_bridgeconnection_managed_thread_history(
+                        self.uniffiCloneHandle(),FfiConverterString.lower(threadId),FfiConverterOptionString.lower(beforeId)
+                )
+            },
+            pollFunc: ffi_agent_bridge_client_rust_future_poll_rust_buffer,
+            completeFunc: ffi_agent_bridge_client_rust_future_complete_rust_buffer,
+            freeFunc: ffi_agent_bridge_client_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterTypeManagedThreadHistory_lift,
             errorHandler: FfiConverterTypeBridgeError_lift
         )
 }
@@ -1039,6 +1245,22 @@ open func ping()async throws   {
         )
 }
 
+open func prepareGitWorkspace(path: String, mode: String, branch: String?)async throws  -> MacPreparedWorkspace  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_agent_bridge_client_fn_method_bridgeconnection_prepare_git_workspace(
+                        self.uniffiCloneHandle(),FfiConverterString.lower(path),FfiConverterString.lower(mode),FfiConverterOptionString.lower(branch)
+                )
+            },
+            pollFunc: ffi_agent_bridge_client_rust_future_poll_rust_buffer,
+            completeFunc: ffi_agent_bridge_client_rust_future_complete_rust_buffer,
+            freeFunc: ffi_agent_bridge_client_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterTypeMacPreparedWorkspace_lift,
+            errorHandler: FfiConverterTypeBridgeError_lift
+        )
+}
+
     /**
      * Drops the current `Connection` (if any) and dials again on the same
      * bound `Endpoint`/identity.
@@ -1060,6 +1282,38 @@ open func reconnect()async  -> ConnectionState  {
         )
 }
 
+open func replayManagedThread(environmentId: String, threadId: String, afterSequence: String)async throws  -> ManagedThreadReplay  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_agent_bridge_client_fn_method_bridgeconnection_replay_managed_thread(
+                        self.uniffiCloneHandle(),FfiConverterString.lower(environmentId),FfiConverterString.lower(threadId),FfiConverterString.lower(afterSequence)
+                )
+            },
+            pollFunc: ffi_agent_bridge_client_rust_future_poll_rust_buffer,
+            completeFunc: ffi_agent_bridge_client_rust_future_complete_rust_buffer,
+            freeFunc: ffi_agent_bridge_client_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterTypeManagedThreadReplay_lift,
+            errorHandler: FfiConverterTypeBridgeError_lift
+        )
+}
+
+open func resolveManagedApproval(commandId: String, threadId: String, approvalId: String, approved: Bool)async throws  -> String  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_agent_bridge_client_fn_method_bridgeconnection_resolve_managed_approval(
+                        self.uniffiCloneHandle(),FfiConverterString.lower(commandId),FfiConverterString.lower(threadId),FfiConverterString.lower(approvalId),FfiConverterBool.lower(approved)
+                )
+            },
+            pollFunc: ffi_agent_bridge_client_rust_future_poll_rust_buffer,
+            completeFunc: ffi_agent_bridge_client_rust_future_complete_rust_buffer,
+            freeFunc: ffi_agent_bridge_client_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterString.lift,
+            errorHandler: FfiConverterTypeBridgeError_lift
+        )
+}
+
 open func resumeChatIo(processId: String, generation: String, stdoutOffset: UInt64, stderrOffset: UInt64, previousLeaseId: String, callback: AgentIoCallback)async throws  -> IoHandle  {
     return
         try  await uniffiRustCallAsync(
@@ -1072,6 +1326,80 @@ open func resumeChatIo(processId: String, generation: String, stdoutOffset: UInt
             completeFunc: ffi_agent_bridge_client_rust_future_complete_u64,
             freeFunc: ffi_agent_bridge_client_rust_future_free_u64,
             liftFunc: FfiConverterTypeIoHandle_lift,
+            errorHandler: FfiConverterTypeBridgeError_lift
+        )
+}
+
+    /**
+     * Returns the durable command receipt. Never retry an uncertain send with a new ID.
+     */
+open func sendManagedThread(commandId: String, threadId: String, clientMessageId: String, text: String, expectedRevision: String?)async throws  -> String  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_agent_bridge_client_fn_method_bridgeconnection_send_managed_thread(
+                        self.uniffiCloneHandle(),FfiConverterString.lower(commandId),FfiConverterString.lower(threadId),FfiConverterString.lower(clientMessageId),FfiConverterString.lower(text),FfiConverterOptionString.lower(expectedRevision)
+                )
+            },
+            pollFunc: ffi_agent_bridge_client_rust_future_poll_rust_buffer,
+            completeFunc: ffi_agent_bridge_client_rust_future_complete_rust_buffer,
+            freeFunc: ffi_agent_bridge_client_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterString.lift,
+            errorHandler: FfiConverterTypeBridgeError_lift
+        )
+}
+
+    /**
+     * Sends a managed thread message with optional base64-encoded JPEG images.
+     */
+open func sendManagedThreadWithImages(commandId: String, threadId: String, clientMessageId: String, text: String, expectedRevision: String?, images: [String])async throws  -> String  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_agent_bridge_client_fn_method_bridgeconnection_send_managed_thread_with_images(
+                        self.uniffiCloneHandle(),FfiConverterString.lower(commandId),FfiConverterString.lower(threadId),FfiConverterString.lower(clientMessageId),FfiConverterString.lower(text),FfiConverterOptionString.lower(expectedRevision),FfiConverterSequenceString.lower(images)
+                )
+            },
+            pollFunc: ffi_agent_bridge_client_rust_future_poll_rust_buffer,
+            completeFunc: ffi_agent_bridge_client_rust_future_complete_rust_buffer,
+            freeFunc: ffi_agent_bridge_client_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterString.lift,
+            errorHandler: FfiConverterTypeBridgeError_lift
+        )
+}
+
+open func setManagedThreadModel(commandId: String, threadId: String, model: String?, expectedRevision: String?)async throws  -> ManagedThread  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_agent_bridge_client_fn_method_bridgeconnection_set_managed_thread_model(
+                        self.uniffiCloneHandle(),FfiConverterString.lower(commandId),FfiConverterString.lower(threadId),FfiConverterOptionString.lower(model),FfiConverterOptionString.lower(expectedRevision)
+                )
+            },
+            pollFunc: ffi_agent_bridge_client_rust_future_poll_rust_buffer,
+            completeFunc: ffi_agent_bridge_client_rust_future_complete_rust_buffer,
+            freeFunc: ffi_agent_bridge_client_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterTypeManagedThread_lift,
+            errorHandler: FfiConverterTypeBridgeError_lift
+        )
+}
+
+    /**
+     * Change the executor of the same logical conversation. The host owns
+     * native-session replacement and the public-context handoff.
+     */
+open func setManagedThreadProvider(commandId: String, threadId: String, providerId: String, model: String?, expectedRevision: String?)async throws  -> ManagedThread  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_agent_bridge_client_fn_method_bridgeconnection_set_managed_thread_provider(
+                        self.uniffiCloneHandle(),FfiConverterString.lower(commandId),FfiConverterString.lower(threadId),FfiConverterString.lower(providerId),FfiConverterOptionString.lower(model),FfiConverterOptionString.lower(expectedRevision)
+                )
+            },
+            pollFunc: ffi_agent_bridge_client_rust_future_poll_rust_buffer,
+            completeFunc: ffi_agent_bridge_client_rust_future_complete_rust_buffer,
+            freeFunc: ffi_agent_bridge_client_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterTypeManagedThread_lift,
             errorHandler: FfiConverterTypeBridgeError_lift
         )
 }
@@ -1113,6 +1441,22 @@ open func stopProcess(operationId: String, processId: String, generation: String
             completeFunc: ffi_agent_bridge_client_rust_future_complete_rust_buffer,
             freeFunc: ffi_agent_bridge_client_rust_future_free_rust_buffer,
             liftFunc: FfiConverterTypeProcessInfo_lift,
+            errorHandler: FfiConverterTypeBridgeError_lift
+        )
+}
+
+open func waitManagedThread(environmentId: String, threadId: String, afterSequence: String)async throws  -> ManagedThreadReplay  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_agent_bridge_client_fn_method_bridgeconnection_wait_managed_thread(
+                        self.uniffiCloneHandle(),FfiConverterString.lower(environmentId),FfiConverterString.lower(threadId),FfiConverterString.lower(afterSequence)
+                )
+            },
+            pollFunc: ffi_agent_bridge_client_rust_future_poll_rust_buffer,
+            completeFunc: ffi_agent_bridge_client_rust_future_complete_rust_buffer,
+            freeFunc: ffi_agent_bridge_client_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterTypeManagedThreadReplay_lift,
             errorHandler: FfiConverterTypeBridgeError_lift
         )
 }
@@ -1386,6 +1730,64 @@ public func FfiConverterTypeAgentInfo_lower(_ value: AgentInfo) -> RustBuffer {
 }
 
 
+public struct EnvironmentDescriptor: Equatable, Hashable {
+    public var environmentId: String
+    public var serviceInstance: String
+    public var capabilities: [String]
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(environmentId: String, serviceInstance: String, capabilities: [String]) {
+        self.environmentId = environmentId
+        self.serviceInstance = serviceInstance
+        self.capabilities = capabilities
+    }
+
+
+
+
+}
+
+#if compiler(>=6)
+extension EnvironmentDescriptor: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeEnvironmentDescriptor: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> EnvironmentDescriptor {
+        return
+            try EnvironmentDescriptor(
+                environmentId: FfiConverterString.read(from: &buf),
+                serviceInstance: FfiConverterString.read(from: &buf),
+                capabilities: FfiConverterSequenceString.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: EnvironmentDescriptor, into buf: inout [UInt8]) {
+        FfiConverterString.write(value.environmentId, into: &buf)
+        FfiConverterString.write(value.serviceInstance, into: &buf)
+        FfiConverterSequenceString.write(value.capabilities, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeEnvironmentDescriptor_lift(_ buf: RustBuffer) throws -> EnvironmentDescriptor {
+    return try FfiConverterTypeEnvironmentDescriptor.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeEnvironmentDescriptor_lower(_ value: EnvironmentDescriptor) -> RustBuffer {
+    return FfiConverterTypeEnvironmentDescriptor.lower(value)
+}
+
+
 /**
  * One subfolder of a folder on the Mac, for choosing a project path.
  */
@@ -1521,6 +1923,68 @@ public func FfiConverterTypeMacDirectoryListing_lift(_ buf: RustBuffer) throws -
 #endif
 public func FfiConverterTypeMacDirectoryListing_lower(_ value: MacDirectoryListing) -> RustBuffer {
     return FfiConverterTypeMacDirectoryListing.lower(value)
+}
+
+
+public struct MacGitInfo: Equatable, Hashable {
+    public var isGitRepo: Bool
+    public var repoRoot: String?
+    public var currentBranch: String?
+    public var branches: [String]
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(isGitRepo: Bool, repoRoot: String?, currentBranch: String?, branches: [String]) {
+        self.isGitRepo = isGitRepo
+        self.repoRoot = repoRoot
+        self.currentBranch = currentBranch
+        self.branches = branches
+    }
+
+
+
+
+}
+
+#if compiler(>=6)
+extension MacGitInfo: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeMacGitInfo: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> MacGitInfo {
+        return
+            try MacGitInfo(
+                isGitRepo: FfiConverterBool.read(from: &buf),
+                repoRoot: FfiConverterOptionString.read(from: &buf),
+                currentBranch: FfiConverterOptionString.read(from: &buf),
+                branches: FfiConverterSequenceString.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: MacGitInfo, into buf: inout [UInt8]) {
+        FfiConverterBool.write(value.isGitRepo, into: &buf)
+        FfiConverterOptionString.write(value.repoRoot, into: &buf)
+        FfiConverterOptionString.write(value.currentBranch, into: &buf)
+        FfiConverterSequenceString.write(value.branches, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeMacGitInfo_lift(_ buf: RustBuffer) throws -> MacGitInfo {
+    return try FfiConverterTypeMacGitInfo.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeMacGitInfo_lower(_ value: MacGitInfo) -> RustBuffer {
+    return FfiConverterTypeMacGitInfo.lower(value)
 }
 
 
@@ -1660,6 +2124,64 @@ public func FfiConverterTypeMacModel_lower(_ value: MacModel) -> RustBuffer {
 }
 
 
+public struct MacPreparedWorkspace: Equatable, Hashable {
+    public var path: String
+    public var branch: String?
+    public var isWorktree: Bool
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(path: String, branch: String?, isWorktree: Bool) {
+        self.path = path
+        self.branch = branch
+        self.isWorktree = isWorktree
+    }
+
+
+
+
+}
+
+#if compiler(>=6)
+extension MacPreparedWorkspace: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeMacPreparedWorkspace: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> MacPreparedWorkspace {
+        return
+            try MacPreparedWorkspace(
+                path: FfiConverterString.read(from: &buf),
+                branch: FfiConverterOptionString.read(from: &buf),
+                isWorktree: FfiConverterBool.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: MacPreparedWorkspace, into buf: inout [UInt8]) {
+        FfiConverterString.write(value.path, into: &buf)
+        FfiConverterOptionString.write(value.branch, into: &buf)
+        FfiConverterBool.write(value.isWorktree, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeMacPreparedWorkspace_lift(_ buf: RustBuffer) throws -> MacPreparedWorkspace {
+    return try FfiConverterTypeMacPreparedWorkspace.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeMacPreparedWorkspace_lower(_ value: MacPreparedWorkspace) -> RustBuffer {
+    return FfiConverterTypeMacPreparedWorkspace.lower(value)
+}
+
+
 /**
  * A project path the Mac's Agent already tracked itself, plus the newest
  * on-disk timestamp we could find for it (RFC3339), if any.
@@ -1785,6 +2307,632 @@ public func FfiConverterTypeMacThread_lift(_ buf: RustBuffer) throws -> MacThrea
 #endif
 public func FfiConverterTypeMacThread_lower(_ value: MacThread) -> RustBuffer {
     return FfiConverterTypeMacThread.lower(value)
+}
+
+
+public struct ManagedApproval: Equatable, Hashable {
+    public var id: String
+    public var runId: String
+    public var state: String
+    public var kind: String
+    public var target: String
+    public var detail: String
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(id: String, runId: String, state: String, kind: String, target: String, detail: String) {
+        self.id = id
+        self.runId = runId
+        self.state = state
+        self.kind = kind
+        self.target = target
+        self.detail = detail
+    }
+
+
+
+
+}
+
+#if compiler(>=6)
+extension ManagedApproval: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeManagedApproval: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> ManagedApproval {
+        return
+            try ManagedApproval(
+                id: FfiConverterString.read(from: &buf),
+                runId: FfiConverterString.read(from: &buf),
+                state: FfiConverterString.read(from: &buf),
+                kind: FfiConverterString.read(from: &buf),
+                target: FfiConverterString.read(from: &buf),
+                detail: FfiConverterString.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: ManagedApproval, into buf: inout [UInt8]) {
+        FfiConverterString.write(value.id, into: &buf)
+        FfiConverterString.write(value.runId, into: &buf)
+        FfiConverterString.write(value.state, into: &buf)
+        FfiConverterString.write(value.kind, into: &buf)
+        FfiConverterString.write(value.target, into: &buf)
+        FfiConverterString.write(value.detail, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeManagedApproval_lift(_ buf: RustBuffer) throws -> ManagedApproval {
+    return try FfiConverterTypeManagedApproval.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeManagedApproval_lower(_ value: ManagedApproval) -> RustBuffer {
+    return FfiConverterTypeManagedApproval.lower(value)
+}
+
+
+public struct ManagedMessage: Equatable, Hashable {
+    public var id: String
+    public var threadId: String
+    public var runId: String?
+    public var clientMessageId: String?
+    public var role: String
+    public var contentJson: String
+    public var revision: String
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(id: String, threadId: String, runId: String?, clientMessageId: String?, role: String, contentJson: String, revision: String) {
+        self.id = id
+        self.threadId = threadId
+        self.runId = runId
+        self.clientMessageId = clientMessageId
+        self.role = role
+        self.contentJson = contentJson
+        self.revision = revision
+    }
+
+
+
+
+}
+
+#if compiler(>=6)
+extension ManagedMessage: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeManagedMessage: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> ManagedMessage {
+        return
+            try ManagedMessage(
+                id: FfiConverterString.read(from: &buf),
+                threadId: FfiConverterString.read(from: &buf),
+                runId: FfiConverterOptionString.read(from: &buf),
+                clientMessageId: FfiConverterOptionString.read(from: &buf),
+                role: FfiConverterString.read(from: &buf),
+                contentJson: FfiConverterString.read(from: &buf),
+                revision: FfiConverterString.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: ManagedMessage, into buf: inout [UInt8]) {
+        FfiConverterString.write(value.id, into: &buf)
+        FfiConverterString.write(value.threadId, into: &buf)
+        FfiConverterOptionString.write(value.runId, into: &buf)
+        FfiConverterOptionString.write(value.clientMessageId, into: &buf)
+        FfiConverterString.write(value.role, into: &buf)
+        FfiConverterString.write(value.contentJson, into: &buf)
+        FfiConverterString.write(value.revision, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeManagedMessage_lift(_ buf: RustBuffer) throws -> ManagedMessage {
+    return try FfiConverterTypeManagedMessage.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeManagedMessage_lower(_ value: ManagedMessage) -> RustBuffer {
+    return FfiConverterTypeManagedMessage.lower(value)
+}
+
+
+public struct ManagedProject: Equatable, Hashable {
+    public var id: String
+    public var canonicalRoot: String
+    public var name: String
+    public var createdAt: String
+    public var updatedAt: String
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(id: String, canonicalRoot: String, name: String, createdAt: String, updatedAt: String) {
+        self.id = id
+        self.canonicalRoot = canonicalRoot
+        self.name = name
+        self.createdAt = createdAt
+        self.updatedAt = updatedAt
+    }
+
+
+
+
+}
+
+#if compiler(>=6)
+extension ManagedProject: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeManagedProject: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> ManagedProject {
+        return
+            try ManagedProject(
+                id: FfiConverterString.read(from: &buf),
+                canonicalRoot: FfiConverterString.read(from: &buf),
+                name: FfiConverterString.read(from: &buf),
+                createdAt: FfiConverterString.read(from: &buf),
+                updatedAt: FfiConverterString.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: ManagedProject, into buf: inout [UInt8]) {
+        FfiConverterString.write(value.id, into: &buf)
+        FfiConverterString.write(value.canonicalRoot, into: &buf)
+        FfiConverterString.write(value.name, into: &buf)
+        FfiConverterString.write(value.createdAt, into: &buf)
+        FfiConverterString.write(value.updatedAt, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeManagedProject_lift(_ buf: RustBuffer) throws -> ManagedProject {
+    return try FfiConverterTypeManagedProject.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeManagedProject_lower(_ value: ManagedProject) -> RustBuffer {
+    return FfiConverterTypeManagedProject.lower(value)
+}
+
+
+public struct ManagedRun: Equatable, Hashable {
+    public var id: String
+    public var threadId: String
+    public var status: String
+    public var revision: String
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(id: String, threadId: String, status: String, revision: String) {
+        self.id = id
+        self.threadId = threadId
+        self.status = status
+        self.revision = revision
+    }
+
+
+
+
+}
+
+#if compiler(>=6)
+extension ManagedRun: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeManagedRun: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> ManagedRun {
+        return
+            try ManagedRun(
+                id: FfiConverterString.read(from: &buf),
+                threadId: FfiConverterString.read(from: &buf),
+                status: FfiConverterString.read(from: &buf),
+                revision: FfiConverterString.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: ManagedRun, into buf: inout [UInt8]) {
+        FfiConverterString.write(value.id, into: &buf)
+        FfiConverterString.write(value.threadId, into: &buf)
+        FfiConverterString.write(value.status, into: &buf)
+        FfiConverterString.write(value.revision, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeManagedRun_lift(_ buf: RustBuffer) throws -> ManagedRun {
+    return try FfiConverterTypeManagedRun.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeManagedRun_lower(_ value: ManagedRun) -> RustBuffer {
+    return FfiConverterTypeManagedRun.lower(value)
+}
+
+
+public struct ManagedThread: Equatable, Hashable {
+    public var id: String
+    public var projectId: String
+    public var providerId: String
+    public var model: String?
+    public var title: String
+    public var cwd: String
+    public var status: String
+    public var revision: String
+    public var createdAt: String
+    public var updatedAt: String
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(id: String, projectId: String, providerId: String, model: String?, title: String, cwd: String, status: String, revision: String, createdAt: String, updatedAt: String) {
+        self.id = id
+        self.projectId = projectId
+        self.providerId = providerId
+        self.model = model
+        self.title = title
+        self.cwd = cwd
+        self.status = status
+        self.revision = revision
+        self.createdAt = createdAt
+        self.updatedAt = updatedAt
+    }
+
+
+
+
+}
+
+#if compiler(>=6)
+extension ManagedThread: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeManagedThread: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> ManagedThread {
+        return
+            try ManagedThread(
+                id: FfiConverterString.read(from: &buf),
+                projectId: FfiConverterString.read(from: &buf),
+                providerId: FfiConverterString.read(from: &buf),
+                model: FfiConverterOptionString.read(from: &buf),
+                title: FfiConverterString.read(from: &buf),
+                cwd: FfiConverterString.read(from: &buf),
+                status: FfiConverterString.read(from: &buf),
+                revision: FfiConverterString.read(from: &buf),
+                createdAt: FfiConverterString.read(from: &buf),
+                updatedAt: FfiConverterString.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: ManagedThread, into buf: inout [UInt8]) {
+        FfiConverterString.write(value.id, into: &buf)
+        FfiConverterString.write(value.projectId, into: &buf)
+        FfiConverterString.write(value.providerId, into: &buf)
+        FfiConverterOptionString.write(value.model, into: &buf)
+        FfiConverterString.write(value.title, into: &buf)
+        FfiConverterString.write(value.cwd, into: &buf)
+        FfiConverterString.write(value.status, into: &buf)
+        FfiConverterString.write(value.revision, into: &buf)
+        FfiConverterString.write(value.createdAt, into: &buf)
+        FfiConverterString.write(value.updatedAt, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeManagedThread_lift(_ buf: RustBuffer) throws -> ManagedThread {
+    return try FfiConverterTypeManagedThread.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeManagedThread_lower(_ value: ManagedThread) -> RustBuffer {
+    return FfiConverterTypeManagedThread.lower(value)
+}
+
+
+public struct ManagedThreadEvent: Equatable, Hashable {
+    public var sequence: String
+    public var aggregateId: String
+    public var eventType: String
+    public var schemaVersion: UInt32
+    public var payloadJson: String
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(sequence: String, aggregateId: String, eventType: String, schemaVersion: UInt32, payloadJson: String) {
+        self.sequence = sequence
+        self.aggregateId = aggregateId
+        self.eventType = eventType
+        self.schemaVersion = schemaVersion
+        self.payloadJson = payloadJson
+    }
+
+
+
+
+}
+
+#if compiler(>=6)
+extension ManagedThreadEvent: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeManagedThreadEvent: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> ManagedThreadEvent {
+        return
+            try ManagedThreadEvent(
+                sequence: FfiConverterString.read(from: &buf),
+                aggregateId: FfiConverterString.read(from: &buf),
+                eventType: FfiConverterString.read(from: &buf),
+                schemaVersion: FfiConverterUInt32.read(from: &buf),
+                payloadJson: FfiConverterString.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: ManagedThreadEvent, into buf: inout [UInt8]) {
+        FfiConverterString.write(value.sequence, into: &buf)
+        FfiConverterString.write(value.aggregateId, into: &buf)
+        FfiConverterString.write(value.eventType, into: &buf)
+        FfiConverterUInt32.write(value.schemaVersion, into: &buf)
+        FfiConverterString.write(value.payloadJson, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeManagedThreadEvent_lift(_ buf: RustBuffer) throws -> ManagedThreadEvent {
+    return try FfiConverterTypeManagedThreadEvent.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeManagedThreadEvent_lower(_ value: ManagedThreadEvent) -> RustBuffer {
+    return FfiConverterTypeManagedThreadEvent.lower(value)
+}
+
+
+public struct ManagedThreadHistory: Equatable, Hashable {
+    public var threadId: String
+    public var messages: [ManagedMessage]
+    public var hasMore: Bool
+    public var nextBeforeId: String?
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(threadId: String, messages: [ManagedMessage], hasMore: Bool, nextBeforeId: String?) {
+        self.threadId = threadId
+        self.messages = messages
+        self.hasMore = hasMore
+        self.nextBeforeId = nextBeforeId
+    }
+
+
+
+
+}
+
+#if compiler(>=6)
+extension ManagedThreadHistory: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeManagedThreadHistory: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> ManagedThreadHistory {
+        return
+            try ManagedThreadHistory(
+                threadId: FfiConverterString.read(from: &buf),
+                messages: FfiConverterSequenceTypeManagedMessage.read(from: &buf),
+                hasMore: FfiConverterBool.read(from: &buf),
+                nextBeforeId: FfiConverterOptionString.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: ManagedThreadHistory, into buf: inout [UInt8]) {
+        FfiConverterString.write(value.threadId, into: &buf)
+        FfiConverterSequenceTypeManagedMessage.write(value.messages, into: &buf)
+        FfiConverterBool.write(value.hasMore, into: &buf)
+        FfiConverterOptionString.write(value.nextBeforeId, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeManagedThreadHistory_lift(_ buf: RustBuffer) throws -> ManagedThreadHistory {
+    return try FfiConverterTypeManagedThreadHistory.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeManagedThreadHistory_lower(_ value: ManagedThreadHistory) -> RustBuffer {
+    return FfiConverterTypeManagedThreadHistory.lower(value)
+}
+
+
+public struct ManagedThreadReplay: Equatable, Hashable {
+    public var environmentId: String
+    public var threadId: String
+    public var sequence: String
+    public var events: [ManagedThreadEvent]
+    public var hasMore: Bool
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(environmentId: String, threadId: String, sequence: String, events: [ManagedThreadEvent], hasMore: Bool) {
+        self.environmentId = environmentId
+        self.threadId = threadId
+        self.sequence = sequence
+        self.events = events
+        self.hasMore = hasMore
+    }
+
+
+
+
+}
+
+#if compiler(>=6)
+extension ManagedThreadReplay: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeManagedThreadReplay: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> ManagedThreadReplay {
+        return
+            try ManagedThreadReplay(
+                environmentId: FfiConverterString.read(from: &buf),
+                threadId: FfiConverterString.read(from: &buf),
+                sequence: FfiConverterString.read(from: &buf),
+                events: FfiConverterSequenceTypeManagedThreadEvent.read(from: &buf),
+                hasMore: FfiConverterBool.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: ManagedThreadReplay, into buf: inout [UInt8]) {
+        FfiConverterString.write(value.environmentId, into: &buf)
+        FfiConverterString.write(value.threadId, into: &buf)
+        FfiConverterString.write(value.sequence, into: &buf)
+        FfiConverterSequenceTypeManagedThreadEvent.write(value.events, into: &buf)
+        FfiConverterBool.write(value.hasMore, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeManagedThreadReplay_lift(_ buf: RustBuffer) throws -> ManagedThreadReplay {
+    return try FfiConverterTypeManagedThreadReplay.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeManagedThreadReplay_lower(_ value: ManagedThreadReplay) -> RustBuffer {
+    return FfiConverterTypeManagedThreadReplay.lower(value)
+}
+
+
+public struct ManagedThreadSnapshot: Equatable, Hashable {
+    public var environmentId: String
+    public var sequence: String
+    public var thread: ManagedThread
+    public var messages: [ManagedMessage]
+    public var runs: [ManagedRun]
+    public var approvals: [ManagedApproval]
+    public var hasOlderMessages: Bool
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(environmentId: String, sequence: String, thread: ManagedThread, messages: [ManagedMessage], runs: [ManagedRun], approvals: [ManagedApproval], hasOlderMessages: Bool) {
+        self.environmentId = environmentId
+        self.sequence = sequence
+        self.thread = thread
+        self.messages = messages
+        self.runs = runs
+        self.approvals = approvals
+        self.hasOlderMessages = hasOlderMessages
+    }
+
+
+
+
+}
+
+#if compiler(>=6)
+extension ManagedThreadSnapshot: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeManagedThreadSnapshot: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> ManagedThreadSnapshot {
+        return
+            try ManagedThreadSnapshot(
+                environmentId: FfiConverterString.read(from: &buf),
+                sequence: FfiConverterString.read(from: &buf),
+                thread: FfiConverterTypeManagedThread.read(from: &buf),
+                messages: FfiConverterSequenceTypeManagedMessage.read(from: &buf),
+                runs: FfiConverterSequenceTypeManagedRun.read(from: &buf),
+                approvals: FfiConverterSequenceTypeManagedApproval.read(from: &buf),
+                hasOlderMessages: FfiConverterBool.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: ManagedThreadSnapshot, into buf: inout [UInt8]) {
+        FfiConverterString.write(value.environmentId, into: &buf)
+        FfiConverterString.write(value.sequence, into: &buf)
+        FfiConverterTypeManagedThread.write(value.thread, into: &buf)
+        FfiConverterSequenceTypeManagedMessage.write(value.messages, into: &buf)
+        FfiConverterSequenceTypeManagedRun.write(value.runs, into: &buf)
+        FfiConverterSequenceTypeManagedApproval.write(value.approvals, into: &buf)
+        FfiConverterBool.write(value.hasOlderMessages, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeManagedThreadSnapshot_lift(_ buf: RustBuffer) throws -> ManagedThreadSnapshot {
+    return try FfiConverterTypeManagedThreadSnapshot.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeManagedThreadSnapshot_lower(_ value: ManagedThreadSnapshot) -> RustBuffer {
+    return FfiConverterTypeManagedThreadSnapshot.lower(value)
 }
 
 
@@ -2969,6 +4117,156 @@ fileprivate struct FfiConverterSequenceTypeMacThread: FfiConverterRustBuffer {
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
+fileprivate struct FfiConverterSequenceTypeManagedApproval: FfiConverterRustBuffer {
+    typealias SwiftType = [ManagedApproval]
+
+    public static func write(_ value: [ManagedApproval], into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        for item in value {
+            FfiConverterTypeManagedApproval.write(item, into: &buf)
+        }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [ManagedApproval] {
+        let len: Int32 = try readInt(&buf)
+        var seq = [ManagedApproval]()
+        seq.reserveCapacity(Int(len))
+        for _ in 0 ..< len {
+            seq.append(try FfiConverterTypeManagedApproval.read(from: &buf))
+        }
+        return seq
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+fileprivate struct FfiConverterSequenceTypeManagedMessage: FfiConverterRustBuffer {
+    typealias SwiftType = [ManagedMessage]
+
+    public static func write(_ value: [ManagedMessage], into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        for item in value {
+            FfiConverterTypeManagedMessage.write(item, into: &buf)
+        }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [ManagedMessage] {
+        let len: Int32 = try readInt(&buf)
+        var seq = [ManagedMessage]()
+        seq.reserveCapacity(Int(len))
+        for _ in 0 ..< len {
+            seq.append(try FfiConverterTypeManagedMessage.read(from: &buf))
+        }
+        return seq
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+fileprivate struct FfiConverterSequenceTypeManagedProject: FfiConverterRustBuffer {
+    typealias SwiftType = [ManagedProject]
+
+    public static func write(_ value: [ManagedProject], into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        for item in value {
+            FfiConverterTypeManagedProject.write(item, into: &buf)
+        }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [ManagedProject] {
+        let len: Int32 = try readInt(&buf)
+        var seq = [ManagedProject]()
+        seq.reserveCapacity(Int(len))
+        for _ in 0 ..< len {
+            seq.append(try FfiConverterTypeManagedProject.read(from: &buf))
+        }
+        return seq
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+fileprivate struct FfiConverterSequenceTypeManagedRun: FfiConverterRustBuffer {
+    typealias SwiftType = [ManagedRun]
+
+    public static func write(_ value: [ManagedRun], into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        for item in value {
+            FfiConverterTypeManagedRun.write(item, into: &buf)
+        }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [ManagedRun] {
+        let len: Int32 = try readInt(&buf)
+        var seq = [ManagedRun]()
+        seq.reserveCapacity(Int(len))
+        for _ in 0 ..< len {
+            seq.append(try FfiConverterTypeManagedRun.read(from: &buf))
+        }
+        return seq
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+fileprivate struct FfiConverterSequenceTypeManagedThread: FfiConverterRustBuffer {
+    typealias SwiftType = [ManagedThread]
+
+    public static func write(_ value: [ManagedThread], into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        for item in value {
+            FfiConverterTypeManagedThread.write(item, into: &buf)
+        }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [ManagedThread] {
+        let len: Int32 = try readInt(&buf)
+        var seq = [ManagedThread]()
+        seq.reserveCapacity(Int(len))
+        for _ in 0 ..< len {
+            seq.append(try FfiConverterTypeManagedThread.read(from: &buf))
+        }
+        return seq
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+fileprivate struct FfiConverterSequenceTypeManagedThreadEvent: FfiConverterRustBuffer {
+    typealias SwiftType = [ManagedThreadEvent]
+
+    public static func write(_ value: [ManagedThreadEvent], into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        for item in value {
+            FfiConverterTypeManagedThreadEvent.write(item, into: &buf)
+        }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [ManagedThreadEvent] {
+        let len: Int32 = try readInt(&buf)
+        var seq = [ManagedThreadEvent]()
+        seq.reserveCapacity(Int(len))
+        for _ in 0 ..< len {
+            seq.append(try FfiConverterTypeManagedThreadEvent.read(from: &buf))
+        }
+        return seq
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
 fileprivate struct FfiConverterSequenceTypeProcessInfo: FfiConverterRustBuffer {
     typealias SwiftType = [ProcessInfo]
 
@@ -3138,7 +4436,22 @@ private let initializationResult: InitializationResult = {
     if (uniffi_agent_bridge_client_checksum_method_bridgeconnection_create_directory() != 59738) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_agent_bridge_client_checksum_method_bridgeconnection_create_managed_project() != 42158) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_agent_bridge_client_checksum_method_bridgeconnection_create_managed_thread() != 20064) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_agent_bridge_client_checksum_method_bridgeconnection_describe_environment() != 16328) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_agent_bridge_client_checksum_method_bridgeconnection_disconnect() != 58728) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_agent_bridge_client_checksum_method_bridgeconnection_get_managed_thread() != 47282) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_agent_bridge_client_checksum_method_bridgeconnection_get_managed_thread_snapshot() != 49025) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_agent_bridge_client_checksum_method_bridgeconnection_get_process_status() != 36704) {
@@ -3148,6 +4461,9 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_agent_bridge_client_checksum_method_bridgeconnection_get_thread_messages() != 60103) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_agent_bridge_client_checksum_method_bridgeconnection_interrupt_managed_thread() != 5820) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_agent_bridge_client_checksum_method_bridgeconnection_list_agent_models() != 25243) {
@@ -3162,7 +4478,19 @@ private let initializationResult: InitializationResult = {
     if (uniffi_agent_bridge_client_checksum_method_bridgeconnection_list_directory() != 44879) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_agent_bridge_client_checksum_method_bridgeconnection_list_git_branches() != 24121) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_agent_bridge_client_checksum_method_bridgeconnection_list_managed_projects() != 43846) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_agent_bridge_client_checksum_method_bridgeconnection_list_managed_threads() != 62868) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_agent_bridge_client_checksum_method_bridgeconnection_list_processes() != 44728) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_agent_bridge_client_checksum_method_bridgeconnection_managed_thread_history() != 44315) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_agent_bridge_client_checksum_method_bridgeconnection_path_kind() != 11829) {
@@ -3171,10 +4499,31 @@ private let initializationResult: InitializationResult = {
     if (uniffi_agent_bridge_client_checksum_method_bridgeconnection_ping() != 60328) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_agent_bridge_client_checksum_method_bridgeconnection_prepare_git_workspace() != 24668) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_agent_bridge_client_checksum_method_bridgeconnection_reconnect() != 36766) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_agent_bridge_client_checksum_method_bridgeconnection_replay_managed_thread() != 41282) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_agent_bridge_client_checksum_method_bridgeconnection_resolve_managed_approval() != 4966) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_agent_bridge_client_checksum_method_bridgeconnection_resume_chat_io() != 58815) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_agent_bridge_client_checksum_method_bridgeconnection_send_managed_thread() != 51039) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_agent_bridge_client_checksum_method_bridgeconnection_send_managed_thread_with_images() != 29631) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_agent_bridge_client_checksum_method_bridgeconnection_set_managed_thread_model() != 64995) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_agent_bridge_client_checksum_method_bridgeconnection_set_managed_thread_provider() != 65463) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_agent_bridge_client_checksum_method_bridgeconnection_start_process() != 19257) {
@@ -3184,6 +4533,9 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_agent_bridge_client_checksum_method_bridgeconnection_stop_process() != 48211) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_agent_bridge_client_checksum_method_bridgeconnection_wait_managed_thread() != 33372) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_agent_bridge_client_checksum_method_iohandle_close() != 64419) {

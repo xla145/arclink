@@ -14,6 +14,23 @@ final class MockPathTests: XCTestCase {
     func testLightPaths() throws { try runPaths(theme: "浅色") }
     func testDarkPaths() throws { try runPaths(theme: "深色") }
 
+    func testWorkspaceSearchAndPrimaryAction() throws {
+        for theme in ["浅色", "深色"] {
+            try launchFixture(theme: theme)
+            let search = app.textFields["搜索项目"]
+            XCTAssertTrue(search.waitForExistence(timeout: 5))
+            shot(theme, "workspace-refined")
+            search.tap()
+            search.typeText("no-matching-project")
+            XCTAssertTrue(app.staticTexts["没有匹配的项目"].waitForExistence(timeout: 3))
+            app.buttons["清除项目搜索"].tap()
+            XCTAssertTrue(app.buttons["project-p1"].waitForExistence(timeout: 3))
+            app.buttons["chat-fab"].tap()
+            XCTAssertTrue(app.navigationBars["新对话"].waitForExistence(timeout: 3))
+            app.terminate()
+        }
+    }
+
     func testReadingHistoryStaysPutWhenNewOutputArrives() throws {
         var messages: [[String: Any]] = []
         for index in 0..<24 {
@@ -394,13 +411,10 @@ final class MockPathTests: XCTestCase {
         XCTAssertTrue(app.descendants(matching: .any)["home-approval-a1"].exists)
         shot(theme, "home")
 
-        // Fixed Agent tabs scope the visible projects and the chooser.
+        // Legacy fixture keeps the Codex project reachable.
         app.buttons["Codex"].tap()
         XCTAssertTrue(app.buttons["project-p3"].waitForExistence(timeout: 3))
         XCTAssertFalse(app.buttons["project-p1"].exists)
-        app.buttons["Herdr"].tap()
-        XCTAssertTrue(app.staticTexts["未安装 Herdr"].waitForExistence(timeout: 3))
-        XCTAssertFalse(app.buttons["chat-fab"].exists)
         app.buttons["Claude Code"].tap()
         app.buttons["搜索项目"].tap()
         let projectSearch = app.textFields["搜索项目"]

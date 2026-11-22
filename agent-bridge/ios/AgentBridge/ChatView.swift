@@ -21,18 +21,21 @@ struct ChatView: View {
     @State private var macMessages: [MacMessage] = []
     @State private var loadingMac = false
     @State private var macError: String?
+    @State private var historyContinuation: ImportedHistoryContinuation?
     @State private var more = false
     @State private var submitting = false
     @FocusState private var composing: Bool
-    @State private var scrollState = ChatScrollFollowState()
-    private var followsLatest: Bool { scrollState.followsLatest }
-    @State private var bottomPosition: CGFloat = 0
-    @State private var viewportHeight: CGFloat = 0
+    @State private var scrollTracker = ChatScrollTracker()
+    @State private var followsLatest = true
     @State private var scrollRequest = 0
     // Options for a conversation that has not been created yet; sent with the first message.
     @State private var newModel = ""
     @State private var newPolicy: SessionExecutionPolicy = .workspace
     @State private var models: [MacModel] = []
+    /// All agents' models, keyed by agent kind, for cross-agent model switching.
+    @State private var allAgentModels: [AgentKind: [MacModel]] = [:]
+    @State private var showModelPicker = false
+    @State private var selectedModelAgent: AgentKind? = nil
 
     private var resolvedId: String? { liveId ?? sessionId }
     private var sessionRow: SessionItem? { store.sessions.first { $0.id == resolvedId && $0.projectId == projectId } }
@@ -48,8 +51,9 @@ struct ChatView: View {
     private var canCompose: Bool { !isMacThread && store.canSend && project != nil && (resolvedId == nil || sessionRow != nil) }
 
     var body: some View {
-        ScrollViewReader { proxy in
-            ScrollView {
+        VStack(spacing: 0) {
+            ScrollViewReader { proxy in
+                ScrollView {
                 LazyVStack(alignment: .leading, spacing: 22) {
                     if typeSize.isAccessibilitySize {
                         VStack(alignment: .leading, spacing: 8) {
@@ -73,7 +77,7 @@ struct ChatView: View {
                     }
                     Color.clear.frame(height: 1).id("bottom")
                 }
-                .padding(.horizontal, ArcTheme.Space.s4).padding(.vertical, ArcTheme.Space.s5)
+                .padding(.horizontal, ArcTheme.Space.s4).padding(.vertical, ArcTheme.Space.s4)
                 .background(GeometryReader { geometry in
                     Color.clear.preference(key: ChatBottomPreference.self,
                         value: ChatScrollPosition(top: geometry.frame(in: .named("chat-scroll")).minY,
@@ -81,23 +85,30 @@ struct ChatView: View {
                 })
             }
             .coordinateSpace(name: "chat-scroll")
-            .background(ArcTheme.bg)
+            .background(ArcTheme.chatBg)
             .background(GeometryReader { geometry in
-                Color.clear.onAppear { viewportHeight = geometry.size.height }
-                    .onChange(of: geometry.size.height) { _, height in viewportHeight = height }
+                Color.clear.onAppear { scrollTracker.viewportHeight = geometry.size.height }
+                    .onChange(of: geometry.size.height) { _, height in scrollTracker.viewportHeight = height }
             })
             .onPreferenceChange(ChatBottomPreference.self) { bottom in
                 guard let bottom else { return }
-                bottomPosition = bottom.bottom
-                scrollState.observe(bottom, viewport: viewportHeight)
+                scrollTracker.bottomPosition = bottom.bottom
+                scrollTracker.state.observe(bottom, viewport: scrollTracker.viewportHeight)
+                let next = scrollTracker.state.followsLatest
+                if next != followsLatest { followsLatest = next }
             }
             .simultaneousGesture(DragGesture(minimumDistance: 5).onChanged { value in
-                if value.translation.height > 5 { scrollState.followsLatest = false }
+                if value.translation.height > 5 {
+                    scrollTracker.state.followsLatest = false
+                    if followsLatest { followsLatest = false }
+                }
             }.onEnded { _ in
-                scrollState.followsLatest = bottomPosition <= viewportHeight + 32
+                let next = scrollTracker.bottomPosition <= scrollTracker.viewportHeight + 32
+                scrollTracker.state.followsLatest = next
+                if next != followsLatest { followsLatest = next }
             })
             .scrollDismissesKeyboard(.interactively)
-            .task(id: "\(store.online)") { if resolvedId == nil { await loadModels() } }
+            .task(id: "\(store.online)") { await loadModels() }
             .task(id: sessionId) {
                 await loadMacMessages()
                 if !Task.isCancelled { proxy.scrollTo("bottom", anchor: .bottom) }
@@ -112,7 +123,8 @@ struct ChatView: View {
                 if followsLatest { proxy.scrollTo("bottom", anchor: .bottom) }
             }
             .onChange(of: scrollRequest) { _, _ in
-                scrollState.followsLatest = true
+                scrollTracker.state.followsLatest = true
+                if !followsLatest { followsLatest = true }
                 withAnimation(reduceMotion ? nil : .easeOut(duration: 0.2)) { proxy.scrollTo("bottom", anchor: .bottom) }
             }
             .onChange(of: composing) { _, active in
@@ -123,48 +135,55 @@ struct ChatView: View {
                     }
                 }
             }
-            .overlay(alignment: .bottomTrailing) {
+            .overlay(alignment: .bottom) {
                 if !followsLatest {
                     Button { scrollRequest += 1 } label: {
-                        Label("回到最新", systemImage: "arrow.down")
-                            .font(.footnote.weight(.medium)).foregroundStyle(ArcTheme.ink)
-                            .padding(.horizontal, 14)
-                            .frame(minHeight: ArcTheme.tapMin)
-                            .background(ArcTheme.surface, in: Capsule())
-                            .overlay(Capsule().stroke(ArcTheme.line))
-                            .shadow(color: .black.opacity(0.12), radius: 10, y: 6)
+                        Image(systemName: "chevron.down")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundStyle(ArcTheme.ink)
+                            .frame(width: 38, height: 38)
+                            .background(ArcTheme.surface, in: Circle())
+                            .overlay(Circle().stroke(ArcTheme.line.opacity(0.8), lineWidth: 0.75))
+                            .shadow(color: .black.opacity(0.12), radius: 10, y: 4)
                     }
-                    .buttonStyle(.plain).accessibilityIdentifier("chat-latest")
-                    .padding(16)
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("回到最新")
+                    .accessibilityIdentifier("chat-latest")
+                    .padding(.bottom, 12)
                 }
             }
-            .safeAreaInset(edge: .bottom, spacing: 0) { composer }
+            }
+            composer
         }
         .navigationTitle(sessionRow?.title ?? "新对话")
         .navigationBarTitleDisplayMode(.inline)
-        .tint(ArcTheme.primary)
-        .toolbarBackground(ArcTheme.bg, for: .navigationBar)
+        .tint(ArcTheme.ink)
+        .toolbarBackground(ArcTheme.chatBg, for: .navigationBar)
         .toolbarBackground(.visible, for: .navigationBar)
         .toolbar {
             ToolbarItem(placement: .principal) {
                 if typeSize.isAccessibilitySize {
                     Text("对话").font(.headline)
                 } else {
-                    VStack(spacing: 3) {
-                        Text(sessionRow?.title ?? "新对话").font(.headline).lineLimit(1)
+                    VStack(spacing: 1) {
+                        Text(sessionRow?.title ?? "新对话")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(ArcTheme.ink)
+                            .lineLimit(1)
                         contextHeader
                     }
                 }
             }
             if !isMacThread {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button { more = true } label: { Image(systemName: "ellipsis").frame(width: 44, height: 44) }
-                        .accessibilityLabel("会话操作").disabled(resolvedId == nil)
+                    Button { more = true } label: {
+                        Image(systemName: "ellipsis")
+                            .font(.subheadline.weight(.medium))
+                            .foregroundStyle(ArcTheme.ink)
+                            .frame(width: 44, height: 44)
+                    }
+                    .accessibilityLabel("会话操作").disabled(resolvedId == nil)
                 }
-            }
-            ToolbarItemGroup(placement: .keyboard) {
-                Spacer()
-                Button("完成") { composing = false }
             }
         }
         .confirmationDialog("会话", isPresented: $more, titleVisibility: .hidden) {
@@ -184,6 +203,45 @@ struct ChatView: View {
                 }
                 .navigationTitle("图片预览").navigationBarTitleDisplayMode(.inline)
                 .toolbar { Button("完成") { expandedImage = nil } }
+            }
+        }
+        .sheet(item: $historyContinuation) { history in
+            NewManagedTaskSheet(initialDeviceID: history.deviceID, initialProjectPath: history.projectPath, historyContinuation: history) { device, thread in
+                historyContinuation = nil
+                guard store.selectedDeviceID == device else { return }
+                path.append(Route.deviceThread(deviceID: device, threadID: thread))
+            }
+        }
+        .sheet(isPresented: $showModelPicker) {
+            let currentModel = sessionRow?.chatOptions?.model ?? newModel
+            let currentAgent = selectedModelAgent ?? project?.agent ?? .codex
+            let policyBinding = Binding<SessionExecutionPolicy>(
+                get: { sessionRow?.chatOptions?.executionPolicy ?? newPolicy },
+                set: { updated in
+                    newPolicy = updated
+                    if let id = resolvedId, let index = store.sessions.firstIndex(where: { $0.id == id }) {
+                        var opts = store.sessions[index].chatOptions ?? ChatSessionOptions()
+                        opts.executionPolicy = updated
+                        store.sessions[index].chatOptions = opts
+                        store.save()
+                    }
+                }
+            )
+            AgentModelPickerSheet(
+                activeAgent: currentAgent,
+                selectedModel: currentModel,
+                policy: policyBinding,
+                allAgentModels: allAgentModels,
+                loadingModels: false,
+                online: store.online
+            ) { agent, modelId in
+                selectedModelAgent = agent
+                if resolvedId != nil {
+                    updateModel(modelId)
+                } else {
+                    newModel = modelId
+                }
+                showModelPicker = false
             }
         }
         .onDisappear { attachmentEpoch = UUID(); loadingImages = false }
@@ -242,19 +300,105 @@ struct ChatView: View {
     }
 
 
-    /// The model this conversation was created with.
+    /// The model this conversation was created with — searches across all agents.
     private var currentModelName: String {
         let id = sessionRow?.chatOptions?.model ?? ""
         if id.isEmpty { return "跟随 Mac" }
+        // Search across all agents' model lists
+        for (_, agentModels) in allAgentModels {
+            if let match = agentModels.first(where: { $0.id == id }) { return match.name }
+        }
         return models.first { $0.id == id }?.name ?? id
     }
 
     private var currentPolicy: SessionExecutionPolicy { sessionRow?.chatOptions?.executionPolicy ?? .workspace }
 
     /// Read-only reminders of what this conversation runs with; chosen before the first message.
+    /// When idle and not read-only, the model chip becomes an interactive picker showing all agents' models.
     private var modelChip: some View {
-        chipLabel(currentModelName, symbol: project?.agent.symbolName ?? "sparkle", tint: project?.agent.tint)
-            .accessibilityLabel("模型，\(currentModelName)")
+        let canSwitch = resolvedId != nil && !isMacThread && !busy
+        let currentModel = sessionRow?.chatOptions?.model ?? ""
+        let hasAnyModels = !allAgentModels.isEmpty || !models.isEmpty
+        return Group {
+            if canSwitch {
+                Menu {
+                    Button { updateModel("") } label: {
+                        HStack {
+                            Text("跟随 Mac 设置")
+                            if currentModel.isEmpty { Image(systemName: "checkmark") }
+                        }
+                    }
+                    // Show models grouped by agent
+                    ForEach(AgentKind.allCases.filter { $0.installed && !(allAgentModels[$0] ?? []).isEmpty }, id: \.self) { agent in
+                        Section(agent.shortName) {
+                            ForEach(allAgentModels[agent] ?? [], id: \.id) { model in
+                                Button { updateModel(model.id) } label: {
+                                    HStack {
+                                        Text(model.name)
+                                        if currentModel == model.id { Image(systemName: "checkmark") }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    // Fallback: show flat models list if allAgentModels is empty but models loaded
+                    if allAgentModels.isEmpty && !models.isEmpty {
+                        ForEach(models, id: \.id) { model in
+                            Button { updateModel(model.id) } label: {
+                                HStack {
+                                    Text(model.name)
+                                    if currentModel == model.id { Image(systemName: "checkmark") }
+                                }
+                            }
+                        }
+                    }
+                } label: {
+                    modelChipContent(interactive: true)
+                }
+                .accessibilityLabel("切换模型，当前 \(currentModelName)")
+            } else {
+                modelChipContent(interactive: false)
+                    .accessibilityLabel("模型，\(currentModelName)")
+            }
+        }
+    }
+
+    /// The visual chip showing current agent icon + model name.
+    private func modelChipContent(interactive: Bool) -> some View {
+        let currentModel = sessionRow?.chatOptions?.model ?? ""
+        // Find which agent this model belongs to
+        let modelAgent: AgentKind? = {
+            if currentModel.isEmpty { return project?.agent }
+            for (agent, models) in allAgentModels {
+                if models.contains(where: { $0.id == currentModel }) { return agent }
+            }
+            return project?.agent
+        }()
+        return chipLabel(currentModelName,
+                         symbol: modelAgent?.symbolName ?? project?.agent.symbolName ?? "sparkle",
+                         tint: modelAgent?.tint ?? project?.agent.tint,
+                         interactive: interactive)
+    }
+
+    private func updateModel(_ modelId: String) {
+        guard let id = resolvedId else { return }
+        let newModel = modelId.isEmpty ? nil : modelId
+        // For unsent sessions, use the full configure path
+        if store.canConfigureUnsentSession(id) {
+            let options = ChatSessionOptions(model: newModel,
+                                             executionPolicy: sessionRow?.chatOptions?.executionPolicy ?? .workspace,
+                                             forkFromThreadId: sessionRow?.chatOptions?.forkFromThreadId)
+            _ = store.configureUnsentSession(id, projectID: projectId, options: options)
+        } else {
+            // For active sessions, just update the stored model preference
+            if let index = store.sessions.firstIndex(where: { $0.id == id }) {
+                var opts = store.sessions[index].chatOptions ?? ChatSessionOptions()
+                opts.model = newModel
+                store.sessions[index].chatOptions = opts
+                store.save()
+                newModel.map { _ in store.show("模型已切换，下次发送生效") } ?? store.show("已恢复跟随 Mac 设置")
+            }
+        }
     }
 
     private var policyChip: some View {
@@ -263,81 +407,136 @@ struct ChatView: View {
             .accessibilityLabel("权限，\(currentPolicy.rawValue)")
     }
 
-    private func chipLabel(_ text: String, symbol: String, tint: Color?) -> some View {
+    private func chipLabel(_ text: String, symbol: String, tint: Color?, interactive: Bool = false) -> some View {
         HStack(spacing: 4) {
-            Image(systemName: symbol).foregroundStyle(tint ?? ArcTheme.inkMuted)
-            Text(text).foregroundStyle(ArcTheme.inkMuted).lineLimit(1)
+            Image(systemName: symbol)
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(tint ?? ArcTheme.inkMuted)
+            Text(text)
+                .font(.caption.weight(.medium))
+                .foregroundStyle(interactive ? ArcTheme.ink : ArcTheme.inkMuted)
+                .lineLimit(1)
+            if interactive {
+                Image(systemName: "chevron.up.chevron.down")
+                    .font(.system(size: 8.5, weight: .semibold))
+                    .foregroundStyle(ArcTheme.inkFaint)
+            }
         }
-        .font(.footnote.weight(.medium))
-        .padding(.horizontal, 10).frame(minHeight: 28)
+        .padding(.horizontal, 10)
+        .frame(height: 28)
         .background(ArcTheme.surfaceSunken, in: Capsule())
         .accessibilityElement(children: .ignore)
     }
 
     private func loadModels() async {
-        guard let bridge = store.macBridge, let agent = project?.agent else { return }
+        guard let bridge = store.macBridge else { return }
         let device = store.selectedDeviceID
-        guard let result = try? await bridge.listAgentModels(agentId: agent.agentId),
-              !Task.isCancelled, device == store.selectedDeviceID else { return }
-        models = result
+        // Load models for all installed agents
+        for agent in AgentKind.allCases where agent.installed {
+            guard let result = try? await bridge.listAgentModels(agentId: agent.agentId),
+                  !Task.isCancelled, device == store.selectedDeviceID else { continue }
+            allAgentModels[agent] = result
+            // Keep backward compat: `models` is the current project's agent models
+            if agent == project?.agent { models = result }
+        }
     }
 
     private var contextHeader: some View {
-        Text("\(project?.name ?? "项目不存在") · \(store.hostName.isEmpty ? "本地" : store.hostName)\(isMacThread ? " · 只读" : "")")
-            .font(.caption).foregroundStyle(ArcTheme.inkMuted).lineLimit(typeSize.isAccessibilitySize ? nil : 1)
-            .accessibilityIdentifier("chat-context")
+        HStack(spacing: 4) {
+            if store.online {
+                Circle()
+                    .fill(ArcTheme.live)
+                    .frame(width: 5, height: 5)
+            }
+            Text("\(project?.name ?? "项目不存在") · \(store.hostName.isEmpty ? "本地" : store.hostName)\(isMacThread ? " · 只读" : "")")
+                .font(.caption2)
+                .foregroundStyle(ArcTheme.inkMuted)
+                .lineLimit(typeSize.isAccessibilitySize ? nil : 1)
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("chat-context")
     }
 
     private func approvalCard(_ request: ApprovalItem) -> some View {
         let pending = request.pending
         let approved = request.approved == true
-        return VStack(alignment: .leading, spacing: ArcTheme.Space.s3) {
-            Button { composing = false; path.append(Route.approval(request.id)) } label: {
-                VStack(alignment: .leading, spacing: 10) {
-                    HStack {
-                        Label(pending ? "等待你批准" : (approved ? "你已允许" : "你已拒绝"),
-                              systemImage: pending ? "clock" : (approved ? "checkmark" : "xmark"))
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(pending ? ArcTheme.warning : ArcTheme.inkMuted)
-                        Spacer()
-                        Image(systemName: "chevron.right").font(.caption.weight(.semibold))
-                            .foregroundStyle(pending ? ArcTheme.warning : ArcTheme.inkFaint)
-                    }
-                    Text(request.title).font(.subheadline).foregroundStyle(ArcTheme.ink)
-                    Text(request.target).font(.footnote.monospaced()).foregroundStyle(ArcTheme.ink).lineLimit(3)
-                        .padding(.horizontal, 10).padding(.vertical, ArcTheme.Space.s2)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .arcBackground(pending ? ArcTheme.surface : ArcTheme.surfaceSunken, radius: ArcTheme.Radius.sm)
-                }
-                .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
-                .contentShape(Rectangle())
+        let submitting = store.isApprovalSubmitting(request.id, sessionId: request.sessionId)
+        return VStack(alignment: .leading, spacing: 10) {
+            // Header row: icon + title + status badge
+            HStack(spacing: 8) {
+                Image(systemName: pending ? "shield.lefthalf.filled" : (approved ? "checkmark.circle.fill" : "xmark.circle.fill"))
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(pending ? ArcTheme.warning : (approved ? ArcTheme.success : ArcTheme.inkMuted))
+                    .frame(width: 24, height: 24)
+                    .background((pending ? ArcTheme.warningSoft : (approved ? ArcTheme.successSoft : ArcTheme.surfaceSunken)),
+                                in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+                Text(request.title)
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(ArcTheme.ink)
+                    .lineLimit(1)
+                Spacer(minLength: 4)
+                Text(pending ? "待确认" : (approved ? "已允许" : "已拒绝"))
+                    .font(.caption2.weight(.medium))
+                    .foregroundStyle(pending ? ArcTheme.warning : (approved ? ArcTheme.success : ArcTheme.inkMuted))
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 3)
+                    .background(pending ? ArcTheme.warningSoft : (approved ? ArcTheme.successSoft : ArcTheme.surfaceSunken),
+                                in: Capsule())
             }
-            .buttonStyle(.plain).accessibilityIdentifier("approval-event-\(request.id)")
-            DisclosureGroup("操作详情") {
-                Text(request.detail).font(.footnote.monospaced()).textSelection(.enabled)
-                    .frame(maxWidth: .infinity, alignment: .leading).padding(.top, 8)
-            }
-            .font(.footnote).foregroundStyle(ArcTheme.inkMuted)
+
+            // Target file or command pill
+            Text(request.kind.contains("写入") ? request.target : "$ \(request.target)")
+                .font(.system(size: 12.5, design: .monospaced))
+                .foregroundStyle(ArcTheme.ink)
+                .lineLimit(2)
+                .truncationMode(.middle)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 8)
+                .background(ArcTheme.surfaceSunken, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+
+            // Action row when pending
             if pending && store.canApprove {
-                HStack(spacing: ArcTheme.Space.s2) {
-                    Button("拒绝") { store.resolve(request.id, approved: false) }
-                        .buttonStyle(ArcButtonStyle(kind: .secondary, block: true))
-                    Button("允许") { store.resolve(request.id, approved: true) }
-                        .buttonStyle(.arc(block: true))
-                }
-                .disabled(store.isApprovalSubmitting(request.id, sessionId: request.sessionId)
-                          || store.isChatSendBlocked(sessionId: request.sessionId))
-                if store.isApprovalSubmitting(request.id, sessionId: request.sessionId) {
-                    ProgressView("正在提交决定…").font(.caption)
+                if submitting {
+                    HStack {
+                        Spacer()
+                        ProgressView().controlSize(.small)
+                        Spacer()
+                    }
+                    .frame(height: 36)
+                } else {
+                    HStack(spacing: 8) {
+                        Button { store.resolve(request.id, approved: false) } label: {
+                            Text("拒绝")
+                                .font(.footnote.weight(.semibold))
+                                .foregroundStyle(ArcTheme.ink)
+                                .frame(maxWidth: .infinity, minHeight: 36)
+                                .background(ArcTheme.surfaceSunken, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(store.isChatSendBlocked(sessionId: request.sessionId))
+
+                        Button { store.resolve(request.id, approved: true) } label: {
+                            Text("允许")
+                                .font(.footnote.weight(.semibold))
+                                .foregroundStyle(ArcTheme.onPrimary)
+                                .frame(maxWidth: .infinity, minHeight: 36)
+                                .background(ArcTheme.primary, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(store.isChatSendBlocked(sessionId: request.sessionId))
+                    }
                 }
             }
         }
-        .padding(ArcTheme.Space.s4)
-        .background(pending ? ArcTheme.warningSoft : ArcTheme.surface,
-                    in: RoundedRectangle(cornerRadius: ArcTheme.Radius.lg, style: .continuous))
-        .overlay {
-            if !pending { RoundedRectangle(cornerRadius: ArcTheme.Radius.lg, style: .continuous).stroke(ArcTheme.line) }
-        }
+        .padding(12)
+        .background(ArcTheme.surface, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(pending ? ArcTheme.warning.opacity(0.35) : ArcTheme.line, lineWidth: 1)
+        )
+        .shadow(color: pending ? .black.opacity(0.05) : .clear, radius: 8, y: 3)
+        .accessibilityIdentifier("approval-event-\(request.id)")
     }
 
     @ViewBuilder private var history: some View {
@@ -365,11 +564,13 @@ struct ChatView: View {
     @ViewBuilder
     private func messageRow(isUser: Bool, text: String, time: String, images: [Data] = [], steps: [MessageStep] = [], summary: ConversationSummary) -> some View {
         if isUser {
-            // User bubble: right-aligned, compact width
+            // User bubble: right-aligned, crisp neutral pill
             VStack(alignment: .trailing, spacing: 4) {
                 VStack(alignment: .leading, spacing: 8) {
                     if !text.isEmpty {
                         UserMessageBody(text: text)
+                            .font(.subheadline)
+                            .lineSpacing(3)
                     }
                     ForEach(Array(images.enumerated()), id: \.offset) { index, data in
                         if let image = UIImage(data: data) {
@@ -384,34 +585,25 @@ struct ChatView: View {
                 }
                 .foregroundStyle(ArcTheme.ink)
                 .padding(.horizontal, 14).padding(.vertical, 10)
-                .background(ArcTheme.primarySoft, in: UnevenRoundedRectangle(
-                    topLeadingRadius: ArcTheme.Radius.lg, bottomLeadingRadius: ArcTheme.Radius.lg,
-                    bottomTrailingRadius: 6, topTrailingRadius: ArcTheme.Radius.lg, style: .continuous))
-                Text(time).font(.caption).foregroundStyle(ArcTheme.inkMuted).monospacedDigit()
-                    .padding(.trailing, 4)
+                .background(ArcTheme.userBubble, in: UnevenRoundedRectangle(
+                    topLeadingRadius: 18, bottomLeadingRadius: 18,
+                    bottomTrailingRadius: 6, topTrailingRadius: 18, style: .continuous))
+                if !time.isEmpty {
+                    Text(time)
+                        .font(.caption2)
+                        .foregroundStyle(ArcTheme.inkFaint)
+                        .monospacedDigit()
+                        .padding(.trailing, 4)
+                }
             }
             .frame(maxWidth: .infinity, alignment: .trailing)
-            .padding(.leading, typeSize.isAccessibilitySize ? 16 : 44)
+            .padding(.leading, typeSize.isAccessibilitySize ? 16 : 48)
         } else {
-            // Agent message: left-aligned
-            VStack(alignment: .leading, spacing: ArcTheme.Space.s3) {
-                VStack(alignment: .leading, spacing: 6) {
-                    HStack(spacing: ArcTheme.Space.s2) {
-                        Image(systemName: project?.agent.symbolName ?? "sparkle")
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(project?.agent.tint ?? ArcTheme.primary)
-                            .frame(width: 24, height: 24)
-                            .arcBackground(ArcTheme.surfaceSunken, radius: 7)
-                            .accessibilityHidden(true)
-                        Text(project?.agent.rawValue ?? "Agent").fontWeight(.medium)
-                            .fixedSize(horizontal: false, vertical: true)
-                        if !typeSize.isAccessibilitySize { Text("· \(time)").monospacedDigit() }
-                        Spacer(minLength: 0)
-                    }
-                    if typeSize.isAccessibilitySize { Text(time).monospacedDigit() }
+            // Agent message: T3 Code editorial layout — clean steps + prose without boxed header chrome
+            VStack(alignment: .leading, spacing: 12) {
+                if !steps.isEmpty {
+                    InlineStepsGroup(steps: steps)
                 }
-                .font(.caption).foregroundStyle(ArcTheme.inkMuted)
-                if !steps.isEmpty { AgentStepsDisclosure(steps: steps) }
                 if !text.isEmpty {
                     MacMessageText(text: text).textSelection(.enabled)
                 }
@@ -425,20 +617,17 @@ struct ChatView: View {
                         .buttonStyle(.plain).accessibilityLabel("查看图片 \(index + 1)")
                     }
                 }
+                ConversationSummaryView(summary: summary)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contextMenu {
                 if !text.isEmpty {
                     Button {
                         UIPasteboard.general.string = text
                         store.show("已复制回复的 Markdown")
-                    } label: {
-                        Label("复制", systemImage: "doc.on.doc").font(.footnote)
-                            .foregroundStyle(ArcTheme.inkMuted).frame(minWidth: 44, minHeight: 44)
-                            .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain).accessibilityLabel("复制回复的 Markdown")
+                    } label: { Label("复制", systemImage: "doc.on.doc") }
                 }
-                ConversationSummaryView(summary: summary)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 
@@ -490,83 +679,108 @@ struct ChatView: View {
                     ArcBanner(text: error).accessibilityIdentifier("remote-chat-error")
                 }
                 if busy && resolvedId.flatMap({ store.chatRecoveryLabel(sessionId: $0) }) == nil {
-                    HStack {
-                        ProgressView()
-                        Text("正在等待 Mac 上的 \(project?.agent.rawValue ?? "Agent")…").font(.footnote).foregroundStyle(ArcTheme.inkMuted)
-                        Spacer()
-
-                    }
+                    AgentThinkingIndicator(agent: selectedModelAgent ?? project?.agent ?? .codex, label: "正在思考")
                 }
                 if !store.canSend {
                     Text("当前权限仅可查看\(store.canApprove ? "和审批" : "")，不能发送新任务。")
                         .font(.footnote).foregroundStyle(ArcTheme.warning)
                 }
-                VStack(alignment: .leading, spacing: 4) {
-                    TextField("给 \(project?.agent.shortName ?? "Agent") 发消息…", text: $draft, axis: .vertical)
-                        .focused($composing).lineLimit(2...5).padding(.horizontal, 6).padding(.top, 6)
-                        .accessibilityIdentifier("composer").disabled(!canCompose)
-                    HStack(spacing: 4) {
-                        PhotosPicker(selection: $picked, maxSelectionCount: max(1, ChatAttachment.maximumCount - attachments.count), matching: .images) {
-                            Image(systemName: "plus").frame(width: 44, height: 44)
-                        }
-                        .accessibilityLabel("从相册添加图片")
-                        .disabled(!canCompose || loadingImages || attachments.count >= ChatAttachment.maximumCount)
-                        .onChange(of: picked) { _, items in loadImages(items) }
-                        if resolvedId != nil {
-                            modelChip
-                            policyChip
-                        }
-                        Spacer(minLength: 0)
-                        if loadingImages { ProgressView().frame(width: 24, height: 44) }
-                        Button {
-                            if busy, let id = resolvedId { store.stopSession(id: id) }
-                            else { send() }
-                        } label: {
-                            let active = busy || canSubmit
-                            Image(systemName: busy ? "stop.fill" : "arrow.up")
-                                .font(.body.weight(.semibold))
-                                .foregroundStyle(active ? ArcTheme.onPrimary : ArcTheme.inkFaint)
-                                .frame(width: ArcTheme.sendButton, height: ArcTheme.sendButton)
-                                .background(active ? ArcTheme.primary : ArcTheme.surfaceSunken, in: Circle())
-                                .frame(width: ArcTheme.tapMin, height: ArcTheme.tapMin)
-                                .contentShape(Circle())
-                        }
-                        .accessibilityLabel(busy ? "停止" : "发送")
-                        .disabled(submitting || (busy ? resolvedId == nil : !canSubmit))
+                // Signature T3 Code floating capsule composer
+                HStack(alignment: .bottom, spacing: 8) {
+                    PhotosPicker(selection: $picked, maxSelectionCount: max(1, ChatAttachment.maximumCount - attachments.count), matching: .images) {
+                        Image(systemName: "plus")
+                            .font(.system(size: 19, weight: .regular))
+                            .foregroundStyle(ArcTheme.ink)
+                            .frame(width: 36, height: 36)
+                            .contentShape(Circle())
                     }
+                    .accessibilityLabel("从相册添加图片")
+                    .disabled(!canCompose || loadingImages || attachments.count >= ChatAttachment.maximumCount)
+                    .onChange(of: picked) { _, items in loadImages(items) }
+
+                    TextField("描述你的任务…", text: $draft, axis: .vertical)
+                        .font(.body)
+                        .foregroundStyle(ArcTheme.ink)
+                        .focused($composing)
+                        .lineLimit(1...5)
+                        .padding(.vertical, 8)
+                        .accessibilityIdentifier("composer")
+                        .disabled(!canCompose)
+
+                    if loadingImages {
+                        ProgressView().controlSize(.small).frame(width: 24, height: 36)
+                    }
+
+                    // Official Agent icon + chevron -> opens spacious AgentModelPickerSheet
+                    Button {
+                        composing = false
+                        showModelPicker = true
+                    } label: {
+                        let activeAgent = selectedModelAgent ?? project?.agent ?? .codex
+                        HStack(spacing: 4) {
+                            AgentIcon(agent: activeAgent, size: 18, tint: ArcTheme.ink)
+                            Image(systemName: "chevron.down")
+                                .font(.system(size: 10, weight: .semibold))
+                                .foregroundStyle(ArcTheme.inkMuted)
+                        }
+                        .padding(.horizontal, 6)
+                        .frame(minHeight: 36)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(busy || isMacThread)
+                    .accessibilityLabel("切换 Agent 与模型，当前 \(currentModelName)")
+
+                    Button {
+                        if busy, let id = resolvedId { store.stopSession(id: id) }
+                        else { send() }
+                    } label: {
+                        let active = busy || canSubmit
+                        Image(systemName: busy ? "stop.fill" : "arrow.up")
+                            .font(.system(size: 14, weight: .bold))
+                            .foregroundStyle(active ? ArcTheme.onPrimary : ArcTheme.inkFaint)
+                            .frame(width: 34, height: 34)
+                            .background(busy ? ArcTheme.ink : (canSubmit ? ArcTheme.primary : ArcTheme.line), in: Circle())
+                            .frame(width: 36, height: 36)
+                            .contentShape(Circle())
+                    }
+                    .accessibilityLabel(busy ? "停止" : "发送")
+                    .disabled(submitting || (busy ? resolvedId == nil : !canSubmit))
                 }
-                .padding(.leading, ArcTheme.Space.s2).padding(.trailing, 2).padding(.vertical, 4)
-                .background(ArcTheme.surface, in: RoundedRectangle(cornerRadius: ArcTheme.Radius.xl, style: .continuous))
-                .overlay(RoundedRectangle(cornerRadius: ArcTheme.Radius.xl, style: .continuous).stroke(ArcTheme.line))
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .background(ArcTheme.surfaceSunken, in: RoundedRectangle(cornerRadius: 26, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: 26, style: .continuous).stroke(ArcTheme.line.opacity(0.6), lineWidth: 0.75))
+                .shadow(color: .black.opacity(0.05), radius: 10, y: 2)
 
             }
-            .padding(.horizontal, ArcTheme.Space.s3).padding(.vertical, ArcTheme.Space.s2).background(ArcTheme.bg)
+            .padding(.horizontal, 14).padding(.top, 6).padding(.bottom, 8).background(ArcTheme.chatBg)
 
         }
     }
 
     /// A desktop-app conversation can only be read here; continuing means forking it
-    /// into a new ArcLink conversation (Codex), or starting a fresh one (Claude for now).
+    /// into a new managed conversation using explicitly selected public context.
+    /// Compressed to a single compact row.
     private var desktopSessionBar: some View {
-        let compact = typeSize.isAccessibilitySize
-        return HStack(spacing: ArcTheme.Space.s3) {
+        HStack(spacing: ArcTheme.Space.s3) {
             Image(systemName: "lock")
-                .font(.body.weight(.medium)).foregroundStyle(ArcTheme.inkMuted)
+                .font(.footnote.weight(.semibold)).foregroundStyle(ArcTheme.inkMuted)
                 .accessibilityHidden(true)
-            // At accessibility sizes the bar keeps to one row so the conversation's
-            // last rows can still scroll clear of it; the nav subtitle says 只读.
-            if !compact {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("已在 Mac 桌面端打开").font(.subheadline.weight(.semibold)).foregroundStyle(ArcTheme.ink)
-                    Text(canFork ? "这里只能查看，创建分叉后在手机上继续。" : "Claude 对话暂不支持分叉，可新建对话继续。")
-                        .font(.footnote).foregroundStyle(ArcTheme.inkMuted)
-                }
-                Spacer(minLength: 0)
-                Rectangle().fill(ArcTheme.line).frame(width: 0.5, height: 28)
-            }
+            Text("只读").font(.footnote.weight(.medium)).foregroundStyle(ArcTheme.inkMuted)
+            Spacer(minLength: 0)
             Group {
-                if canFork, let id = resolvedId {
-                    Button("创建分叉") { path.append(Route.fork(projectId: projectId, sourceId: id)) }
+                if let device = store.selectedDeviceID,
+                   store.devices.first(where: { $0.id == device })?.endpointID != nil {
+                    Button("基于历史继续") {
+                        guard let project, let id = resolvedId else { return }
+                        historyContinuation = ImportedHistoryContinuation(deviceID: device, projectPath: project.path, provider: project.agent.agentId, threadID: id, title: sessionRow?.title ?? "历史对话", messages: macMessages)
+                        if historyContinuation == nil { store.show("没有可引用的公开文字历史，请先读取对话。") }
+                    }
+                    .disabled(!store.canSend || loadingMac || macError != nil || macMessages.isEmpty)
+                    .accessibilityIdentifier("history-continue")
+                } else if canFork, let id = resolvedId {
+                    Button("创建分叉继续") { path.append(Route.fork(projectId: projectId, sourceId: id)) }
                         .accessibilityIdentifier("fork-session")
                 } else {
                     Button("新建对话") { path.append(Route.session(projectId: projectId, sessionId: nil)) }
@@ -574,14 +788,12 @@ struct ChatView: View {
                         .accessibilityIdentifier("readonly-new-chat")
                 }
             }
-            .font(.subheadline.weight(.semibold))
+            .font(.footnote.weight(.semibold))
             .foregroundStyle(ArcTheme.primary)
-            .frame(minHeight: compact ? nil : ArcTheme.tapMin)
-            if compact { Spacer(minLength: 0) }
         }
-        .padding(.horizontal, ArcTheme.Space.s4).padding(.vertical, compact ? ArcTheme.Space.s1 : 10)
-        .background(ArcTheme.surface, in: RoundedRectangle(cornerRadius: ArcTheme.Radius.lg, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: ArcTheme.Radius.lg, style: .continuous).stroke(ArcTheme.line))
+        .padding(.horizontal, ArcTheme.Space.s4).padding(.vertical, 10)
+        .background(ArcTheme.surface, in: RoundedRectangle(cornerRadius: ArcTheme.Radius.md, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: ArcTheme.Radius.md, style: .continuous).stroke(ArcTheme.line))
         .padding(.horizontal, ArcTheme.Space.s3).padding(.vertical, ArcTheme.Space.s1)
         .background(ArcTheme.bg)
         .accessibilityElement(children: .contain)
@@ -632,7 +844,8 @@ struct ChatView: View {
         let images = attachments.map(\.data)
         let originalDraft = draft
         submitting = true
-        scrollState.followsLatest = true
+        scrollTracker.state.followsLatest = true
+        if !followsLatest { followsLatest = true }
         scrollRequest += 1
         Task { @MainActor in
             let accepted = await store.sendMessage(sessionId: id, text: text, images: images, deviceID: deviceID)
